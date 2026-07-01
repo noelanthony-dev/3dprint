@@ -57,3 +57,11 @@ Use screenshots first when translating the design into React components. Generat
 - Maintain fast startup by lazy-loading feature pages and avoiding image/report/database work on boot.
 - Do not implement business features while applying visual polish unless that phase is explicitly approved.
 
+## Implemented Foundation
+
+- `src/styles/global.css` owns the initial lightweight design tokens for color, spacing, radius, borders, typography, and dark-mode surface hierarchy.
+- `src/components/layout` owns the PrintOps Studio shell: fixed industrial sidebar, compact top status bar, route-aware headers, and placeholder-only feature framing.
+- `src/components/ui` owns small reusable primitives for badges, metric panels, panels, toolbar buttons, table shells, progress bars, and color swatches.
+- Dashboard, Design Library, HueForge, and Filament Inventory now have custom placeholder compositions based on the Stitch screenshots. Other feature routes use the shared scaffold until their domain UI phases begin.
+- Table placeholders can define explicit CSS grid column tracks when technical content needs more room, especially swatches, progress bars, status badges, and short numeric fields.
+- Dark mode remains the primary direction. Light-mode refinement is deferred until the product surface stabilizes.
