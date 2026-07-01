@@ -1,10 +1,20 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
-import type { AddOnCategory, AddOnInput, AddOnRecord, AddOnUnit } from "@/domain/inventory";
+import {
+  validateAddOnStockAdjustmentInput,
+  type AddOnCategory,
+  type AddOnInput,
+  type AddOnRecord,
+  type AddOnStockAdjustmentInput,
+  type AddOnStockAdjustmentRecord,
+  type AddOnUnit,
+} from "@/domain/inventory";
 
 export interface AddOnsRepository {
+  adjustStock(addOnId: number, input: AddOnStockAdjustmentInput): Promise<AddOnRecord>;
   create(input: AddOnInput): Promise<AddOnRecord>;
   get(id: number): Promise<AddOnRecord | null>;
   list(): Promise<AddOnRecord[]>;
+  listAdjustments(addOnId: number): Promise<AddOnStockAdjustmentRecord[]>;
   update(id: number, input: AddOnInput): Promise<AddOnRecord>;
 }
 
@@ -21,6 +31,16 @@ interface AddOnRow {
   readonly unit: string;
   readonly unit_cost: number;
   readonly updated_at: string;
+}
+
+interface AddOnStockAdjustmentRow {
+  readonly addon_id: number;
+  readonly created_at: string;
+  readonly id: number;
+  readonly notes: string | null;
+  readonly quantity_after: number;
+  readonly quantity_delta: number;
+  readonly reason: string;
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
@@ -40,6 +60,16 @@ const ADD_ON_COLUMNS = `
   updated_at
 `;
 
+const ADD_ON_ADJUSTMENT_COLUMNS = `
+  id,
+  addon_id,
+  quantity_delta,
+  quantity_after,
+  reason,
+  notes,
+  created_at
+`;
+
 export function createAddOnsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
 ): AddOnsRepository {
@@ -57,6 +87,70 @@ export function createAddOnsRepository(
   }
 
   return {
+    async adjustStock(addOnId, input) {
+      const validation = validateAddOnStockAdjustmentInput(input);
+
+      if (!validation.valid) {
+        throw new Error(Object.values(validation.errors)[0] ?? "Invalid add-on adjustment.");
+      }
+
+      const db = await database();
+      const current = await this.get(addOnId);
+
+      if (!current) {
+        throw new Error(`Add-on ${addOnId} does not exist.`);
+      }
+
+      const nextQuantity = roundStockQuantity(current.quantityOnHand + input.quantityDelta);
+
+      if (nextQuantity < 0) {
+        throw new Error("Adjustment cannot reduce add-on quantity below zero.");
+      }
+
+      await db.execute("BEGIN IMMEDIATE");
+
+      try {
+        await db.execute(
+          `UPDATE addons
+           SET
+            quantity_on_hand = $1,
+            updated_at = datetime('now')
+           WHERE id = $2`,
+          [nextQuantity, addOnId],
+        );
+
+        await db.execute(
+          `INSERT INTO addon_stock_adjustments (
+            addon_id,
+            quantity_delta,
+            quantity_after,
+            reason,
+            notes
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            addOnId,
+            input.quantityDelta,
+            nextQuantity,
+            input.reason.trim(),
+            input.notes.trim(),
+          ],
+        );
+
+        await db.execute("COMMIT");
+      } catch (error) {
+        await db.execute("ROLLBACK");
+        throw error;
+      }
+
+      const updated = await this.get(addOnId);
+
+      if (!updated) {
+        throw new Error("Adjusted add-on could not be loaded.");
+      }
+
+      return updated;
+    },
+
     async create(input) {
       const db = await database();
       const values = toPersistedValues(input);
@@ -113,6 +207,20 @@ export function createAddOnsRepository(
       );
 
       return rows.map(mapAddOnRow);
+    },
+
+    async listAdjustments(addOnId) {
+      const db = await database();
+      const rows = await db.select<AddOnStockAdjustmentRow[]>(
+        `SELECT ${ADD_ON_ADJUSTMENT_COLUMNS}
+         FROM addon_stock_adjustments
+         WHERE addon_id = $1
+         ORDER BY created_at DESC, id DESC
+         LIMIT 12`,
+        [addOnId],
+      );
+
+      return rows.map(mapAddOnStockAdjustmentRow);
     },
 
     async update(id, input) {
@@ -172,6 +280,24 @@ async function ensureAddOnsSchema(db: SqlDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_addons_active_category
     ON addons (is_active, category, item_name)
   `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS addon_stock_adjustments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      addon_id INTEGER NOT NULL,
+      quantity_delta REAL NOT NULL CHECK (quantity_delta != 0),
+      quantity_after REAL NOT NULL CHECK (quantity_after >= 0),
+      reason TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.execute(`
+    CREATE INDEX IF NOT EXISTS idx_addon_stock_adjustments_item
+    ON addon_stock_adjustments (addon_id, created_at DESC)
+  `);
 }
 
 function toPersistedValues(input: AddOnInput): readonly unknown[] {
@@ -203,6 +329,22 @@ function mapAddOnRow(row: AddOnRow): AddOnRecord {
     unitCost: row.unit_cost,
     updatedAt: row.updated_at,
   };
+}
+
+function mapAddOnStockAdjustmentRow(row: AddOnStockAdjustmentRow): AddOnStockAdjustmentRecord {
+  return {
+    addOnId: row.addon_id,
+    createdAt: row.created_at,
+    id: row.id,
+    notes: row.notes ?? "",
+    quantityAfter: row.quantity_after,
+    quantityDelta: row.quantity_delta,
+    reason: row.reason,
+  };
+}
+
+function roundStockQuantity(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 export const addOnsRepository = createAddOnsRepository();

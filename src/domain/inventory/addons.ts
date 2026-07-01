@@ -39,8 +39,29 @@ export interface AddOnInput {
   readonly isActive: boolean;
 }
 
+export interface AddOnStockAdjustmentInput {
+  readonly quantityDelta: number;
+  readonly reason: string;
+  readonly notes: string;
+}
+
+export interface AddOnStockAdjustmentRecord {
+  readonly addOnId: number;
+  readonly createdAt: string;
+  readonly id: number;
+  readonly notes: string;
+  readonly quantityAfter: number;
+  readonly quantityDelta: number;
+  readonly reason: string;
+}
+
 export interface AddOnValidationResult {
   readonly errors: Partial<Record<keyof AddOnInput, string>>;
+  readonly valid: boolean;
+}
+
+export interface AddOnStockAdjustmentValidationResult {
+  readonly errors: Partial<Record<keyof AddOnStockAdjustmentInput, string>>;
   readonly valid: boolean;
 }
 
@@ -109,6 +130,25 @@ export function validateAddOnInput(input: AddOnInput): AddOnValidationResult {
 
   if (!Number.isFinite(input.unitCost) || input.unitCost < 0) {
     errors.unitCost = "Unit cost must be zero or greater.";
+  }
+
+  return {
+    errors,
+    valid: Object.keys(errors).length === 0,
+  };
+}
+
+export function validateAddOnStockAdjustmentInput(
+  input: AddOnStockAdjustmentInput,
+): AddOnStockAdjustmentValidationResult {
+  const errors: Partial<Record<keyof AddOnStockAdjustmentInput, string>> = {};
+
+  if (!Number.isFinite(input.quantityDelta) || input.quantityDelta === 0) {
+    errors.quantityDelta = "Adjustment quantity must be a non-zero number.";
+  }
+
+  if (!input.reason.trim()) {
+    errors.reason = "Adjustment reason is required.";
   }
 
   return {

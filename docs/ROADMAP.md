@@ -64,20 +64,43 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 - Keep inventory deduction, production runs, sales, reports, and license subscription allocation out of this phase.
 - Status: complete for saved print profiles and costing/pricing guidance.
 
-## Phase 9: Production Runs and Sales
+## Phase 9: Production Runs
 
 - Log production runs with expected, good, and failed pieces.
-- Deduct filament and add-ons when production runs are logged.
-- Add sales records and finished goods stock movement.
+- Deduct estimated filament and optional add-ons when production runs are logged.
+- Add finished goods stock movement for good pieces.
+- Preserve stock adjustment records for production deductions and future manual corrections.
+- Keep sales records out of this phase.
+- Status: complete for the production run logging, estimated deduction, and finished-goods output MVP.
 
-## Phase 10: Expenses, Memberships, Reports
+## Phase 10: Sales
+
+- Record sales and reduce finished goods stock.
+- Track date, product, quantity, sale unit, channel, revenue, discounts/fees if approved, and notes.
+- Keep full accounting and cloud integrations out of this phase.
+- Status: complete for the offline sales list, sale entry, revenue totals, and finished-goods stock reduction MVP.
+
+## Phase 11: Expenses, Memberships, and Licenses
 
 - Track expenses, memberships, and commercial licenses.
 - Show license warnings without hard blocks.
+- Track recurring/monthly overhead without allocating subscriptions into product cost.
+- Keep full accounting, tax logic, reminders, and sync out of this phase.
+- Status: complete for expense entry, membership tracking, monthly overhead helpers, and warning-only commercial license status.
+
+## Phase 12: Shopping List
+
+- Add manual shopping list items.
+- Add generated suggestions for low-stock add-ons and missing HueForge filaments if the source modules exist.
+- Keep generated suggestions explainable and non-destructive.
+
+## Phase 13: Monthly Reports
+
 - Add basic monthly report pages.
 - Run report calculations only when reports are opened or refreshed.
+- Keep report calculations in `src/domain/reports`.
 
-## Phase 11: Backup / Export / Import and Polish
+## Phase 14: Backup / Export / Import and Polish
 
 - Add manual backup/export/import workflows.
 - Add Tauri dialog and file-system plugin integration.

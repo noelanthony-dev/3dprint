@@ -49,8 +49,29 @@ export interface FilamentInput {
   readonly lowStockThresholdGrams: number;
 }
 
+export interface FilamentStockAdjustmentInput {
+  readonly gramsDelta: number;
+  readonly reason: string;
+  readonly notes: string;
+}
+
+export interface FilamentStockAdjustmentRecord {
+  readonly createdAt: string;
+  readonly filamentId: number;
+  readonly gramsAfter: number;
+  readonly gramsDelta: number;
+  readonly id: number;
+  readonly notes: string;
+  readonly reason: string;
+}
+
 export interface FilamentValidationResult {
   readonly errors: Partial<Record<keyof FilamentInput, string>>;
+  readonly valid: boolean;
+}
+
+export interface FilamentStockAdjustmentValidationResult {
+  readonly errors: Partial<Record<keyof FilamentStockAdjustmentInput, string>>;
   readonly valid: boolean;
 }
 
@@ -143,6 +164,25 @@ export function validateFilamentInput(input: FilamentInput): FilamentValidationR
 
   if (input.lowStockThresholdGrams < 0) {
     errors.lowStockThresholdGrams = "Low-stock threshold cannot be negative.";
+  }
+
+  return {
+    errors,
+    valid: Object.keys(errors).length === 0,
+  };
+}
+
+export function validateFilamentStockAdjustmentInput(
+  input: FilamentStockAdjustmentInput,
+): FilamentStockAdjustmentValidationResult {
+  const errors: Partial<Record<keyof FilamentStockAdjustmentInput, string>> = {};
+
+  if (!Number.isFinite(input.gramsDelta) || input.gramsDelta === 0) {
+    errors.gramsDelta = "Adjustment grams must be a non-zero number.";
+  }
+
+  if (!input.reason.trim()) {
+    errors.reason = "Adjustment reason is required.";
   }
 
   return {

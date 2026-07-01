@@ -695,6 +695,15 @@ textarea {
   color: var(--color-primary-bright);
 }
 
+.numeric-readout {
+  color: var(--color-muted);
+  font-family: var(--mono);
+}
+
+.numeric-readout strong {
+  color: var(--color-primary-bright);
+}
+
 .table-input {
   width: 100%;
   min-height: 30px;
@@ -927,6 +936,29 @@ textarea {
 
 .hueforge-warning-grid {
   margin-top: var(--space-4);
+}
+
+.warning-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.warning-list__item {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid rgba(253, 191, 2, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-dim);
+  padding: var(--space-3);
+}
+
+.warning-list__item strong {
+  color: var(--color-text);
+}
+
+.warning-list__item span {
+  color: var(--color-muted);
 }
 
 .cost-breakdown {
