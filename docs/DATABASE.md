@@ -4,7 +4,7 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slices are filament inventory, add-ons/hardware inventory, and finished goods home stock.
+The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, and product/design library records.
 
 ## SQLite Location
 
@@ -106,6 +106,29 @@ Implemented `finished_good_stock_adjustments` fields:
 
 The `finished_goods` and `finished_good_stock_adjustments` schemas are currently created by `src/data/repositories/finishedGoodsRepository.ts` on first repository use. This slice tracks home stock only. Cafe stock, sales records, production-run automation, and product-library foreign keys are intentionally deferred.
 
+## Product / Design Library Slice
+
+Implemented table:
+
+- `products`
+
+Implemented fields:
+
+- `id`
+- `design_name`
+- `source_link`
+- `author_name`
+- `category`
+- `sale_unit`
+- `commercial_license_status`
+- `license_notes`
+- `notes`
+- `image_reference`
+- `created_at`
+- `updated_at`
+
+The `products` schema is currently created by `src/data/repositories/productsRepository.ts` on first repository use. The `image_reference` field stores one optional reference string only. There is no image upload, copying, resizing, gallery, product costing, HueForge matching, production automation, or sales integration in this slice.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
@@ -116,7 +139,6 @@ The current `0000_scaffold_only.sql` file remains documentation-only and must no
 
 Future schema planning should consider these tables:
 
-- `products`
 - `product_images`
 - `author_filament_requirements`
 - `print_profiles`

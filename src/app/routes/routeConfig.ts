@@ -126,7 +126,7 @@ export const appRoutes = [
     Page: DashboardPage,
   },
   {
-    description: "Design library and product catalog placeholder.",
+    description: "Design library and product catalog tracking.",
     id: "products",
     label: "Products",
     path: "/products",

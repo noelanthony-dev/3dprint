@@ -42,9 +42,11 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 
 ## Phase 6: Design Library / Products
 
-- Add product and design library models.
-- Support source links, author details, categories, sale units, and one optional image field.
-- Avoid complex image management.
+- Add product and design library screens.
+- Track design name, source link, author/designer, category, sale unit, commercial license status and notes, general notes, and one optional image reference.
+- Add pure helper tests and SQLite repository boundary tests.
+- Keep HueForge matching, inventory deduction, costing, production, sales, and complex image management out of this phase.
+- Status: complete for the product/design add/edit/list and detail MVP.
 
 ## Phase 7: HueForge Match Checker
 
