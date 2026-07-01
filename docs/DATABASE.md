@@ -4,7 +4,7 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, and HueForge match snapshots.
+The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, HueForge match snapshots, and print profiles/costing.
 
 ## SQLite Location
 
@@ -170,6 +170,39 @@ Implemented `author_filament_requirements` fields:
 
 The HueForge schemas are currently created by `src/data/repositories/hueForgeRepository.ts` on first repository use. Saving from HueForge creates a product/design record, then stores the author requirements, suggested owned matches, missing warnings, and feasibility notes. It does not deduct filament inventory.
 
+## Print Profiles and Costing Slice
+
+Implemented table:
+
+- `print_profiles`
+
+Implemented fields:
+
+- `id`
+- `product_id`
+- `profile_name`
+- `sale_unit`
+- `filament_grams`
+- `support_grams`
+- `filament_cost_per_kg`
+- `add_on_description`
+- `add_on_cost`
+- `print_hours`
+- `print_minutes`
+- `electricity_rate_per_kwh`
+- `printer_power_watts`
+- `wear_rate_per_hour`
+- `labor_minutes`
+- `labor_rate_per_hour`
+- `expected_good_units`
+- `expected_failed_units`
+- `target_markup`
+- `notes`
+- `created_at`
+- `updated_at`
+
+The `print_profiles` schema is currently created by `src/data/repositories/printProfilesRepository.ts` on first repository use. Profiles are linked to `products.id` and store costing inputs only. They do not deduct filament, consume add-ons, log production runs, create sales, or allocate license subscriptions.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
@@ -181,7 +214,6 @@ The current `0000_scaffold_only.sql` file remains documentation-only and must no
 Future schema planning should consider these tables:
 
 - `product_images`
-- `print_profiles`
 - `print_profile_filaments`
 - `product_addons`
 - `production_runs`

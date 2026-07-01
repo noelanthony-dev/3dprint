@@ -58,9 +58,11 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 
 ## Phase 8: Print Profiles and Costing
 
-- Add print profile inputs.
-- Add pure costing and pricing formulas.
-- Add focused unit tests before relying on calculations in UI.
+- Add print profile inputs linked to product/design records.
+- Track filament usage estimates, purge/support grams, add-on estimate text/cost, print time, electricity, wear, labor, yield/failure allowance, sale unit, and target markup.
+- Add pure costing and pricing formulas with focused tests.
+- Keep inventory deduction, production runs, sales, reports, and license subscription allocation out of this phase.
+- Status: complete for saved print profiles and costing/pricing guidance.
 
 ## Phase 9: Production Runs and Sales
 

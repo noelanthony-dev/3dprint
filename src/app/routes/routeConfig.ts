@@ -168,7 +168,7 @@ export const appRoutes = [
     Page: FinishedGoodsInventoryPage,
   },
   {
-    description: "Print profile and costing placeholder.",
+    description: "Print profiles and pure costing calculator.",
     id: "costing",
     label: "Costing",
     path: "/costing",
