@@ -72,3 +72,9 @@ Use screenshots first when translating the design into React components. Generat
 - Color swatches can render with or without labels so dense technical tables can use compact color-only cells.
 - Product, HueForge, and filament screens use richer sample data to match Stitch density. These values are static visual placeholders, not calculated or database-backed values.
 - Selected-item side panels should use technical key/value blocks, warning callouts, compact badges, and progress indicators before any real editing workflows are introduced.
+
+## HueForge Match UI
+
+- HueForge matching uses dense editable requirement rows and match cards with swatches, match badges, TD delta, RGB color distance, and stock readouts.
+- The current color comparison is a temporary RGB distance heuristic. If perceptual Delta E matching is approved later, preserve the same match-card UI contract and swap the underlying domain calculation.
+- Feasibility copy should remain explicit about non-destructive behavior: adding to Design Library saves metadata and match snapshots only, with no filament deduction.

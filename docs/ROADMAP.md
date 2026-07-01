@@ -50,10 +50,11 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 
 ## Phase 7: HueForge Match Checker
 
-- Add HueForge requirement entry.
-- Match owned filament by type, color, TD, and stock availability.
-- Add Culori only when perceptual color matching is implemented.
-- Add "Add to Design Library" without deducting inventory.
+- Add editable author/designer HueForge filament requirements.
+- Match owned filament by material type, temporary RGB color distance, TD closeness, and stock availability.
+- Save HueForge designs to the Design Library with requirements, suggested owned matches, missing warnings, and feasibility notes.
+- Keep Culori/Delta E, production deductions, costing, sales, and complex image management out of this phase.
+- Status: complete for the matching and save-to-library MVP.
 
 ## Phase 8: Print Profiles and Costing
 

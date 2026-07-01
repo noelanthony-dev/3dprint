@@ -133,7 +133,7 @@ export const appRoutes = [
     Page: ProductLibraryPage,
   },
   {
-    description: "HueForge filament matching placeholder.",
+    description: "HueForge requirement matching against owned filament.",
     id: "hueforge",
     label: "HueForge",
     path: "/hueforge",

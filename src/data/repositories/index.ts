@@ -1,6 +1,7 @@
 export * from "./addOnsRepository";
 export * from "./filamentsRepository";
 export * from "./finishedGoodsRepository";
+export * from "./hueForgeRepository";
 export * from "./productsRepository";
 
 export const repositoryBoundary = {

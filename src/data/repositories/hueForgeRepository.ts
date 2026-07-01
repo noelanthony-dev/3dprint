@@ -1,0 +1,179 @@
+import { getDatabase, type SqlDatabase } from "@/data/db/client";
+import type {
+  HueForgeFeasibilityStatus,
+  HueForgeRequirementInput,
+  HueForgeRequirementMatch,
+} from "@/domain/hueforge";
+
+export interface SaveHueForgeAnalysisInput {
+  readonly feasibilityNotes: string;
+  readonly feasibilityStatus: HueForgeFeasibilityStatus;
+  readonly matches: readonly HueForgeRequirementMatch[];
+  readonly missingWarnings: readonly string[];
+  readonly productId: number;
+}
+
+export interface HueForgeRepository {
+  saveAnalysis(input: SaveHueForgeAnalysisInput): Promise<void>;
+}
+
+type DatabaseFactory = () => Promise<SqlDatabase>;
+
+export function createHueForgeRepository(
+  databaseFactory: DatabaseFactory = getDatabase,
+): HueForgeRepository {
+  let schemaReady = false;
+
+  async function database(): Promise<SqlDatabase> {
+    const db = await databaseFactory();
+
+    if (!schemaReady) {
+      await ensureHueForgeSchema(db);
+      schemaReady = true;
+    }
+
+    return db;
+  }
+
+  return {
+    async saveAnalysis(input) {
+      const db = await database();
+
+      await db.execute("BEGIN IMMEDIATE");
+
+      try {
+        await db.execute("DELETE FROM author_filament_requirements WHERE product_id = $1", [
+          input.productId,
+        ]);
+        await db.execute("DELETE FROM hueforge_design_analyses WHERE product_id = $1", [
+          input.productId,
+        ]);
+
+        await db.execute(
+          `INSERT INTO hueforge_design_analyses (
+            product_id,
+            feasibility_status,
+            feasibility_notes,
+            missing_warnings
+          ) VALUES ($1, $2, $3, $4)`,
+          [
+            input.productId,
+            input.feasibilityStatus,
+            input.feasibilityNotes,
+            input.missingWarnings.join("\n"),
+          ],
+        );
+
+        for (const match of input.matches) {
+          await db.execute(
+            `INSERT INTO author_filament_requirements (
+              product_id,
+              role,
+              brand,
+              material_type,
+              color_name,
+              hex_color,
+              transmission_distance,
+              required_grams,
+              layer_range,
+              suggested_filament_id,
+              suggested_filament_label,
+              match_score,
+              match_status,
+              color_distance,
+              td_delta,
+              stock_signal,
+              warning
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
+            toRequirementValues(input.productId, match),
+          );
+        }
+
+        await db.execute("COMMIT");
+      } catch (error) {
+        await db.execute("ROLLBACK");
+        throw error;
+      }
+    },
+  };
+}
+
+async function ensureHueForgeSchema(db: SqlDatabase): Promise<void> {
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS hueforge_design_analyses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL UNIQUE,
+      feasibility_status TEXT NOT NULL CHECK (
+        feasibility_status IN ('ready', 'needs-test', 'missing')
+      ),
+      feasibility_notes TEXT NOT NULL,
+      missing_warnings TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+    )
+  `);
+
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS author_filament_requirements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      role TEXT NOT NULL,
+      brand TEXT NOT NULL,
+      material_type TEXT NOT NULL,
+      color_name TEXT NOT NULL,
+      hex_color TEXT NOT NULL,
+      transmission_distance REAL NOT NULL,
+      required_grams REAL NOT NULL DEFAULT 0 CHECK (required_grams >= 0),
+      layer_range TEXT,
+      suggested_filament_id INTEGER,
+      suggested_filament_label TEXT,
+      match_score INTEGER NOT NULL DEFAULT 0,
+      match_status TEXT NOT NULL CHECK (
+        match_status IN ('excellent', 'good', 'test', 'missing')
+      ),
+      color_distance REAL,
+      td_delta REAL,
+      stock_signal TEXT NOT NULL,
+      warning TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+      FOREIGN KEY (suggested_filament_id) REFERENCES filaments(id) ON DELETE SET NULL
+    )
+  `);
+
+  await db.execute(`
+    CREATE INDEX IF NOT EXISTS idx_author_filament_requirements_product
+    ON author_filament_requirements (product_id, role)
+  `);
+}
+
+function toRequirementValues(
+  productId: number,
+  match: HueForgeRequirementMatch,
+): readonly unknown[] {
+  const requirement: HueForgeRequirementInput = match.requirement;
+  const filament = match.matchedFilament;
+
+  return [
+    productId,
+    requirement.role.trim(),
+    requirement.brand.trim(),
+    requirement.materialType,
+    requirement.colorName.trim(),
+    requirement.hexColor.trim().toLowerCase(),
+    requirement.transmissionDistance,
+    requirement.requiredGrams,
+    requirement.layerRange.trim(),
+    filament?.id ?? null,
+    filament ? `${filament.brand} ${filament.name}` : "",
+    match.matchScore,
+    match.status,
+    match.colorDistance,
+    match.tdDelta,
+    match.stockSignal,
+    match.warning,
+  ];
+}
+
+export const hueForgeRepository = createHueForgeRepository();

@@ -4,7 +4,7 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, and product/design library records.
+The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, and HueForge match snapshots.
 
 ## SQLite Location
 
@@ -129,6 +129,47 @@ Implemented fields:
 
 The `products` schema is currently created by `src/data/repositories/productsRepository.ts` on first repository use. The `image_reference` field stores one optional reference string only. There is no image upload, copying, resizing, gallery, product costing, HueForge matching, production automation, or sales integration in this slice.
 
+## HueForge Match Slice
+
+Implemented tables:
+
+- `hueforge_design_analyses`
+- `author_filament_requirements`
+
+Implemented `hueforge_design_analyses` fields:
+
+- `id`
+- `product_id`
+- `feasibility_status`
+- `feasibility_notes`
+- `missing_warnings`
+- `created_at`
+- `updated_at`
+
+Implemented `author_filament_requirements` fields:
+
+- `id`
+- `product_id`
+- `role`
+- `brand`
+- `material_type`
+- `color_name`
+- `hex_color`
+- `transmission_distance`
+- `required_grams`
+- `layer_range`
+- `suggested_filament_id`
+- `suggested_filament_label`
+- `match_score`
+- `match_status`
+- `color_distance`
+- `td_delta`
+- `stock_signal`
+- `warning`
+- `created_at`
+
+The HueForge schemas are currently created by `src/data/repositories/hueForgeRepository.ts` on first repository use. Saving from HueForge creates a product/design record, then stores the author requirements, suggested owned matches, missing warnings, and feasibility notes. It does not deduct filament inventory.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
@@ -140,7 +181,6 @@ The current `0000_scaffold_only.sql` file remains documentation-only and must no
 Future schema planning should consider these tables:
 
 - `product_images`
-- `author_filament_requirements`
 - `print_profiles`
 - `print_profile_filaments`
 - `product_addons`

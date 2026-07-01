@@ -691,6 +691,34 @@ textarea {
   color: var(--color-primary-bright);
 }
 
+.table-input {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #090b0c;
+  color: var(--color-text);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.table-input--short {
+  max-width: 88px;
+}
+
+.table-field-stack {
+  display: grid;
+  width: 100%;
+  gap: var(--space-1);
+}
+
+.table-field-stack > span {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: var(--space-1);
+}
+
 .data-table__footer {
   border-top: 1px solid var(--color-border);
   color: var(--color-subtle);
@@ -891,6 +919,10 @@ textarea {
 .callout--warning {
   border-color: rgba(253, 191, 2, 0.5);
   background: var(--color-warning-dim);
+}
+
+.hueforge-warning-grid {
+  margin-top: var(--space-4);
 }
 
 .empty-state {
