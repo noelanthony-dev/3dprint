@@ -8,47 +8,61 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 - Maintain lazy-loaded placeholder pages.
 - Keep data, domain, and infrastructure folders separated.
 - Prepare SQLite documentation without implementing persistence.
+- Status: complete.
 
-## Phase 2: Filament Inventory and Add-ons
+## Phase 2: Stitch UI Foundation
 
-- Add filament inventory screens and repositories.
+- Translate the Stitch Industrial Precision shell and placeholder screens into project-native React and CSS.
+- Add lightweight UI primitives without heavy styling dependencies.
+- Status: complete.
+
+## Phase 3: Filament Inventory MVP
+
+- Add filament inventory screens and SQLite repository.
+- Track brand/name, material, color metadata, TD, status, starting grams, estimated grams left, cost, source notes, and low-stock threshold.
+- Add pure inventory helpers and focused tests.
+- Keep automatic production-run deduction out of this phase.
+- Status: complete.
+
+## Phase 4: Add-ons and Hardware
+
 - Add add-ons and hardware inventory screens.
 - Add stock adjustment tests.
 - Keep grams-left deductions estimate-based with manual adjustment.
 
-## Phase 3: Design Library / Products
+## Phase 5: Design Library / Products
 
 - Add product and design library models.
 - Support source links, author details, categories, sale units, and one optional image field.
 - Avoid complex image management.
 
-## Phase 4: HueForge Match Checker
+## Phase 6: HueForge Match Checker
 
 - Add HueForge requirement entry.
 - Match owned filament by type, color, TD, and stock availability.
 - Add Culori only when perceptual color matching is implemented.
 - Add "Add to Design Library" without deducting inventory.
 
-## Phase 5: Print Profiles and Costing
+## Phase 7: Print Profiles and Costing
 
 - Add print profile inputs.
 - Add pure costing and pricing formulas.
 - Add focused unit tests before relying on calculations in UI.
 
-## Phase 6: Production Runs and Sales
+## Phase 8: Production Runs and Sales
 
 - Log production runs with expected, good, and failed pieces.
 - Deduct filament and add-ons when production runs are logged.
 - Add sales records and finished goods stock movement.
 
-## Phase 7: Expenses, Memberships, Reports
+## Phase 9: Expenses, Memberships, Reports
 
 - Track expenses, memberships, and commercial licenses.
 - Show license warnings without hard blocks.
 - Add basic monthly report pages.
 - Run report calculations only when reports are opened or refreshed.
 
-## Phase 8: Backup / Export / Import and Polish
+## Phase 10: Backup / Export / Import and Polish
 
 - Add manual backup/export/import workflows.
 - Add Tauri dialog and file-system plugin integration.

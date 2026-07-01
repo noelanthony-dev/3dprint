@@ -1,4 +1,5 @@
 # SQLite Client
 
-Placeholder for future Tauri SQL plugin setup. The database client should be initialized outside React components and exposed through repository modules.
+The native app uses `@tauri-apps/plugin-sql` and loads `sqlite:printops-studio.db`.
 
+The client is initialized outside React and exposed only to repository modules. Do not import the SQL plugin directly from feature components or shared UI components.

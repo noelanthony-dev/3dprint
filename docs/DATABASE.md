@@ -2,13 +2,21 @@
 
 ## Direction
 
-All data will eventually live in a local SQLite database. The app should use the Tauri SQL plugin later, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
+All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-Persistence is not implemented in this scaffold.
+The current implemented persistence slice is filament inventory only.
+
+## SQLite Location
+
+The frontend database client loads:
+
+- `sqlite:printops-studio.db`
+
+For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when the filament inventory repository is used.
 
 ## Access Pattern
 
-All future SQLite access must go through repository modules under `src/data/repositories`.
+All SQLite access must go through repository modules under `src/data/repositories`.
 
 Rules:
 
@@ -16,19 +24,45 @@ Rules:
 - No raw SQL inside shared UI components.
 - No database calls from pure domain modules.
 - Repositories map SQLite rows into application-friendly data shapes.
-- Feature modules call repositories through feature services or hooks once those layers exist.
+- Feature modules call repositories; service or hook layers can be added later when workflows span multiple repositories.
+
+## Filament Inventory Slice
+
+Implemented table:
+
+- `filaments`
+
+Implemented fields:
+
+- `id`
+- `brand`
+- `name`
+- `material_type`
+- `color_name`
+- `hex_color`
+- `transmission_distance`
+- `spool_status`
+- `starting_grams`
+- `estimated_grams_left`
+- `spool_cost`
+- `purchase_source`
+- `notes`
+- `low_stock_threshold_grams`
+- `created_at`
+- `updated_at`
+
+The `filaments` schema is currently created by `src/data/repositories/filamentsRepository.ts` on first repository use. This keeps schema work out of React and avoids database work during application boot.
 
 ## Migration Folder
 
-Migrations will live in `src/data/db/migrations`.
+Migrations live in `src/data/db/migrations`.
 
-The current `0000_scaffold_only.sql` file is documentation-only and must not be treated as production schema.
+The current `0000_scaffold_only.sql` file remains documentation-only and must not be treated as production schema. A fuller migration runner can replace the repository-local schema creation once more persisted modules exist.
 
 ## Planned Tables
 
 Future schema planning should consider these tables:
 
-- `filaments`
 - `addons`
 - `finished_goods`
 - `products`
@@ -52,4 +86,3 @@ Do not implement the full schema until the relevant feature phase is approved.
 ## Backup Direction
 
 Backup, export, and import should be manual workflows later through Tauri dialog and file-system plugins. Do not add background sync or remote storage.
-
