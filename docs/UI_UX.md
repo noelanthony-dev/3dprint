@@ -65,3 +65,10 @@ Use screenshots first when translating the design into React components. Generat
 - Dashboard, Design Library, HueForge, and Filament Inventory now have custom placeholder compositions based on the Stitch screenshots. Other feature routes use the shared scaffold until their domain UI phases begin.
 - Table placeholders can define explicit CSS grid column tracks when technical content needs more room, especially swatches, progress bars, status badges, and short numeric fields.
 - Dark mode remains the primary direction. Light-mode refinement is deferred until the product surface stabilizes.
+
+## Phase 2 Refinements
+
+- Search bars and segmented filters are lightweight disabled UI primitives for placeholder screens. They communicate future workflows without introducing state, filtering, or persistence.
+- Color swatches can render with or without labels so dense technical tables can use compact color-only cells.
+- Product, HueForge, and filament screens use richer sample data to match Stitch density. These values are static visual placeholders, not calculated or database-backed values.
+- Selected-item side panels should use technical key/value blocks, warning callouts, compact badges, and progress indicators before any real editing workflows are introduced.

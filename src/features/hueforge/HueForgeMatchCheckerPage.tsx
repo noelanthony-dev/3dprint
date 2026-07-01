@@ -22,24 +22,28 @@ export function HueForgeMatchCheckerPage() {
             </label>
             <label>
               <span>Author</span>
-              <input disabled placeholder="Designer handle" />
+              <input disabled placeholder="NeonPrints3D" />
+            </label>
+            <label>
+              <span>Category</span>
+              <input disabled placeholder="Wall Art" />
             </label>
             <label>
               <span>Notes</span>
-              <textarea disabled placeholder="Layer swaps and feasibility notes later." />
+              <textarea disabled placeholder="Requires 0.08mm layer height for optimal blending." />
             </label>
           </div>
         </Panel>
 
         <Panel title="Required Filaments" actions={<Badge>4 colors</Badge>}>
           <DataTable
-            columns={["Role", "Color", "TD", "Swap"]}
-            columnsTemplate="0.9fr minmax(170px, 1.6fr) 0.5fr 0.75fr"
+            columns={["Role", "Brand / Color", "TD", "g", "Swap"]}
+            columnsTemplate="0.85fr minmax(170px, 1.5fr) 0.45fr 0.45fr 0.7fr"
             rows={[
-              ["Base", <Swatch color="#1a1a1a" label="Black PLA" />, "0.6", "L0-L12"],
-              ["Midtone 1", <Swatch color="#8a2be2" label="Purple PETG" />, "2.4", "L13-L18"],
-              ["Midtone 2", <Swatch color="#ff1493" label="Magenta PLA+" />, "4.1", "L19-L24"],
-              ["Highlight", <Swatch color="#00ffff" label="Cyan PLA" />, "6.8", "L25-L30"],
+              ["Base / Shadow", <Swatch color="#1a1a1a" label="Bambu PLA Basic Black" />, "0.6", "15.2", "L0-L12"],
+              ["Midtone 1", <Swatch color="#8a2be2" label="Polymaker Purple" />, "2.4", "8.5", "L13-L18"],
+              ["Midtone 2", <Swatch color="#ff1493" label="eSun PLA+ Magenta" />, "4.1", "4.2", "L19-L24"],
+              ["Highlight", <Swatch color="#00ffff" label="Sunlu PLA Cyan" />, "6.8", "2.1", "L25-L30"],
             ]}
           />
         </Panel>
@@ -47,19 +51,22 @@ export function HueForgeMatchCheckerPage() {
         <Panel title="Inventory Matches" actions={<Badge tone="success">Preview</Badge>}>
           <div className="match-list">
             <div className="match-card">
+              <span className="match-card__arrow">-&gt;</span>
               <Swatch color="#101010" label="Sunlu PLA Matte Black" />
               <Badge tone="success">Excellent</Badge>
-              <span>TD and stock checks are future domain logic.</span>
+              <span className="match-card__copy">TD 0.5 / 840g in stock</span>
             </div>
             <div className="match-card">
+              <span className="match-card__arrow">-&gt;</span>
               <Swatch color="#8a2be2" label="Elegoo Deep Purple" />
               <Badge tone="success">Good sub</Badge>
-              <span>Perceptual color matching comes later.</span>
+              <span className="match-card__copy">TD 2.8 / 320g in stock</span>
             </div>
             <div className="match-card">
+              <span className="match-card__arrow">-&gt;</span>
               <Swatch color="#ff4ba3" label="Overture PLA Pink" />
               <Badge tone="warning">Test first</Badge>
-              <span>Feasibility warning placeholder only.</span>
+              <span className="match-card__copy">TD variance warning</span>
             </div>
           </div>
         </Panel>

@@ -1,6 +1,6 @@
 interface SwatchProps {
   readonly color: string;
-  readonly label: string;
+  readonly label?: string;
 }
 
 export function Swatch({ color, label }: SwatchProps) {
@@ -11,8 +11,7 @@ export function Swatch({ color, label }: SwatchProps) {
         className="swatch__chip"
         style={{ backgroundColor: color }}
       />
-      <span>{label}</span>
+      {label ? <span>{label}</span> : null}
     </span>
   );
 }
-
