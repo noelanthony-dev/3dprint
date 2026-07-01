@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dashboard - PrintOps Studio</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:wght@100..900&family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#69ff87",
+                        "tertiary": "#fdbf02",
+                        "on-primary": "#003912",
+                        "secondary-fixed-dim": "#c7c6c6",
+                        "on-primary-container": "#004c1b",
+                        "surface": "#121415",
+                        "surface-container-high": "#282a2b",
+                        "tertiary-container": "#dba500",
+                        "on-secondary-container": "#b6b5b5",
+                        "tertiary-fixed": "#ffdf9e",
+                        "inverse-surface": "#e2e2e3",
+                        "on-secondary-fixed-variant": "#464747",
+                        "on-primary-fixed-variant": "#00531e",
+                        "surface-variant": "#333536",
+                        "on-error-container": "#ffdad6",
+                        "on-surface-variant": "#bbcbb8",
+                        "surface-container-lowest": "#0c0e0f",
+                        "on-background": "#e2e2e3",
+                        "on-tertiary-container": "#543e00",
+                        "secondary-container": "#464747",
+                        "secondary-fixed": "#e3e2e2",
+                        "on-secondary": "#303031",
+                        "surface-tint": "#3ce36a",
+                        "surface-container-low": "#1a1c1d",
+                        "on-surface": "#e2e2e3",
+                        "inverse-on-surface": "#2f3132",
+                        "error": "#ffb4ab",
+                        "primary-container": "#00c853",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "outline": "#869583",
+                        "on-tertiary-fixed": "#261a00",
+                        "surface-container-highest": "#333536",
+                        "on-error": "#690005",
+                        "primary-fixed-dim": "#3ce36a",
+                        "tertiary-fixed-dim": "#fabd00",
+                        "surface-bright": "#38393a",
+                        "error-container": "#93000a",
+                        "outline-variant": "#3c4a3c",
+                        "on-tertiary-fixed-variant": "#5b4300",
+                        "surface-container": "#1e2021",
+                        "primary": "#3fe56c",
+                        "background": "#121415",
+                        "secondary": "#c7c6c6",
+                        "inverse-primary": "#006e2a",
+                        "on-primary-fixed": "#002108",
+                        "surface-dim": "#121415",
+                        "on-tertiary": "#3f2e00"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit-1": "4px",
+                        "unit-8": "32px",
+                        "unit-4": "16px",
+                        "base": "4px",
+                        "unit-6": "24px",
+                        "gutter": "16px",
+                        "container-margin": "24px",
+                        "unit-2": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Geist"],
+                        "body-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "label-md": ["JetBrains Mono"],
+                        "label-sm": ["JetBrains Mono"],
+                        "headline-md": ["Geist"],
+                        "display-lg": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-sm": ["10px", { "lineHeight": "14px", "fontWeight": "500" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #0B0D0E; color: #e2e2e3; }
+        .card-panel { background-color: #171A1C; border: 1px solid #2D3135; }
+        .card-panel:hover { border-color: #3D4248; }
+        .btn-primary { background-color: #00C853; color: #000000; font-weight: bold; }
+        .btn-secondary { background-color: transparent; border: 1px solid #2D3135; color: #ffffff; }
+        .text-neon { color: #00C853; }
+        .text-muted { color: #bbcbb8; }
+        .border-subtle { border-color: #2D3135; }
+    </style>
+</head>
+<body class="font-body-md text-body-md antialiased overflow-hidden">
+<!-- TopNavBar -->
+<nav class="h-16 fixed top-0 right-0 left-64 bg-surface dark:bg-surface flex items-center justify-between px-gutter w-full z-40 border-b border-outline-variant dark:border-outline-variant">
+<div class="flex items-center gap-unit-4">
+<span class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight">PrintOps Studio</span>
+<div class="flex items-center gap-unit-2 text-primary border-b-2 border-primary pb-1">
+<span class="font-label-md text-label-md">Home Stock</span>
+</div>
+</div>
+<div class="flex items-center gap-unit-4">
+<button class="btn-primary font-label-md text-label-md px-unit-4 py-unit-2 rounded flex items-center gap-unit-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined" style="font-size: 16px;">add</span> Add Production Run
+            </button>
+<button class="btn-secondary font-label-md text-label-md px-unit-4 py-unit-2 rounded hover:bg-surface-variant transition-colors">
+                Add Sale
+            </button>
+<div class="flex items-center gap-unit-2 text-on-surface-variant">
+<span class="material-symbols-outlined hover:text-primary transition-opacity cursor-pointer">cloud_off</span>
+<span class="material-symbols-outlined hover:text-primary transition-opacity cursor-pointer">database</span>
+</div>
+<img alt="User Profile" class="w-8 h-8 rounded-full border border-outline-variant" data-alt="A futuristic, low-poly 3D render of a stylized user avatar head with a neon green headset, set against a dark, anodized aluminum-like background. Technical, precision industrial style, high contrast." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBaz3r1UW6dEQNeKUWeiJUMOLeoowMcNef8lxSWDe91SEriROPRxPYjEMiXbOC1HBaGL5D46SWUzA_QXhfc-sxE6TUY5HAwN2JmH-DH2NQMtVSWW9w_xhk0lztelmkU8VsGrj1ZgLB5r-pnPwePONyGBdphPSjhUGm44BX4dS430Mei4OMfvxra36EYT2rRfRB6gP6Rj0qkNZ8P6sEuDVJhE8EZyeJxn_MnrG2GD3JziDFnkZUC0mjAgr51XXyh7YQr4_Zh2_mlUJW"/>
+</div>
+</nav>
+<!-- SideNavBar -->
+<aside class="w-64 h-screen fixed left-0 top-0 bg-surface-dim dark:bg-surface-dim border-r border-outline-variant dark:border-outline-variant z-50 flex flex-col h-full py-unit-4 px-unit-2">
+<div class="mb-unit-8 px-unit-2">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">precision_manufacturing</span>
+                PrintOps Studio
+            </div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v2.4.0-stable</div>
+</div>
+<nav class="flex-1 overflow-y-auto flex flex-col gap-unit-1">
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span> Products
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">palette</span> HueForge Match
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">box</span> Inventory
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">calculate</span> Costing
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span> Production
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">point_of_sale</span> Sales
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">payments</span> Expenses
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">bar_chart</span> Reports
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">shopping_cart</span> Shopping List
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md mt-auto" href="#">
+<span class="material-symbols-outlined">settings</span> Settings
+            </a>
+<a class="flex items-center gap-3 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 font-label-md text-label-md" href="#">
+<span class="material-symbols-outlined">backup</span> Backup
+            </a>
+</nav>
+</aside>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-container-margin h-[calc(100vh-4rem)] overflow-y-auto">
+<div class="max-w-7xl mx-auto space-y-unit-6">
+<!-- Hero Section -->
+<div class="card-panel rounded p-unit-6 relative overflow-hidden flex flex-col justify-between min-h-[200px]">
+<div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(#3c4a3c 1px, transparent 1px); background-size: 20px 20px;"></div>
+<div class="relative z-10">
+<h1 class="font-display-lg text-display-lg text-on-surface mb-2">Today's Print Operations</h1>
+<div class="flex items-center gap-3 font-label-md text-label-md text-muted mb-unit-6">
+<span class="flex items-center gap-1 text-tertiary"><span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span> Offline mode</span>
+<span>•</span>
+<span>Home Stock</span>
+<span>•</span>
+<span>Local database</span>
+</div>
+<div class="grid grid-cols-4 gap-unit-4">
+<div>
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Ready to Sell</div>
+<div class="font-headline-lg text-headline-lg text-primary">38 <span class="font-label-md text-label-md text-muted">pcs</span></div>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Low Filaments</div>
+<div class="font-headline-lg text-headline-lg text-error">4</div>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Active Products</div>
+<div class="font-headline-lg text-headline-lg text-on-surface">12</div>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">This Month Profit</div>
+<div class="font-headline-lg text-headline-lg text-primary">₱4,820</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Dashboard Grid -->
+<div class="grid grid-cols-12 gap-unit-6">
+<!-- Quick Actions (Left Column - 3 cols) -->
+<div class="col-span-3 flex flex-col gap-unit-4">
+<h2 class="font-label-md text-label-md text-muted uppercase tracking-wider border-b border-subtle pb-2 mb-2">Today's Quick Actions</h2>
+<button class="btn-primary w-full text-left px-unit-4 py-unit-3 rounded flex items-center gap-3 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="font-label-md text-label-md">Add Production Run</span>
+</button>
+<button class="card-panel w-full text-left px-unit-4 py-unit-3 rounded flex items-center gap-3 hover:bg-surface-variant transition-colors text-on-surface">
+<span class="material-symbols-outlined text-primary">point_of_sale</span>
+<span class="font-label-md text-label-md">Add Sale</span>
+</button>
+<button class="card-panel w-full text-left px-unit-4 py-unit-3 rounded flex items-center gap-3 hover:bg-surface-variant transition-colors text-on-surface">
+<span class="material-symbols-outlined text-tertiary">inventory</span>
+<span class="font-label-md text-label-md">Add Filament</span>
+</button>
+<button class="card-panel w-full text-left px-unit-4 py-unit-3 rounded flex items-center gap-3 hover:bg-surface-variant transition-colors text-on-surface">
+<span class="material-symbols-outlined text-[#00E5FF]">palette</span>
+<span class="font-label-md text-label-md">Check HueForge Match</span>
+</button>
+</div>
+<!-- Main Metrics (Center - 5 cols) -->
+<div class="col-span-5 grid grid-cols-2 gap-unit-4 h-min">
+<div class="card-panel rounded p-unit-4 flex flex-col justify-between">
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-2">Monthly Sales</div>
+<div class="font-headline-md text-headline-md">₱8,450</div>
+</div>
+<div class="card-panel rounded p-unit-4 flex flex-col justify-between">
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-2">Monthly Profit</div>
+<div class="font-headline-md text-headline-md text-primary">₱4,820</div>
+</div>
+<div class="card-panel rounded p-unit-4 flex flex-col justify-between">
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-2 flex justify-between">
+                            Finished Goods Stock
+                            <span class="material-symbols-outlined text-muted" style="font-size: 16px;">inventory_2</span>
+</div>
+<div class="font-headline-md text-headline-md">142 <span class="text-sm font-normal text-muted">units</span></div>
+</div>
+<div class="card-panel rounded p-unit-4 flex flex-col justify-between border-error/50">
+<div class="font-label-sm text-label-sm text-error uppercase tracking-wider mb-2 flex justify-between">
+                            Low Filament Alerts
+                            <span class="material-symbols-outlined text-error" style="font-size: 16px;">warning</span>
+</div>
+<div class="font-headline-md text-headline-md text-error">4 <span class="text-sm font-normal text-error/70">spools</span></div>
+</div>
+</div>
+<!-- Secondary Metrics (Right - 4 cols) -->
+<div class="col-span-4 flex flex-col gap-unit-4">
+<div class="card-panel rounded p-unit-4 flex items-center justify-between">
+<div>
+<div class="font-label-sm text-label-sm text-tertiary uppercase tracking-wider mb-1">Low Add-on Alerts</div>
+<div class="font-headline-md text-headline-md">2 <span class="text-sm font-normal text-muted">items</span></div>
+</div>
+<div class="w-10 h-10 rounded-full bg-tertiary/10 border border-tertiary/30 flex items-center justify-center text-tertiary">
+<span class="material-symbols-outlined">extension</span>
+</div>
+</div>
+<div class="card-panel rounded p-unit-4 flex items-center justify-between">
+<div>
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Products Ready to Print</div>
+<div class="font-headline-md text-headline-md">8 <span class="text-sm font-normal text-muted">models</span></div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-variant border border-outline-variant flex items-center justify-center text-muted">
+<span class="material-symbols-outlined">3d_rotation</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-unit-4">
+<div class="card-panel rounded p-unit-3">
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Failed Cost</div>
+<div class="font-label-md text-label-md text-error">₱124.50</div>
+</div>
+<div class="card-panel rounded p-unit-3">
+<div class="font-label-sm text-label-sm text-muted uppercase tracking-wider mb-1">Profit/Hr</div>
+<div class="font-label-md text-label-md text-primary">₱45.20</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Lower Section: Tables and Panels -->
+<div class="grid grid-cols-12 gap-unit-6 mt-unit-6">
+<!-- Recent Production Runs -->
+<div class="col-span-8 card-panel rounded p-unit-6 flex flex-col">
+<h2 class="font-label-md text-label-md text-muted uppercase tracking-wider border-b border-subtle pb-3 mb-4">Recent Production Runs</h2>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="font-label-sm text-label-sm text-muted uppercase border-b border-subtle">
+<th class="py-2 font-normal">Job ID</th>
+<th class="py-2 font-normal">Product</th>
+<th class="py-2 font-normal text-right">Qty</th>
+<th class="py-2 font-normal">Status</th>
+<th class="py-2 font-normal text-right">Time</th>
+</tr>
+</thead>
+<tbody class="font-label-md text-label-md">
+<tr class="border-b border-subtle/50 hover:bg-surface-variant/30 transition-colors">
+<td class="py-3 text-muted">#PR-094</td>
+<td class="py-3 text-on-surface">Red Blossom Bookmark</td>
+<td class="py-3 text-right">4</td>
+<td class="py-3">
+<span class="bg-primary-container/10 text-primary px-2 py-0.5 rounded text-[10px] border border-primary/20">COMPLETED</span>
+</td>
+<td class="py-3 text-right text-muted">2h 15m</td>
+</tr>
+<tr class="border-b border-subtle/50 hover:bg-surface-variant/30 transition-colors">
+<td class="py-3 text-muted">#PR-093</td>
+<td class="py-3 text-on-surface">Tancho Koi Bookmark</td>
+<td class="py-3 text-right">2</td>
+<td class="py-3">
+<span class="bg-tertiary/10 text-tertiary px-2 py-0.5 rounded text-[10px] border border-tertiary/20">PRINTING (64%)</span>
+</td>
+<td class="py-3 text-right text-muted">1h 45m</td>
+</tr>
+<tr class="border-b border-subtle/50 hover:bg-surface-variant/30 transition-colors">
+<td class="py-3 text-muted">#PR-092</td>
+<td class="py-3 text-on-surface">Articulated Dragon (M)</td>
+<td class="py-3 text-right">1</td>
+<td class="py-3">
+<span class="bg-error/10 text-error px-2 py-0.5 rounded text-[10px] border border-error/20">FAILED</span>
+</td>
+<td class="py-3 text-right text-muted">4h 10m</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Products Worth Printing -->
+<div class="col-span-4 card-panel rounded p-unit-6 flex flex-col">
+<h2 class="font-label-md text-label-md text-muted uppercase tracking-wider border-b border-subtle pb-3 mb-4">Products Worth Printing</h2>
+<div class="flex flex-col gap-unit-4">
+<div class="flex items-center justify-between p-unit-3 border border-subtle rounded hover:border-primary/50 transition-colors bg-surface">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface mb-1">Red Blossom Bookmark</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-[#E53935] rounded-sm border border-subtle"></span>
+<span class="font-label-sm text-label-sm text-muted">PLA+</span>
+</div>
+</div>
+<div class="text-right">
+<div class="font-label-sm text-label-sm text-muted uppercase mb-1">Profit/Hr</div>
+<div class="font-label-md text-label-md text-primary">₱65.40</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-unit-3 border border-subtle rounded hover:border-primary/50 transition-colors bg-surface">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface mb-1">Tancho Koi Bookmark</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-[#FAFAFA] rounded-sm border border-subtle"></span>
+<span class="font-label-sm text-label-sm text-muted">PETG</span>
+</div>
+</div>
+<div class="text-right">
+<div class="font-label-sm text-label-sm text-muted uppercase mb-1">Profit/Hr</div>
+<div class="font-label-md text-label-md text-primary">₱58.20</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-unit-3 border border-subtle rounded hover:border-primary/50 transition-colors bg-surface">
+<div>
+<div class="font-body-md text-body-md font-semibold text-on-surface mb-1">Geared Pen Holder</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 bg-[#424242] rounded-sm border border-subtle"></span>
+<span class="font-label-sm text-label-sm text-muted">ABS</span>
+</div>
+</div>
+<div class="text-right">
+<div class="font-label-sm text-label-sm text-muted uppercase mb-1">Profit/Hr</div>
+<div class="font-label-md text-label-md text-primary">₱42.10</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

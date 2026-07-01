@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintOps Studio - Product Library</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "on-error-container": "#93000a",
+                        "tertiary": "#585f6c",
+                        "primary": "#006e2a",
+                        "secondary-container": "#d9dff5",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-fixed-dim": "#c0c6db",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container": "#edeeef",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#002108",
+                        "inverse-surface": "#2e3132",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-primary": "#3ce36a",
+                        "outline-variant": "#bbcbb8",
+                        "primary-container": "#00c853",
+                        "on-background": "#191c1d",
+                        "surface-container-high": "#e7e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-container": "#004c1b",
+                        "on-surface-variant": "#3c4a3c",
+                        "outline": "#6c7b6a",
+                        "on-primary-fixed-variant": "#00531e",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#141b2b",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#151c27",
+                        "on-tertiary-fixed-variant": "#404754",
+                        "tertiary-fixed": "#dce2f3",
+                        "secondary": "#575e70",
+                        "tertiary-fixed-dim": "#c0c7d6",
+                        "tertiary-container": "#a7aebd",
+                        "surface-tint": "#006e2a",
+                        "secondary-fixed": "#dce2f7",
+                        "background": "#f8f9fa",
+                        "on-secondary-container": "#5c6274",
+                        "surface": "#f8f9fa",
+                        "on-surface": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "primary-fixed-dim": "#3ce36a",
+                        "on-tertiary-container": "#3b424e",
+                        "primary-fixed": "#69ff87",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#404758",
+                        "on-error": "#ffffff"
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.125rem",
+                        lg: "0.25rem",
+                        xl: "0.5rem",
+                        full: "0.75rem"
+                    },
+                    spacing: {
+                        margin: "24px",
+                        base: "4px",
+                        xs: "4px",
+                        gutter: "16px",
+                        lg: "24px",
+                        sm: "8px",
+                        xl: "32px",
+                        md: "16px"
+                    },
+                    fontFamily: {
+                        "headline-md": ["Geist"],
+                        "body-md": ["Geist"],
+                        "mono-label": ["Geist"],
+                        "label-md": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "headline-sm": ["Geist"]
+                    },
+                    fontSize: {
+                        "headline-md": ["24px", { lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600" }],
+                        "body-md": ["14px", { lineHeight: "20px", letterSpacing: "0em", fontWeight: "400" }],
+                        "mono-label": ["11px", { lineHeight: "14px", letterSpacing: "0em", fontWeight: "400" }],
+                        "label-md": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+                        "body-lg": ["16px", { lineHeight: "24px", letterSpacing: "0em", fontWeight: "400" }],
+                        "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "600" }],
+                        "headline-sm": ["20px", { lineHeight: "28px", letterSpacing: "-0.01em", fontWeight: "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md h-screen overflow-hidden flex">
+<!-- SideNavBar -->
+<aside class="w-64 h-screen fixed left-0 top-0 bg-surface-container border-r border-outline-variant flex flex-col py-lg px-sm z-20">
+<div class="mb-xl px-sm">
+<h1 class="font-headline-md text-headline-md font-bold text-primary tracking-tight">PrintOps Studio</h1>
+<p class="font-mono-label text-mono-label text-on-surface-variant">v2.4.0-stable</p>
+</div>
+<nav class="flex flex-col gap-1 flex-1 overflow-y-auto">
+<!-- Dashboard -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<!-- Products (ACTIVE) -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2" data-weight="fill" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<!-- HueForge Match -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+<!-- Inventory -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="box">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+<!-- Costing -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="calculate">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+<!-- Production -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+<!-- Sales -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+<!-- Expenses -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+<!-- Reports -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<!-- Shopping List -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 mt-auto" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<!-- Backup -->
+<a class="flex items-center gap-sm px-sm py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="backup">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</nav>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 ml-64 flex flex-col h-screen">
+<!-- TopNavBar -->
+<header class="h-16 fixed top-0 right-0 left-64 bg-surface border-b border-outline-variant flex items-center justify-between px-gutter z-10 w-[calc(100%-16rem)]">
+<div class="flex items-center gap-lg">
+<nav class="flex gap-md">
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1" href="#">Home</a>
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-opacity" href="#">Stock</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex gap-sm">
+<button class="p-1 text-on-surface-variant hover:text-on-surface transition-colors rounded-DEFAULT hover:bg-surface-variant scale-95 duration-100" title="cloud_off">
+<span class="material-symbols-outlined" data-icon="cloud_off">cloud_off</span>
+</button>
+<button class="p-1 text-on-surface-variant hover:text-on-surface transition-colors rounded-DEFAULT hover:bg-surface-variant scale-95 duration-100" title="database">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+</button>
+</div>
+<div class="flex gap-sm">
+<button class="bg-surface border border-outline-variant text-on-background px-md py-1 rounded-DEFAULT font-label-md text-label-md hover:bg-surface-variant transition-colors">
+                        Add Sale
+                    </button>
+<button class="bg-primary-container text-on-background px-md py-1 rounded-DEFAULT font-label-md text-label-md hover:opacity-90 transition-opacity">
+                        Add Production Run
+                    </button>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 mt-16 p-md overflow-y-auto bg-background">
+<div class="max-w-7xl mx-auto">
+<!-- Section Header -->
+<div class="flex items-end justify-between mb-lg border-b border-outline-variant pb-sm">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-background tracking-tight">Product Library</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Manage active designs, stock levels, and commercial licensing.</p>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1.5 text-on-surface-variant text-[18px]" data-icon="search">search</span>
+<input class="pl-8 pr-3 py-1.5 bg-surface border border-outline-variant rounded-DEFAULT font-body-md text-body-md text-on-surface focus:outline-none focus:border-on-background w-64 transition-colors" placeholder="Search by SKU or Name..." type="text"/>
+</div>
+<button class="p-1.5 bg-surface border border-outline-variant rounded-DEFAULT text-on-surface-variant hover:bg-surface-variant">
+<span class="material-symbols-outlined" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+</div>
+<!-- Table/Card Hybrid Grid -->
+<div class="grid grid-cols-1 gap-sm">
+<!-- Item 1 (Good status) -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-sm flex items-center gap-md hover:bg-surface-bright transition-colors group">
+<div class="w-16 h-16 bg-surface-container rounded-sm overflow-hidden flex-shrink-0 border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A macro studio shot of a 3D printed articulated dragon toy in bright neon green PLA filament, resting on a clean white clinical lab surface under high-key lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJQukEIrj5kDVe9xj_5kX42iqEBU7R5b9WmXhj4toqrTQ7hbDHpvWuV0NBrBcz6VtbyyknyFFRNL-fpotPN04eBaR5OJlquLjIJ2s-B0DoANyEKjMQy_d7FwuF2eIrviaHU5r3bC4T5hS8bYPsDvS2h5HQIw0I0EQUvDZIuDT8hOy4NkHIN5pqqmDOD4HLOP8I38EDH_v9xAcVtAfnxf2z6vAoJ19r4HpImNRKfFiopH79poiBygsx0C-HnlYY8bbG0pzO5B1oMfCg"/>
+</div>
+<div class="flex-1 grid grid-cols-12 gap-sm items-center">
+<div class="col-span-4 flex flex-col">
+<span class="font-label-md text-label-md uppercase text-on-surface truncate">Articulated Crystal Dragon v2</span>
+<span class="font-mono-label text-mono-label text-on-surface-variant mt-xs">SKU: DRG-ART-02</span>
+</div>
+<div class="col-span-3 flex items-center gap-xs">
+<span class="bg-surface-container-high text-on-surface font-label-md text-label-md px-2 py-0.5 rounded-sm flex items-center gap-1 border border-outline-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                                    Active
+                                </span>
+<span class="bg-secondary-container text-on-secondary-container font-label-md text-label-md px-2 py-0.5 rounded-sm border border-outline-variant">
+                                    PLA
+                                </span>
+</div>
+<div class="col-span-3 flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">Comm. License</span>
+<span class="font-mono-label text-mono-label text-on-surface flex items-center gap-1 mt-xs">
+<span class="material-symbols-outlined text-[12px] text-primary" data-icon="check_circle">check_circle</span>
+                                     Active (Patreon)
+                                 </span>
+</div>
+<div class="col-span-2 text-right flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">In Stock</span>
+<span class="font-mono-label text-body-lg text-on-surface mt-xs">142</span>
+</div>
+</div>
+<div class="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity pr-sm">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+</button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors" title="Archive">
+<span class="material-symbols-outlined text-[18px]" data-icon="archive">archive</span>
+</button>
+</div>
+</div>
+<!-- Item 2 (Warning status) -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-sm flex items-center gap-md hover:bg-surface-bright transition-colors group">
+<div class="w-16 h-16 bg-surface-container rounded-sm overflow-hidden flex-shrink-0 border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A top-down view of a complex 3D printed mechanical gear assembly in matte grey PETG, scattered on a technical drawing blueprint in a pristine engineering workspace." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAa0qGVXWmYepoGyYFYhAcOIsY4NKxp2i9lPR8yjg-1MRtXVvpCh2iFAQKsRoj9ZvfknzZ4zDS6_myyh5rlQA2H0oPI4ABqmAPAQ4uuyTCDhZrJSrYtG-TqjB8FH7_EUpwAy_8jdBXBBbPMqEyM3gM9L1T8UahdfVZwj2uoMGTAL8UkH_HnYFAiq8ArjzVDdM5voWjzYakI_zFgOen1xqM2VXh7vAMgi6CsmdbB75lmjW37_gac6pqaUGABMpUlcsS0qBVbfBWeX3JU"/>
+</div>
+<div class="flex-1 grid grid-cols-12 gap-sm items-center">
+<div class="col-span-4 flex flex-col">
+<span class="font-label-md text-label-md uppercase text-on-surface truncate">Planetary Gear Clock Kit</span>
+<span class="font-mono-label text-mono-label text-on-surface-variant mt-xs">SKU: MECH-CLK-01</span>
+</div>
+<div class="col-span-3 flex items-center gap-xs">
+<span class="bg-surface-container text-on-surface font-label-md text-label-md px-2 py-0.5 rounded-sm flex items-center gap-1 border border-outline-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                    Draft
+                                </span>
+<span class="bg-secondary-container text-on-secondary-container font-label-md text-label-md px-2 py-0.5 rounded-sm border border-outline-variant">
+                                    PETG
+                                </span>
+</div>
+<div class="col-span-3 flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">Comm. License</span>
+<span class="font-label-md text-label-md text-on-error-container bg-error-container px-1.5 py-0.5 rounded-sm flex items-center gap-1 mt-xs w-fit">
+<span class="material-symbols-outlined text-[12px]" data-icon="warning">warning</span>
+                                     Expires in 5 days
+                                 </span>
+</div>
+<div class="col-span-2 text-right flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">In Stock</span>
+<span class="font-mono-label text-body-lg text-on-surface mt-xs">0</span>
+</div>
+</div>
+<div class="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity pr-sm">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+</button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors" title="Archive">
+<span class="material-symbols-outlined text-[18px]" data-icon="archive">archive</span>
+</button>
+</div>
+</div>
+<!-- Item 3 (Low Stock) -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-sm flex items-center gap-md hover:bg-surface-bright transition-colors group">
+<div class="w-16 h-16 bg-surface-container rounded-sm overflow-hidden flex-shrink-0 border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="A sleek, minimalist 3D printed headphone stand in translucent blue resin, photographed against a stark white backdrop with crisp, architectural shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4HL91INb6ZB3kstNG932MuEIcqBUKACJm8y6LvrZiA8dnmkFm8BURY5v_cymiRyR6ZuAG5j-jPDeol4YDft43_wyRRf1kUd_LArPbITzrDXyxhlSsKH43hQHAnQ6VjfpK5Rmyh5AtvB-dmtGJLvehJNcRYVQ55ICft9lvrXdM4vR5S5YePbSJcyUIavGM-3WuZqUfYEFIab3qO9rJ7hNrJ9vIJjI39QZtey559hj__ieJf5Hnv2ATHbxKRoEMY3Trt8IDZlz4vYfC"/>
+</div>
+<div class="flex-1 grid grid-cols-12 gap-sm items-center">
+<div class="col-span-4 flex flex-col">
+<span class="font-label-md text-label-md uppercase text-on-surface truncate">Hexagonal Headphone Stand</span>
+<span class="font-mono-label text-mono-label text-on-surface-variant mt-xs">SKU: ACC-HEX-99</span>
+</div>
+<div class="col-span-3 flex items-center gap-xs">
+<span class="bg-surface-container-high text-on-surface font-label-md text-label-md px-2 py-0.5 rounded-sm flex items-center gap-1 border border-outline-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                                    Active
+                                </span>
+<span class="bg-surface-container-highest text-on-surface font-label-md text-label-md px-2 py-0.5 rounded-sm border border-outline-variant">
+                                    RESIN
+                                </span>
+</div>
+<div class="col-span-3 flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">Comm. License</span>
+<span class="font-mono-label text-mono-label text-on-surface flex items-center gap-1 mt-xs">
+<span class="material-symbols-outlined text-[12px] text-tertiary" data-icon="remove">remove</span>
+                                     N/A (Original)
+                                 </span>
+</div>
+<div class="col-span-2 text-right flex flex-col">
+<span class="font-label-md text-label-md text-on-surface-variant">In Stock</span>
+<span class="font-mono-label text-body-lg text-on-error-container mt-xs flex items-center justify-end gap-1">
+<span class="material-symbols-outlined text-[14px]" data-icon="inventory">inventory</span>
+                                    4
+                                </span>
+</div>
+</div>
+<div class="flex items-center gap-xs opacity-0 group-hover:opacity-100 transition-opacity pr-sm">
+<button class="p-1 text-on-surface-variant hover:text-primary transition-colors" title="Edit">
+<span class="material-symbols-outlined text-[18px]" data-icon="edit">edit</span>
+</button>
+<button class="p-1 text-on-surface-variant hover:text-error transition-colors" title="Archive">
+<span class="material-symbols-outlined text-[18px]" data-icon="archive">archive</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

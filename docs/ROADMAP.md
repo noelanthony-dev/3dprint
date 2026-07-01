@@ -1,5 +1,7 @@
 # Roadmap
 
+For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
+
 ## Phase 1: App Shell, Navigation, Database Scaffolding
 
 - Keep the Tauri + React + TypeScript scaffold working.
@@ -51,4 +53,3 @@
 - Add manual backup/export/import workflows.
 - Add Tauri dialog and file-system plugin integration.
 - Improve UI polish and performance after core workflows exist.
-

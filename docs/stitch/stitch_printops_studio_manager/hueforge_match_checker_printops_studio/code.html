@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HueForge Match Checker - PrintOps Studio</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&family=Inter:wght@400&family=JetBrains+Mono:wght@500&display=swap');
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed": "#69ff87",
+                      "tertiary": "#fdbf02",
+                      "on-primary": "#003912",
+                      "secondary-fixed-dim": "#c7c6c6",
+                      "on-primary-container": "#004c1b",
+                      "surface": "#121415",
+                      "surface-container-high": "#282a2b",
+                      "tertiary-container": "#dba500",
+                      "on-secondary-container": "#b6b5b5",
+                      "tertiary-fixed": "#ffdf9e",
+                      "inverse-surface": "#e2e2e3",
+                      "on-secondary-fixed-variant": "#464747",
+                      "on-primary-fixed-variant": "#00531e",
+                      "surface-variant": "#333536",
+                      "on-error-container": "#ffdad6",
+                      "on-surface-variant": "#bbcbb8",
+                      "surface-container-lowest": "#0c0e0f",
+                      "on-background": "#e2e2e3",
+                      "on-tertiary-container": "#543e00",
+                      "secondary-container": "#464747",
+                      "secondary-fixed": "#e3e2e2",
+                      "on-secondary": "#303031",
+                      "surface-tint": "#3ce36a",
+                      "surface-container-low": "#1a1c1d",
+                      "on-surface": "#e2e2e3",
+                      "inverse-on-surface": "#2f3132",
+                      "error": "#ffb4ab",
+                      "primary-container": "#00c853",
+                      "on-secondary-fixed": "#1b1c1c",
+                      "outline": "#869583",
+                      "on-tertiary-fixed": "#261a00",
+                      "surface-container-highest": "#333536",
+                      "on-error": "#690005",
+                      "primary-fixed-dim": "#3ce36a",
+                      "tertiary-fixed-dim": "#fabd00",
+                      "surface-bright": "#38393a",
+                      "error-container": "#93000a",
+                      "outline-variant": "#3c4a3c",
+                      "on-tertiary-fixed-variant": "#5b4300",
+                      "surface-container": "#1e2021",
+                      "primary": "#3fe56c",
+                      "background": "#121415",
+                      "secondary": "#c7c6c6",
+                      "inverse-primary": "#006e2a",
+                      "on-primary-fixed": "#002108",
+                      "surface-dim": "#121415",
+                      "on-tertiary": "#3f2e00"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "unit-1": "4px",
+                      "unit-8": "32px",
+                      "unit-4": "16px",
+                      "base": "4px",
+                      "unit-6": "24px",
+                      "gutter": "16px",
+                      "container-margin": "24px",
+                      "unit-2": "8px"
+              },
+              "fontFamily": {
+                      "headline-lg": ["Geist"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "label-md": ["JetBrains Mono"],
+                      "label-sm": ["JetBrains Mono"],
+                      "headline-md": ["Geist"],
+                      "display-lg": ["Geist"]
+              },
+              "fontSize": {
+                      "headline-lg": ["24px", {"lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500"}],
+                      "label-sm": ["10px", {"lineHeight": "14px", "fontWeight": "500"}],
+                      "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                      "display-lg": ["40px", {"lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+              }
+            }
+          }
+        }
+    </script>
+<style>
+        /* Custom scrollbar for technical feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0D0E; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2D3135; 
+            border: 1px solid #0B0D0E;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3D4248; 
+        }
+        
+        /* Panel borders */
+        .panel {
+            background-color: #171A1C;
+            border: 1px solid #2D3135;
+        }
+        .panel:hover {
+            border-color: #3D4248;
+        }
+        
+        /* Input styling */
+        .tech-input {
+            background-color: #0B0D0E;
+            border: 1px solid transparent;
+            color: #e2e2e3;
+        }
+        .tech-input:focus {
+            border-color: #00C853;
+            outline: none;
+            box-shadow: none;
+        }
+
+        /* Buttons */
+        .btn-primary {
+            background-color: #00C853;
+            color: #000000;
+        }
+        .btn-secondary {
+            background-color: transparent;
+            border: 1px solid #2D3135;
+            color: #e2e2e3;
+        }
+        
+        /* Table styles */
+        .tech-table th {
+            border-bottom: 1px solid #2D3135;
+            color: #869583;
+        }
+        .tech-table td {
+            border-bottom: 1px solid #2D3135;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md text-body-md overflow-hidden">
+<!-- SideNavBar -->
+<nav class="bg-surface-dim dark:bg-surface-dim border-r border-outline-variant dark:border-outline-variant w-64 h-screen fixed left-0 top-0 flex flex-col py-unit-4 px-unit-2 z-20">
+<div class="mb-unit-8 px-unit-2">
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">PrintOps Studio</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant">v2.4.0-stable</p>
+</div>
+<ul class="flex flex-col gap-unit-1 flex-grow overflow-y-auto">
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto pt-unit-4 border-t border-outline-variant flex flex-col gap-unit-1">
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-unit-2 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+<div class="flex items-center gap-unit-2 px-unit-2 mt-unit-2">
+<div class="w-8 h-8 rounded bg-surface-variant overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A macro shot of a sleek, dark anodized aluminum surface reflecting neon green LED lights. Industrial, high-tech, precise. Deep blacks, sharp highlights. The mood is utilitarian and powerful. Minimalist." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAiDN6aAjhHfSPjCdpTwlcFdP0-AAiOgXlRmlxGqJ0qyc2dJCQ1Q0RLy-gaRlJJ-wL0D7jzHkcMHuk6H0XCuLDS3eIv-96Saxs8SW2PGDchMikIlwVED0MyNSL7_epJSkdLQ1N4oKqoJYIbfUi5IdjcaK9dbzA0zhJZDVX0uWAYcvUbKlIjFTk7_4oHobVRkqxT1ObQPsuazjn_vxQOdPxQB4yViO7bpGEF5_zyjVr45so53ERM96drLNNTlA34glG9k9j9mqAO9SP3"/>
+</div>
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface">Admin User</span>
+<span class="font-label-sm text-label-sm text-primary opacity-80 flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span> Online</span>
+</div>
+</div>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant h-16 fixed top-0 right-0 left-64 flex items-center justify-between px-gutter w-[calc(100%-16rem)] z-10 scale-95 duration-100" style="transform: scale(1);">
+<div class="flex items-center gap-unit-6">
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight">PrintOps Studio</h2>
+<nav class="hidden md:flex gap-unit-4">
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-opacity" href="#">Home</a>
+<a class="text-on-surface-variant font-label-md text-label-md hover:text-primary transition-opacity" href="#">Stock</a>
+</nav>
+</div>
+<div class="flex items-center gap-unit-4">
+<div class="flex gap-unit-2">
+<button class="w-8 h-8 flex items-center justify-center rounded text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[20px]">cloud_off</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center rounded text-on-surface-variant hover:text-primary hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[20px]">database</span>
+</button>
+</div>
+<div class="h-6 w-px bg-outline-variant"></div>
+<div class="flex gap-unit-2">
+<button class="btn-secondary font-label-md text-label-md px-unit-4 h-8 rounded flex items-center justify-center transition-colors hover:border-primary hover:text-primary">
+                    Add Sale
+                </button>
+<button class="btn-primary font-label-md text-label-md px-unit-4 h-8 rounded flex items-center justify-center font-bold transition-opacity hover:opacity-90">
+                    Add Production Run
+                </button>
+</div>
+</div>
+</header>
+<!-- Main Content -->
+<main class="ml-64 mt-16 p-unit-4 h-[calc(100vh-4rem)] flex flex-col gap-unit-4 overflow-hidden bg-[#0B0D0E]">
+<!-- Header -->
+<div class="flex justify-between items-end flex-shrink-0">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface">HueForge Match Checker</h1>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Analyze required filaments against local inventory</p>
+</div>
+<div class="flex gap-unit-2">
+<button class="btn-secondary font-label-md text-label-md px-unit-4 py-unit-2 rounded flex items-center gap-2 transition-colors hover:border-primary">
+<span class="material-symbols-outlined text-[18px]">bookmark_add</span>
+                    Add to Design Library
+                </button>
+<button class="btn-secondary font-label-md text-label-md px-unit-4 py-unit-2 rounded flex items-center gap-2 transition-colors hover:border-primary">
+<span class="material-symbols-outlined text-[18px]">add_shopping_cart</span>
+                    Add to Shopping List
+                </button>
+</div>
+</div>
+<!-- 3-Panel Split View -->
+<div class="flex-grow grid grid-cols-12 gap-unit-4 min-h-0">
+<!-- Left Panel: Design Input -->
+<div class="col-span-3 panel rounded-lg flex flex-col overflow-hidden">
+<div class="p-unit-4 border-b border-outline-variant bg-[#1E2225] flex-shrink-0">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">tune</span>
+                        Design Input
+                    </h3>
+</div>
+<div class="p-unit-4 flex-grow overflow-y-auto flex flex-col gap-unit-4">
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface-variant">Design Name</label>
+<input class="tech-input font-body-md text-body-md p-unit-2 rounded w-full" type="text" value="Cyberpunk Cityscape"/>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface-variant">Author</label>
+<input class="tech-input font-body-md text-body-md p-unit-2 rounded w-full" type="text" value="NeonPrints3D"/>
+</div>
+<div class="flex flex-col gap-1">
+<label class="font-label-md text-label-md text-on-surface-variant">Category</label>
+<select class="tech-input font-body-md text-body-md p-unit-2 rounded w-full appearance-none">
+<option>Wall Art</option>
+<option>Coaster</option>
+<option>Signage</option>
+</select>
+</div>
+<div class="flex flex-col gap-1 flex-grow">
+<label class="font-label-md text-label-md text-on-surface-variant">Notes</label>
+<textarea class="tech-input font-body-md text-body-md p-unit-2 rounded w-full flex-grow resize-none" placeholder="Enter print settings, specific layer heights, etc.">Requires 0.08mm layer height for optimal blending.</textarea>
+</div>
+</div>
+</div>
+<!-- Middle Panel: Author Requirements -->
+<div class="col-span-5 panel rounded-lg flex flex-col overflow-hidden">
+<div class="p-unit-4 border-b border-outline-variant bg-[#1E2225] flex justify-between items-center flex-shrink-0">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">receipt_long</span>
+                        Required Filaments
+                    </h3>
+<span class="font-label-sm text-label-sm bg-surface-variant text-on-surface px-2 py-1 rounded">4 Colors</span>
+</div>
+<div class="overflow-y-auto flex-grow">
+<table class="tech-table w-full text-left font-label-md text-label-md">
+<thead class="sticky top-0 bg-[#171A1C] z-10">
+<tr>
+<th class="p-unit-2 font-medium">ROLE</th>
+<th class="p-unit-2 font-medium">BRAND / COLOR</th>
+<th class="p-unit-2 font-medium">TD</th>
+<th class="p-unit-2 font-medium">G</th>
+<th class="p-unit-2 font-medium">SWAP</th>
+</tr>
+</thead>
+<tbody>
+<!-- Row 1 -->
+<tr class="hover:bg-surface-variant transition-colors">
+<td class="p-unit-2 text-on-surface-variant">Base / Shadow</td>
+<td class="p-unit-2">
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#1A1A1A]"></div>
+<div>
+<div class="text-on-surface">Bambu PLA Basic</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm">Black (#1A1A1A)</div>
+</div>
+</div>
+</td>
+<td class="p-unit-2 text-on-surface">0.6</td>
+<td class="p-unit-2 text-on-surface">15.2</td>
+<td class="p-unit-2 text-on-surface-variant">L0 - L12</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-variant transition-colors">
+<td class="p-unit-2 text-on-surface-variant">Midtone 1</td>
+<td class="p-unit-2">
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#8A2BE2]"></div>
+<div>
+<div class="text-on-surface">Polymaker PolyLite</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm">Purple (#8A2BE2)</div>
+</div>
+</div>
+</td>
+<td class="p-unit-2 text-on-surface">2.4</td>
+<td class="p-unit-2 text-on-surface">8.5</td>
+<td class="p-unit-2 text-on-surface-variant">L13 - L18</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-variant transition-colors">
+<td class="p-unit-2 text-on-surface-variant">Midtone 2</td>
+<td class="p-unit-2">
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#FF1493]"></div>
+<div>
+<div class="text-on-surface">eSun PLA+</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm">Magenta (#FF1493)</div>
+</div>
+</div>
+</td>
+<td class="p-unit-2 text-on-surface">4.1</td>
+<td class="p-unit-2 text-on-surface">4.2</td>
+<td class="p-unit-2 text-on-surface-variant">L19 - L24</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-surface-variant transition-colors">
+<td class="p-unit-2 text-on-surface-variant">Highlight</td>
+<td class="p-unit-2">
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#00FFFF]"></div>
+<div>
+<div class="text-on-surface">Sunlu PLA</div>
+<div class="text-on-surface-variant font-label-sm text-label-sm">Cyan (#00FFFF)</div>
+</div>
+</div>
+</td>
+<td class="p-unit-2 text-on-surface">6.8</td>
+<td class="p-unit-2 text-on-surface">2.1</td>
+<td class="p-unit-2 text-on-surface-variant">L25 - L30</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Right Panel: Match Results -->
+<div class="col-span-4 panel rounded-lg flex flex-col overflow-hidden">
+<div class="p-unit-4 border-b border-outline-variant bg-[#1E2225] flex justify-between items-center flex-shrink-0">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[20px]">check_circle</span>
+                        Inventory Matches
+                    </h3>
+<button class="text-primary hover:opacity-80 transition-opacity">
+<span class="material-symbols-outlined text-[20px]">refresh</span>
+</button>
+</div>
+<div class="p-unit-4 flex-grow overflow-y-auto flex flex-col gap-unit-2">
+<!-- Match 1 -->
+<div class="bg-[#0B0D0E] border border-[#2D3135] rounded p-unit-2 flex items-center justify-between">
+<div class="flex items-center gap-unit-2">
+<span class="material-symbols-outlined text-outline-variant text-[20px]">arrow_right_alt</span>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#111111]"></div>
+<div>
+<div class="font-label-md text-label-md text-on-surface">Sunlu PLA Matte Black</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">TD: 0.5 (Δ -0.1) • 840g in stock</div>
+</div>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-1 rounded bg-[#003912] text-primary border border-primary">EXCELLENT</span>
+</div>
+<!-- Match 2 -->
+<div class="bg-[#0B0D0E] border border-[#2D3135] rounded p-unit-2 flex items-center justify-between">
+<div class="flex items-center gap-unit-2">
+<span class="material-symbols-outlined text-outline-variant text-[20px]">arrow_right_alt</span>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#7A1CB2]"></div>
+<div>
+<div class="font-label-md text-label-md text-on-surface">Elegoo PLA Deep Purple</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">TD: 2.8 (Δ +0.4) • 320g in stock</div>
+</div>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-1 rounded bg-[#003912] text-primary border border-primary">GOOD SUB</span>
+</div>
+<!-- Match 3 -->
+<div class="bg-[#0B0D0E] border border-[#2D3135] rounded p-unit-2 flex items-center justify-between">
+<div class="flex items-center gap-unit-2">
+<span class="material-symbols-outlined text-outline-variant text-[20px]">arrow_right_alt</span>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#FF4081]"></div>
+<div>
+<div class="font-label-md text-label-md text-on-surface">Overture PLA Pink</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">TD: 5.2 (Δ +1.1) • 150g in stock</div>
+</div>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-1 rounded bg-tertiary-container text-tertiary-fixed border border-tertiary">TEST FIRST</span>
+</div>
+<!-- Match 4 -->
+<div class="bg-[#0B0D0E] border border-[#2D3135] rounded p-unit-2 flex items-center justify-between">
+<div class="flex items-center gap-unit-2">
+<span class="material-symbols-outlined text-outline-variant text-[20px]">arrow_right_alt</span>
+<div class="flex items-center gap-2">
+<div class="w-4 h-4 rounded-sm border border-outline-variant bg-[#00E5FF]"></div>
+<div>
+<div class="font-label-md text-label-md text-on-surface">Hatchbox PLA Light Blue</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">TD: 6.5 (Δ -0.3) • 600g in stock</div>
+</div>
+</div>
+</div>
+<span class="font-label-sm text-label-sm px-2 py-1 rounded bg-[#003912] text-primary border border-primary">EXCELLENT</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Summary -->
+<div class="panel rounded-lg p-unit-4 flex items-start gap-unit-4 flex-shrink-0">
+<div class="w-12 h-12 rounded-full flex items-center justify-center bg-tertiary-container border border-tertiary text-tertiary-fixed flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">science</span>
+</div>
+<div>
+<h4 class="font-headline-md text-headline-md text-tertiary-fixed mb-1">Feasibility: Needs Test Print</h4>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                    While the base, shadow, and highlight filaments are excellent matches, the substitute for <span class="font-label-md text-label-md text-on-surface">Magenta (#FF1493)</span> has a significant Transmission Distance (TD) variance (Δ +1.1). The Overture PLA Pink is more translucent than the author's intended eSun PLA+. This may result in washed-out midtones in the L19-L24 range. Recommend generating a small swatch test print before committing to the full run.
+                </p>
+</div>
+</div>
+</main>
+</body></html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintOps Studio - Design Library</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Assuming Geist is available locally or via another font service in the actual environment, falling back to sans for preview -->
+<style>
+        @font-face {
+            font-family: 'Geist';
+            src: local('Inter'), sans-serif; /* Fallback for rendering */
+        }
+    </style>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#69ff87", "tertiary": "#fdbf02", "on-primary": "#003912", "secondary-fixed-dim": "#c7c6c6", "on-primary-container": "#004c1b", "surface": "#121415", "surface-container-high": "#282a2b", "tertiary-container": "#dba500", "on-secondary-container": "#b6b5b5", "tertiary-fixed": "#ffdf9e", "inverse-surface": "#e2e2e3", "on-secondary-fixed-variant": "#464747", "on-primary-fixed-variant": "#00531e", "surface-variant": "#333536", "on-error-container": "#ffdad6", "on-surface-variant": "#bbcbb8", "surface-container-lowest": "#0c0e0f", "on-background": "#e2e2e3", "on-tertiary-container": "#543e00", "secondary-container": "#464747", "secondary-fixed": "#e3e2e2", "on-secondary": "#303031", "surface-tint": "#3ce36a", "surface-container-low": "#1a1c1d", "on-surface": "#e2e2e3", "inverse-on-surface": "#2f3132", "error": "#ffb4ab", "primary-container": "#00c853", "on-secondary-fixed": "#1b1c1c", "outline": "#869583", "on-tertiary-fixed": "#261a00", "surface-container-highest": "#333536", "on-error": "#690005", "primary-fixed-dim": "#3ce36a", "tertiary-fixed-dim": "#fabd00", "surface-bright": "#38393a", "error-container": "#93000a", "outline-variant": "#3c4a3c", "on-tertiary-fixed-variant": "#5b4300", "surface-container": "#1e2021", "primary": "#3fe56c", "background": "#121415", "secondary": "#c7c6c6", "inverse-primary": "#006e2a", "on-primary-fixed": "#002108", "surface-dim": "#121415", "on-tertiary": "#3f2e00"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem", "lg": "0.25rem", "xl": "0.5rem", "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit-1": "4px", "unit-8": "32px", "unit-4": "16px", "base": "4px", "unit-6": "24px", "gutter": "16px", "container-margin": "24px", "unit-2": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Geist"], "body-md": ["Inter"], "body-lg": ["Inter"], "label-md": ["JetBrains Mono"], "label-sm": ["JetBrains Mono"], "headline-md": ["Geist"], "display-lg": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-sm": ["10px", { "lineHeight": "14px", "fontWeight": "500" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        /* Custom scrollbar for technical feel */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #121415; }
+        ::-webkit-scrollbar-thumb { background: #333536; border-radius: 0; }
+        ::-webkit-scrollbar-thumb:hover { background: #464747; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md h-screen flex overflow-hidden select-none antialiased">
+<!-- SideNavBar -->
+<nav class="w-64 h-screen fixed left-0 top-0 bg-surface-dim border-r border-outline-variant flex flex-col h-full py-unit-4 px-unit-2 z-20">
+<div class="mb-unit-8 px-unit-2 flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-surface-container-highest border border-outline-variant flex items-center justify-center overflow-hidden shrink-0">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A highly detailed, futuristic abstract geometric icon resembling a 3D printer extruder nozzle, rendered in neon green and dark steel gray against a pitch black background. The lighting is harsh and directional, emphasizing metallic textures." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmiIWLZM1vDCbR25qFahap8W5exIEO0JmuJ2nR5MeV9j5qUXNzLAPjAtfPzdPDEZM_oKnWm1w4ylHcolqhu0FYERQzJyJirBnK54Xhp1P3jbiLtwoWbO3resV7oVJBVJqgcikVFT1EjpXXl1cilL8Z_OU8rdAqDz8JcWxQL-yEzxZI_BVdj8zEeiYZDiCgis5b--rbM82drorSDqz38tojsMlJFfa-9cr0A3DVMwHTj_1ElWiiHuZAUwUyXF2JcDzlnNYdGqr1BFHG"/>
+</div>
+<div>
+<div class="font-headline-md text-headline-md font-bold text-primary truncate">PrintOps Studio</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v2.4.0-stable</div>
+</div>
+</div>
+<div class="flex flex-col gap-1 flex-1 overflow-y-auto">
+<!-- Inactive Tab -->
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="dashboard">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<!-- Active Tab -->
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-body-md text-body-md">Products</span>
+</a>
+<!-- Inactive Tabs -->
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="palette">palette</span>
+<span class="font-body-md text-body-md">HueForge Match</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="box">box</span>
+<span class="font-body-md text-body-md">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="calculate">calculate</span>
+<span class="font-body-md text-body-md">Costing</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-body-md text-body-md">Production</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-body-md text-body-md">Sales</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="payments">payments</span>
+<span class="font-body-md text-body-md">Expenses</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="bar_chart">bar_chart</span>
+<span class="font-body-md text-body-md">Reports</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-body-md text-body-md">Shopping List</span>
+</a>
+</div>
+<div class="mt-auto pt-4 border-t border-outline-variant flex flex-col gap-1">
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-unit-2 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="backup">backup</span>
+<span class="font-body-md text-body-md">Backup</span>
+</a>
+</div>
+</nav>
+<!-- TopNavBar -->
+<header class="h-16 fixed top-0 right-0 left-64 bg-surface border-b border-outline-variant flex items-center justify-between px-gutter w-[calc(100%-16rem)] z-10">
+<!-- Search on Left -->
+<div class="flex items-center gap-4 flex-1">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full bg-background border border-outline-variant rounded py-1.5 pl-10 pr-3 font-label-md text-label-md text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="Search design library..." type="text"/>
+</div>
+<div class="flex gap-4 px-4 border-l border-outline-variant">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-opacity" href="#">Home Stock</a>
+</div>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 bg-transparent border border-outline-variant text-on-surface px-3 py-1.5 rounded font-label-md text-label-md hover:border-surface-variant transition-colors hover:text-primary duration-100 scale-95 origin-center hover:scale-100">
+<span class="material-symbols-outlined text-[16px]">add</span>
+                Add Sale
+            </button>
+<button class="flex items-center gap-2 bg-primary text-black px-4 py-1.5 rounded font-label-md text-label-md hover:bg-primary-fixed transition-colors duration-100 scale-95 origin-center hover:scale-100 font-bold">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">precision_manufacturing</span>
+                Add Production Run
+            </button>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-4">
+<button class="text-on-surface-variant hover:text-primary transition-opacity duration-100 scale-95 hover:scale-100">
+<span class="material-symbols-outlined" data-icon="cloud_off">cloud_off</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-opacity duration-100 scale-95 hover:scale-100">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Application Canvas -->
+<main class="ml-64 mt-16 flex-1 flex flex-row w-full h-[calc(100vh-4rem)] bg-background relative">
+<!-- Main Content Area -->
+<section class="flex-1 flex flex-col h-full overflow-hidden border-r border-outline-variant">
+<!-- Page Header & Actions -->
+<div class="p-container-margin border-b border-surface-container-high bg-surface-dim shrink-0">
+<div class="flex justify-between items-end mb-4">
+<div>
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-1">Design Library</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Products, source links, licenses, recipes, and stock status.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 bg-surface-container-high border border-outline-variant text-on-surface px-3 py-1.5 rounded font-label-md text-label-md hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-[16px]">palette</span>
+                            Check HueForge Match
+                        </button>
+<button class="flex items-center gap-2 bg-surface-container-high border border-outline-variant text-on-surface px-3 py-1.5 rounded font-label-md text-label-md hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-[16px]">add_a_photo</span>
+                            Add Product Image
+                        </button>
+<button class="flex items-center gap-2 bg-primary-container text-on-primary-fixed-variant font-bold px-4 py-1.5 rounded font-label-md text-label-md hover:bg-primary transition-colors shadow-[0_0_8px_rgba(0,200,83,0.3)] border border-primary">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">add</span>
+                            Add Product
+                        </button>
+</div>
+</div>
+<!-- Filters / Quick Stats Row -->
+<div class="flex items-center gap-4 pt-2">
+<div class="relative flex-1 max-w-sm">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[16px]">filter_list</span>
+<input class="w-full bg-surface-container-low border border-outline-variant rounded py-1 pl-9 pr-3 font-label-sm text-label-sm text-on-surface focus:border-primary focus:outline-none" placeholder="Filter by status, category..." type="text"/>
+</div>
+<div class="flex gap-2">
+<span class="px-2 py-1 bg-surface-container-highest border border-outline-variant rounded font-label-sm text-label-sm text-on-surface cursor-pointer hover:border-primary">All (142)</span>
+<span class="px-2 py-1 bg-primary/10 border border-primary/30 rounded font-label-sm text-label-sm text-primary cursor-pointer">Active (84)</span>
+<span class="px-2 py-1 bg-surface-container-highest border border-outline-variant rounded font-label-sm text-label-sm text-on-surface-variant cursor-pointer hover:border-primary">Archived (58)</span>
+</div>
+</div>
+</div>
+<!-- Data Table (Dense Hybrid) -->
+<div class="flex-1 overflow-y-auto bg-surface-container-lowest p-unit-4">
+<div class="w-full">
+<!-- Table Header -->
+<div class="flex items-center gap-4 py-2 border-b-2 border-surface-container-high mb-2 pl-2 pr-4 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider sticky top-0 bg-surface-container-lowest z-10">
+<div class="w-12 shrink-0 text-center">IMG</div>
+<div class="flex-1 min-w-0">Product Info</div>
+<div class="w-24 text-right">Cost</div>
+<div class="w-24 text-right">Price</div>
+<div class="w-20 text-right">Margin</div>
+<div class="w-16 text-right">Stock</div>
+<div class="w-20 text-center">Status</div>
+</div>
+<!-- Row 1: Active Selection -->
+<div class="group flex items-center gap-4 py-3 pl-2 pr-4 border border-primary bg-primary/5 rounded mb-2 cursor-pointer transition-colors">
+<div class="w-12 h-12 shrink-0 bg-surface-container-high rounded border border-outline-variant overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="A macro studio photograph of a highly detailed 3D printed red blossom bookmark. The vibrant crimson plastic contrasts sharply against a stark, dark industrial background. Precision layer lines are visible under harsh, cool white directional lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCu9xDkUeA3iNwodZ3d-M5XgHVitZHgI_UqtsXKWrReOqn92kAVNsTWSMlDqyzwE8RP9lDyxQWq5JTCoGAv8Vo5lcTIAL8MQf7-Yq5meeqnW0IimDVwlkEvFfydxdjGxIOjawtlW-S6PVHo-q8TvlWauBe7J-LlHZ71ViZXDpeqDEo_Ica-m4nEaGTdA_ba7hdaGQrFixO6SzyNLR-diPM67byQ4yIRd7oC9P6-S0hXGEdFh-5oksGgOk3I5mKpOKqS57o3sPU1DHVM"/>
+<div class="absolute inset-0 ring-1 ring-inset ring-black/20"></div>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<div class="font-body-md text-body-md font-semibold text-primary truncate mb-0.5">Red Blossom Bookmark</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant flex gap-2">
+<span>Accessory</span>
+<span>•</span>
+<span class="text-on-surface">Printables (CC-BY-NC)</span>
+</div>
+</div>
+<div class="w-24 font-label-md text-label-md text-on-surface-variant text-right">$0.32</div>
+<div class="w-24 font-label-md text-label-md text-on-surface text-right">$4.99</div>
+<div class="w-20 font-label-md text-label-md text-primary text-right">+93%</div>
+<div class="w-16 font-label-md text-label-md text-on-surface text-right">14</div>
+<div class="w-20 flex justify-center">
+<span class="inline-flex items-center justify-center px-2 py-0.5 rounded-sm bg-primary/20 text-primary font-label-sm text-label-sm border border-primary/30">Active</span>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="group flex items-center gap-4 py-3 pl-2 pr-4 border-b border-surface-container-high hover:bg-surface-container-low hover:border-surface-variant transition-colors cursor-pointer mb-1">
+<div class="w-12 h-12 shrink-0 bg-surface-container-high rounded border border-surface-variant overflow-hidden group-hover:border-outline-variant transition-colors">
+<img class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" data-alt="A sleek, matte black 3D printed mechanical clicker toy, sitting on a brushed aluminum surface. The lighting is dark and moody, highlighting the precise mechanical tolerances and geometric design of the small gadget." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCmGzGlUVlOD4JQB0BoBiqanz_o-ev34Egjpr6lCHZrAL3dU44tsBkAewD802pkYP4dBsB8VzHsy9Hlq4zR9v9NGzSvJmmM-oiv_ZoiOAmvcKDlDhjC6jkRWShWp8vMaQNLbWlIvkE-FpqaQLRQm0BgsXuoIHOk2qKvuG4Ljwp8WkDfqEmeOZKI-KpbD_c-BLIohzHOe53f9sAwOnBGEhLxB51TrdukCPT3jYMPt6XToxGnoBtAWVUcixp4ZWZm6c20dpnZ23TNm41M"/>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<div class="font-body-md text-body-md text-on-surface truncate mb-0.5 group-hover:text-primary transition-colors">Tabo with Water Clicker</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant flex gap-2">
+<span>Clicker</span>
+<span>•</span>
+<span>MakerWorld (OK)</span>
+</div>
+</div>
+<div class="w-24 font-label-md text-label-md text-on-surface-variant text-right">$0.45</div>
+<div class="w-24 font-label-md text-label-md text-on-surface text-right">$8.00</div>
+<div class="w-20 font-label-md text-label-md text-primary text-right">+94%</div>
+<div class="w-16 font-label-md text-label-md text-on-surface text-right">45</div>
+<div class="w-20 flex justify-center">
+<span class="inline-flex items-center justify-center px-2 py-0.5 rounded-sm bg-primary/10 text-primary font-label-sm text-label-sm border border-primary/20">Active</span>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="group flex items-center gap-4 py-3 pl-2 pr-4 border-b border-surface-container-high hover:bg-surface-container-low hover:border-surface-variant transition-colors cursor-pointer mb-1">
+<div class="w-12 h-12 shrink-0 bg-surface-container-high rounded border border-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-on-surface-variant text-[24px]">broken_image</span>
+</div>
+<div class="flex-1 min-w-0 flex flex-col justify-center">
+<div class="font-body-md text-body-md text-on-surface truncate mb-0.5 group-hover:text-primary transition-colors">Hexagonal Wall Planter</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant flex gap-2">
+<span>Decor</span>
+<span>•</span>
+<span>Thingiverse (PD)</span>
+</div>
+</div>
+<div class="w-24 font-label-md text-label-md text-on-surface-variant text-right">$2.10</div>
+<div class="w-24 font-label-md text-label-md text-on-surface text-right">$15.00</div>
+<div class="w-20 font-label-md text-label-md text-primary text-right">+86%</div>
+<div class="w-16 font-label-md text-label-md text-on-surface-variant text-right">0</div>
+<div class="w-20 flex justify-center">
+<span class="inline-flex items-center justify-center px-2 py-0.5 rounded-sm bg-surface-variant text-on-surface-variant font-label-sm text-label-sm border border-outline-variant">Draft</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Side Detail Panel -->
+<aside class="w-96 shrink-0 bg-surface flex flex-col h-full overflow-hidden shadow-[-8px_0_24px_rgba(0,0,0,0.5)] z-20">
+<!-- Image Header -->
+<div class="h-64 bg-surface-container-lowest relative border-b border-surface-variant p-4 flex flex-col">
+<div class="flex justify-between items-start mb-2 z-10 relative">
+<span class="bg-surface/80 backdrop-blur border border-outline-variant px-2 py-1 text-on-surface font-label-sm text-label-sm rounded uppercase tracking-widest">Selected Item</span>
+<button class="w-8 h-8 flex items-center justify-center bg-surface/80 backdrop-blur rounded hover:bg-surface-variant text-on-surface transition-colors border border-outline-variant">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</div>
+<div class="absolute inset-0 flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover opacity-60 mix-blend-screen" data-alt="A stylized, high-contrast overhead shot of a 3D printed red blossom bookmark. The object is centered on a grid-patterned cutting mat, surrounded by subtle glowing technical schematics overlaid in the dark environment. The red pops vibrantly." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHbHI5CwQIV8Eg3cVMUGAUX4clpZ3pYm40k5618kl01ghXhpp9dSWXjplyStp0AKK4nJU4rzTB6CEbmI2rapUv7Qwzlqp2dAVUuxqRREwH-tiZ3BYodj2nL0oFTk6XD41j6S2QfTTjaqf5meD8h1wvUgXxxVIgyNshRJcw29rn12UPU1XAD6uG3KBjOHKUuj3cFLJs9B6EZfuyk2yn8SoDQcmF8OVNX8_fOqrUy6OZyRIAZDAgeJKC8FJdb2ymIcij7_Y1BiykphrO"/>
+<!-- Gradient overlay for text readability if needed -->
+<div class="absolute inset-0 bg-gradient-to-t from-surface to-transparent"></div>
+</div>
+</div>
+<!-- Panel Content -->
+<div class="flex-1 overflow-y-auto p-unit-6 flex flex-col gap-6">
+<!-- Title & Meta -->
+<div>
+<h2 class="font-headline-md text-headline-md text-on-surface mb-1">Red Blossom Bookmark</h2>
+<div class="font-label-sm text-label-sm text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-[14px]">person</span> Designer: <span class="text-on-surface">Studio_3D</span>
+</div>
+</div>
+<!-- License Warning -->
+<div class="bg-tertiary-container/10 border border-tertiary-container/30 rounded p-3 flex gap-3 items-start">
+<span class="material-symbols-outlined text-tertiary text-[20px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">warning</span>
+<div>
+<div class="font-label-md text-label-md font-bold text-tertiary mb-1 uppercase tracking-wider">Commercial License Warning</div>
+<div class="font-body-md text-body-md text-on-surface-variant text-sm">This model (CC-BY-NC) restricts commercial sales without direct author permission. Ensure agreement is logged before production runs.</div>
+</div>
+</div>
+<!-- Data Grid -->
+<div class="grid grid-cols-2 gap-x-4 gap-y-4">
+<div class="flex flex-col gap-1 border-b border-surface-variant pb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Source</span>
+<a class="font-label-md text-label-md text-primary hover:underline flex items-center gap-1" href="#">
+                            Printables <span class="material-symbols-outlined text-[12px]">open_in_new</span>
+</a>
+</div>
+<div class="flex flex-col gap-1 border-b border-surface-variant pb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Sale Unit</span>
+<span class="font-label-md text-label-md text-on-surface">Piece</span>
+</div>
+<div class="flex flex-col gap-1 border-b border-surface-variant pb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Material Cost</span>
+<span class="font-label-md text-label-md text-on-surface font-bold">$0.32</span>
+</div>
+<div class="flex flex-col gap-1 border-b border-surface-variant pb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Est. Print Time</span>
+<span class="font-label-md text-label-md text-on-surface">45m</span>
+</div>
+</div>
+<!-- Stock Gauge -->
+<div class="bg-surface-container-low border border-surface-variant p-4 rounded">
+<div class="flex justify-between items-end mb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Current Stock</span>
+<span class="font-headline-md text-headline-md text-on-surface font-bold">14</span>
+</div>
+<!-- Minimal linear track -->
+<div class="h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-[25%] shadow-[0_0_8px_rgba(0,200,83,0.5)]"></div>
+</div>
+<div class="flex justify-between mt-1 font-label-sm text-label-sm text-on-surface-variant">
+<span>Low (Reorder &lt; 5)</span>
+<span>Target: 50</span>
+</div>
+</div>
+</div>
+<!-- Quick Actions Footer -->
+<div class="p-unit-4 border-t border-surface-variant bg-surface-container-low flex gap-2">
+<button class="flex-1 flex justify-center items-center gap-2 bg-transparent border border-outline-variant text-on-surface py-2 rounded font-label-md text-label-md hover:bg-surface-variant transition-colors">
+<span class="material-symbols-outlined text-[18px]">edit</span>
+                    Edit
+                </button>
+<button class="flex-1 flex justify-center items-center gap-2 bg-primary/10 border border-primary/30 text-primary py-2 rounded font-label-md text-label-md hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[18px]">print</span>
+                    Queue Print
+                </button>
+</div>
+</aside>
+</main>
+</body></html>

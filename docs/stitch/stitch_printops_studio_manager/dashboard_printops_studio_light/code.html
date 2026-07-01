@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintOps Studio - Dashboard</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "tertiary": "#585f6c",
+                        "primary": "#006e2a",
+                        "secondary-container": "#d9dff5",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-fixed-dim": "#c0c6db",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container": "#edeeef",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#002108",
+                        "inverse-surface": "#2e3132",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-primary": "#3ce36a",
+                        "outline-variant": "#bbcbb8",
+                        "primary-container": "#00c853",
+                        "on-background": "#191c1d",
+                        "surface-container-high": "#e7e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-container": "#004c1b",
+                        "on-surface-variant": "#3c4a3c",
+                        "outline": "#6c7b6a",
+                        "on-primary-fixed-variant": "#00531e",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#141b2b",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#151c27",
+                        "on-tertiary-fixed-variant": "#404754",
+                        "tertiary-fixed": "#dce2f3",
+                        "secondary": "#575e70",
+                        "tertiary-fixed-dim": "#c0c7d6",
+                        "tertiary-container": "#a7aebd",
+                        "surface-tint": "#006e2a",
+                        "secondary-fixed": "#dce2f7",
+                        "background": "#f8f9fa",
+                        "on-secondary-container": "#5c6274",
+                        "surface": "#f8f9fa",
+                        "on-surface": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "primary-fixed-dim": "#3ce36a",
+                        "on-tertiary-container": "#3b424e",
+                        "primary-fixed": "#69ff87",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#404758",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "24px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "gutter": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "xl": "32px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist", "sans-serif"],
+                        "body-md": ["Geist", "sans-serif"],
+                        "mono-label": ["Geist", "monospace"],
+                        "label-md": ["Geist", "sans-serif"],
+                        "body-lg": ["Geist", "sans-serif"],
+                        "headline-lg": ["Geist", "sans-serif"],
+                        "headline-sm": ["Geist", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-label": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md antialiased min-h-screen overflow-x-hidden">
+<!-- DATA INJECTION POINT (Simulated) -->
+<script id="data-screen-4" type="application/json">
+        {{DATA:SCREEN:SCREEN_4}}
+    </script>
+<!-- SideNavBar (Shared Component) -->
+<nav class="w-64 h-screen fixed left-0 top-0 bg-surface-container dark:bg-surface-container border-r border-outline-variant dark:border-outline-variant flex flex-col h-full py-unit-4 px-unit-2 z-20">
+<!-- Brand Header -->
+<div class="px-md py-lg mb-4 flex flex-col gap-xs">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-fixed-variant" style="font-size: 18px;">precision_manufacturing</span>
+</div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary">PrintOps Studio</h1>
+</div>
+<span class="font-mono-label text-mono-label text-tertiary">v2.4.0-stable</span>
+</div>
+<!-- Navigation Links -->
+<div class="flex-1 overflow-y-auto px-sm flex flex-col gap-xs">
+<!-- Active: Dashboard -->
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="box">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="calculate">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+</div>
+<!-- Bottom Actions -->
+<div class="mt-auto px-sm pt-4 border-t border-outline-variant flex flex-col gap-xs mb-lg">
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150 border-l-4 border-transparent" href="#">
+<span class="material-symbols-outlined" data-icon="backup">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</div>
+</nav>
+<!-- TopNavBar (Shared Component) -->
+<header class="h-16 fixed top-0 right-0 left-64 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant flex items-center justify-between px-gutter w-[calc(100%-16rem)] z-10 transition-transform scale-95 duration-100 origin-top" style="transform: scale(1);">
+<!-- Left Side: Brand & Links -->
+<div class="flex items-center gap-lg">
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight hidden lg:block">PrintOps Studio</h2>
+<nav class="flex gap-md">
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1" href="#">Home Stock</a>
+</nav>
+</div>
+<!-- Right Side: Actions -->
+<div class="flex items-center gap-md">
+<!-- Icon Actions -->
+<div class="flex gap-sm mr-sm border-r border-outline-variant pr-md">
+<button class="text-on-surface-variant hover:text-primary transition-opacity w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined text-[20px]" data-icon="cloud_off">cloud_off</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-opacity w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-container">
+<span class="material-symbols-outlined text-[20px]" data-icon="database">database</span>
+</button>
+</div>
+<!-- Primary/Secondary Actions -->
+<button class="font-label-md text-label-md px-md py-sm border border-outline rounded-DEFAULT bg-surface text-on-surface hover:bg-surface-variant transition-colors">
+                Add Sale
+            </button>
+<button class="font-label-md text-label-md px-md py-sm rounded-DEFAULT bg-primary-container text-on-primary-fixed-variant font-bold hover:opacity-90 transition-opacity">
+                Add Production Run
+            </button>
+<!-- Profile -->
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant ml-sm cursor-pointer">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A macro photography shot of a sleek, brushed metal cogwheel on a clean white background, studio lighting, hyper-realistic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqd6V47AfH0ixULvsszA4zD4Zw8fV4UYegExkyu4qYXkOb5rH1TmH3s9GmrVeOAqgPO9j_6RMakVoJit2wQ5rzJYllOiqluaJ5EOeRNKsDxDtgJHZ1GmxUdU_CeOd9uEJSzpQ3hXZeixGFASbg2cBfxxIkbaB6ZJxciUhoPur6NiQbhctG9CEsoMRaf9r_Aj3znu1S5EwbOApAF6t4TYnnEWevT2jFe11ksxnMceiLH7oHqZ0sP1hxRVubX0bfpeQt8zL3vz-bRBww"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 mt-16 p-lg min-h-[calc(100vh-4rem)] bg-background">
+<!-- Dashboard Grid Layout -->
+<div class="grid grid-cols-12 gap-lg max-w-7xl mx-auto">
+<!-- Hero Section: Print Stats (Spans 8 cols) -->
+<div class="col-span-12 lg:col-span-8 bg-surface border border-outline-variant rounded-DEFAULT p-lg flex flex-col justify-between">
+<div class="flex justify-between items-start mb-lg">
+<div>
+<h3 class="font-label-md text-label-md uppercase text-tertiary tracking-wider mb-xs">Active Print Operations</h3>
+<div class="font-headline-lg text-headline-lg text-on-surface flex items-baseline gap-sm">
+                            24 <span class="font-body-md text-body-md text-on-surface-variant">/ 30 Printers Online</span>
+</div>
+</div>
+<div class="flex items-center gap-xs px-sm py-xs bg-primary-container rounded text-on-primary-fixed-variant">
+<span class="material-symbols-outlined text-[16px]">check_circle</span>
+<span class="font-mono-label text-mono-label font-bold">OPTIMAL</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-md border-t border-outline-variant pt-md">
+<div>
+<span class="font-mono-label text-mono-label text-tertiary block mb-xs">EFFICIENCY</span>
+<span class="font-headline-sm text-headline-sm text-primary">94.2%</span>
+</div>
+<div>
+<span class="font-mono-label text-mono-label text-tertiary block mb-xs">FILAMENT USAGE (24H)</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">14.8 kg</span>
+</div>
+<div>
+<span class="font-mono-label text-mono-label text-tertiary block mb-xs">EST. COMPLETION</span>
+<span class="font-headline-sm text-headline-sm text-on-surface">4h 12m</span>
+</div>
+</div>
+</div>
+<!-- Metric Cards (Spans 4 cols total, stacked 2x2 or 1x2) -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-lg">
+<!-- Sales Card -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-md flex-1 flex flex-col justify-center relative overflow-hidden group">
+<div class="absolute right-0 top-0 w-16 h-16 bg-surface-container rounded-bl-full -mr-4 -mt-4 opacity-50 transition-transform group-hover:scale-110"></div>
+<span class="font-label-md text-label-md uppercase text-tertiary mb-sm relative z-10">Monthly Revenue</span>
+<div class="font-headline-md text-headline-md text-on-surface mb-xs relative z-10">$12,450.00</div>
+<div class="font-mono-label text-mono-label text-primary flex items-center gap-xs relative z-10">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +14.5% vs last month
+                    </div>
+</div>
+<!-- Profit Card -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-md flex-1 flex flex-col justify-center relative overflow-hidden group">
+<div class="absolute right-0 bottom-0 w-16 h-16 bg-primary-container rounded-tl-full -mr-4 -mb-4 opacity-10 transition-transform group-hover:scale-110"></div>
+<span class="font-label-md text-label-md uppercase text-tertiary mb-sm relative z-10">Net Margin</span>
+<div class="font-headline-md text-headline-md text-on-surface mb-xs relative z-10">42.8%</div>
+<div class="font-mono-label text-mono-label text-primary flex items-center gap-xs relative z-10">
+<span class="material-symbols-outlined text-[14px]">arrow_upward</span> Stable
+                    </div>
+</div>
+</div>
+<!-- Recent Production Runs Table (Spans 8 cols) -->
+<div class="col-span-12 lg:col-span-8 bg-surface border border-outline-variant rounded-DEFAULT overflow-hidden flex flex-col">
+<div class="px-md py-sm border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h3 class="font-label-md text-label-md uppercase text-on-surface">Recent Production Runs</h3>
+<button class="font-mono-label text-mono-label text-tertiary hover:text-primary transition-colors flex items-center gap-xs">
+                        VIEW ALL <span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container-lowest">
+<th class="py-sm px-md font-mono-label text-mono-label text-tertiary font-medium">RUN ID</th>
+<th class="py-sm px-md font-mono-label text-mono-label text-tertiary font-medium">PRODUCT</th>
+<th class="py-sm px-md font-mono-label text-mono-label text-tertiary font-medium">QTY</th>
+<th class="py-sm px-md font-mono-label text-mono-label text-tertiary font-medium">STATUS</th>
+<th class="py-sm px-md font-mono-label text-mono-label text-tertiary font-medium text-right">DURATION</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-surface">
+<tr class="border-b border-outline-variant hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-md font-mono-label text-mono-label">PR-8042</td>
+<td class="py-sm px-md">Articulated Dragon V2</td>
+<td class="py-sm px-md font-mono-label text-mono-label">120</td>
+<td class="py-sm px-md">
+<span class="inline-flex items-center px-2 py-1 rounded bg-secondary-container text-on-secondary-container font-mono-label text-mono-label">PRINTING</span>
+</td>
+<td class="py-sm px-md text-right font-mono-label text-mono-label">14h 20m</td>
+</tr>
+<tr class="border-b border-outline-variant hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-md font-mono-label text-mono-label">PR-8041</td>
+<td class="py-sm px-md">Geometric Planter Lg</td>
+<td class="py-sm px-md font-mono-label text-mono-label">45</td>
+<td class="py-sm px-md">
+<span class="inline-flex items-center px-2 py-1 rounded bg-primary-container text-on-primary-container font-mono-label text-mono-label">COMPLETED</span>
+</td>
+<td class="py-sm px-md text-right font-mono-label text-mono-label">8h 45m</td>
+</tr>
+<tr class="border-b border-outline-variant hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-md font-mono-label text-mono-label">PR-8040</td>
+<td class="py-sm px-md">HueForge Landscape Canvas</td>
+<td class="py-sm px-md font-mono-label text-mono-label">10</td>
+<td class="py-sm px-md">
+<span class="inline-flex items-center px-2 py-1 rounded bg-error-container text-on-error-container font-mono-label text-mono-label">FAILED</span>
+</td>
+<td class="py-sm px-md text-right font-mono-label text-mono-label">2h 10m</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="py-sm px-md font-mono-label text-mono-label">PR-8039</td>
+<td class="py-sm px-md">Custom Client Enclosure</td>
+<td class="py-sm px-md font-mono-label text-mono-label">2</td>
+<td class="py-sm px-md">
+<span class="inline-flex items-center px-2 py-1 rounded bg-primary-container text-on-primary-container font-mono-label text-mono-label">COMPLETED</span>
+</td>
+<td class="py-sm px-md text-right font-mono-label text-mono-label">36h 00m</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Low Stock Alerts (Spans 4 cols) -->
+<div class="col-span-12 lg:col-span-4 flex flex-col gap-sm">
+<div class="bg-surface border border-outline-variant rounded-DEFAULT px-md py-sm flex justify-between items-center mb-xs">
+<h3 class="font-label-md text-label-md uppercase text-error flex items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">warning</span> Low Stock Alerts
+                    </h3>
+</div>
+<!-- Alert Item -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-md flex gap-md items-center">
+<div class="w-10 h-10 rounded bg-surface-container flex-shrink-0 border border-outline-variant" style="background-color: #1a1a1a;"></div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface font-medium leading-tight">PLA+ Matte Black</h4>
+<span class="font-mono-label text-mono-label text-tertiary">Esun 1kg Spool</span>
+</div>
+<div class="text-right">
+<div class="font-headline-sm text-headline-sm text-error">2</div>
+<span class="font-mono-label text-mono-label text-tertiary">spools left</span>
+</div>
+</div>
+<!-- Alert Item -->
+<div class="bg-surface border border-outline-variant rounded-DEFAULT p-md flex gap-md items-center">
+<div class="w-10 h-10 rounded bg-surface-container flex-shrink-0 border border-outline-variant" style="background-color: #f5f5dc;"></div>
+<div class="flex-1">
+<h4 class="font-body-md text-body-md text-on-surface font-medium leading-tight">PETG Bone White</h4>
+<span class="font-mono-label text-mono-label text-tertiary">Polymaker 1kg Spool</span>
+</div>
+<div class="text-right">
+<div class="font-headline-sm text-headline-sm text-error">1</div>
+<span class="font-mono-label text-mono-label text-tertiary">spool left</span>
+</div>
+</div>
+<!-- Action Button -->
+<button class="mt-sm w-full font-label-md text-label-md px-md py-sm border border-outline rounded-DEFAULT bg-surface text-on-surface hover:bg-surface-variant transition-colors flex justify-center items-center gap-xs">
+<span class="material-symbols-outlined text-[16px]">add_shopping_cart</span> Add to Shopping List
+                </button>
+</div>
+</div>
+</main>
+</body></html>

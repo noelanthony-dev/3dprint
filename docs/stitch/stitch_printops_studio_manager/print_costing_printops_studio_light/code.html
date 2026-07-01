@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintOps Studio - Costing</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Geist -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config from Brand Anchors -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "tertiary": "#585f6c",
+                        "primary": "#006e2a",
+                        "secondary-container": "#d9dff5",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-fixed-dim": "#c0c6db",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container": "#edeeef",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#002108",
+                        "inverse-surface": "#2e3132",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-primary": "#3ce36a",
+                        "outline-variant": "#bbcbb8",
+                        "primary-container": "#00c853",
+                        "on-background": "#191c1d",
+                        "surface-container-high": "#e7e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-container": "#004c1b",
+                        "on-surface-variant": "#3c4a3c",
+                        "outline": "#6c7b6a",
+                        "on-primary-fixed-variant": "#00531e",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#141b2b",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#151c27",
+                        "on-tertiary-fixed-variant": "#404754",
+                        "tertiary-fixed": "#dce2f3",
+                        "secondary": "#575e70",
+                        "tertiary-fixed-dim": "#c0c7d6",
+                        "tertiary-container": "#a7aebd",
+                        "surface-tint": "#006e2a",
+                        "secondary-fixed": "#dce2f7",
+                        "background": "#f8f9fa",
+                        "on-secondary-container": "#5c6274",
+                        "surface": "#f8f9fa",
+                        "on-surface": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "primary-fixed-dim": "#3ce36a",
+                        "on-tertiary-container": "#3b424e",
+                        "primary-fixed": "#69ff87",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#404758",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "24px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "gutter": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "xl": "32px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist"],
+                        "body-md": ["Geist"],
+                        "mono-label": ["Geist"],
+                        "label-md": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "headline-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-label": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Custom scrollbar for technical feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f3f4f6; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af; 
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="w-64 h-screen fixed left-0 top-0 bg-surface-container border-r border-outline-variant flex flex-col py-md px-sm z-20">
+<!-- Brand -->
+<div class="px-sm mb-lg">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">PrintOps Studio</h1>
+<p class="font-mono-label text-mono-label text-on-surface-variant">v2.4.0-stable</p>
+</div>
+<!-- Navigation Links -->
+<nav class="flex-1 overflow-y-auto space-y-xs">
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+<!-- Active Tab: Costing -->
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined text-xl fill">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-sm px-sm py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-xl">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</nav>
+<!-- User Avatar / Footer -->
+<div class="mt-auto pt-md border-t border-outline-variant px-sm flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center text-on-tertiary-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A small, professional user profile avatar placeholder image in a modern, flat UI style, neutral gray tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDmEDklXj2yM1vlFqXr06llzdHTX6ug0u5kpWg-gdtlEKUrIAQaenBZdZHr0yL_Cxpbcc-jUeFtFbZ3popSvzM-3ovrCHpONwqkxANld8s7NCfleyTNsT1YO7-1-WA0z2RpKQTP1u0WT4eKvls4tJZ-OFtQofvps22swOFAW4syW7vymttvh7N3RqCbpBzUpE5V-tpl-lfZ4qfnMzl0axOmDrgFs1iV05W2PkOEvDD0juPWarmbbqNw7GMPsAVyvPpbLo16F0ku_mSX"/>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md font-bold">SysAdmin</span>
+<span class="font-mono-label text-mono-label text-on-surface-variant">Active</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="h-16 fixed top-0 right-0 left-64 bg-surface border-b border-outline-variant flex items-center justify-between px-gutter z-10">
+<!-- Left: Breadcrumbs / Context -->
+<div class="flex items-center gap-md">
+<nav class="flex gap-md">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-opacity" href="#">Home</a>
+<span class="text-on-surface-variant">/</span>
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1" href="#">Costing Calculator</a>
+</nav>
+</div>
+<!-- Right: Actions -->
+<div class="flex items-center gap-md">
+<button class="text-on-surface-variant hover:text-primary transition-opacity" title="Cloud Status">
+<span class="material-symbols-outlined text-xl">cloud_off</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-opacity" title="Database Sync">
+<span class="material-symbols-outlined text-xl">database</span>
+</button>
+<div class="h-6 w-px bg-outline-variant mx-sm"></div>
+<button class="bg-surface border border-outline px-md py-xs rounded font-label-md text-label-md text-on-surface hover:bg-surface-variant transition-colors">
+                    Add Sale
+                </button>
+<button class="bg-primary-container px-md py-xs rounded font-label-md text-label-md font-bold text-on-primary-container hover:opacity-90 transition-opacity">
+                    Add Production Run
+                </button>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 mt-16 p-lg bg-background overflow-y-auto">
+<div class="max-w-7xl mx-auto space-y-lg">
+<!-- Header -->
+<div class="flex items-end justify-between">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface tracking-tight">Parametric Cost Analysis</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-xs">Real-time breakdown of material, time, and overhead expenditures.</p>
+</div>
+<div class="flex gap-sm">
+<button class="px-sm py-xs border border-outline rounded flex items-center gap-xs text-on-surface font-label-md bg-surface hover:bg-surface-variant">
+<span class="material-symbols-outlined text-[16px]">download</span> Export CSV
+                        </button>
+</div>
+</div>
+<!-- Main Grid Layout -->
+<div class="grid grid-cols-12 gap-lg">
+<!-- Left Column: Technical Inputs -->
+<div class="col-span-12 lg:col-span-4 space-y-md">
+<!-- Input Card 1: Material -->
+<div class="bg-surface border border-outline-variant rounded-lg p-md shadow-sm">
+<div class="flex items-center gap-sm mb-md pb-xs border-b border-outline-variant">
+<span class="material-symbols-outlined text-primary">conveyor_belt</span>
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-bold">Material Parameters</h3>
+</div>
+<div class="space-y-sm">
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">FILAMENT TYPE</label>
+<select class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-body-md focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all">
+<option>PLA Tough - Onyx Black</option>
+<option>PETG - Clear</option>
+<option>ABS+ - Industrial Grey</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-sm">
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">WEIGHT (g)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right" type="number" value="125"/>
+</div>
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">COST / KG ($)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right bg-surface-container-low" readonly="" type="number" value="22.50"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Input Card 2: Production -->
+<div class="bg-surface border border-outline-variant rounded-lg p-md shadow-sm">
+<div class="flex items-center gap-sm mb-md pb-xs border-b border-outline-variant">
+<span class="material-symbols-outlined text-primary">schedule</span>
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-bold">Production Metrics</h3>
+</div>
+<div class="space-y-sm">
+<div class="grid grid-cols-2 gap-sm">
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">PRINT TIME (HRS)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right" step="0.1" type="number" value="4.5"/>
+</div>
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">KWH RATE ($)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right" step="0.01" type="number" value="0.14"/>
+</div>
+</div>
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">PRINTER DEPRECIATION / HR ($)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right" step="0.01" type="number" value="0.25"/>
+</div>
+</div>
+</div>
+<!-- Input Card 3: Financial Targets -->
+<div class="bg-surface border border-outline-variant rounded-lg p-md shadow-sm border-l-4 border-l-primary-container">
+<div class="flex items-center gap-sm mb-md pb-xs border-b border-outline-variant">
+<span class="material-symbols-outlined text-primary">trending_up</span>
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-bold">Margin Strategy</h3>
+</div>
+<div class="space-y-sm">
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs">TARGET MARKUP (%)</label>
+<div class="flex items-center gap-xs">
+<input class="flex-1 accent-primary-container" max="500" min="0" type="range" value="150"/>
+<span class="w-12 text-right font-mono-label border border-outline-variant rounded px-xs py-1">150%</span>
+</div>
+</div>
+<div>
+<label class="block font-mono-label text-mono-label text-on-surface-variant mb-xs mt-sm">LABOR FLAT FEE ($)</label>
+<input class="w-full bg-surface border border-outline-variant rounded px-sm py-xs text-on-surface font-mono-label focus:border-on-surface focus:ring-1 focus:ring-on-surface outline-none transition-all text-right" step="1" type="number" value="5.00"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Outputs & Analysis -->
+<div class="col-span-12 lg:col-span-8 flex flex-col gap-md">
+<!-- Top KPI Row -->
+<div class="grid grid-cols-3 gap-md">
+<!-- Total Cost -->
+<div class="bg-surface border border-outline-variant rounded-lg p-md flex flex-col justify-between">
+<span class="font-mono-label text-mono-label text-on-surface-variant uppercase tracking-widest">Base Cost</span>
+<div class="mt-sm flex items-baseline gap-xs">
+<span class="font-headline-md text-on-surface-variant">$</span>
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">9.69</span>
+</div>
+<div class="mt-xs font-mono-label text-xs text-tertiary">Material + Power + Depr.</div>
+</div>
+<!-- Suggested Price -->
+<div class="bg-surface border border-primary rounded-lg p-md flex flex-col justify-between shadow-sm relative overflow-hidden">
+<div class="absolute top-0 right-0 w-16 h-16 bg-primary-container opacity-10 rounded-bl-full"></div>
+<span class="font-mono-label text-mono-label text-primary uppercase tracking-widest font-bold">Suggested Retail</span>
+<div class="mt-sm flex items-baseline gap-xs">
+<span class="font-headline-md text-primary">$</span>
+<span class="font-headline-lg text-headline-lg font-black text-on-surface">24.23</span>
+</div>
+<div class="mt-xs font-mono-label text-xs text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">info</span> Based on 150% markup
+                                </div>
+</div>
+<!-- Profit Margin -->
+<div class="bg-primary-container rounded-lg p-md flex flex-col justify-between text-on-primary-container shadow-sm">
+<span class="font-mono-label text-mono-label uppercase tracking-widest opacity-80">Est. Profit / Unit</span>
+<div class="mt-sm flex items-baseline gap-xs">
+<span class="font-headline-md opacity-80">$</span>
+<span class="font-headline-lg text-headline-lg font-bold">14.54</span>
+</div>
+<div class="mt-xs font-mono-label text-xs font-medium bg-on-primary-container text-primary-container inline-block px-2 py-1 rounded w-fit">
+                                    60.0% Gross Margin
+                                </div>
+</div>
+</div>
+<!-- Data Integration Placeholder -->
+<div class="flex-1 bg-surface border border-outline-variant rounded-lg p-md flex flex-col">
+<div class="flex items-center justify-between mb-md">
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-bold">Historical Cost Variance</h3>
+<span class="font-mono-label bg-surface-container px-2 py-1 rounded text-on-surface-variant border border-outline-variant">Dataset: {{DATA:SCREEN:SCREEN_8}}</span>
+</div>
+<!-- Simulated Chart Area -->
+<div class="flex-1 bg-surface-bright border border-dashed border-outline-variant rounded flex items-center justify-center min-h-[200px] relative overflow-hidden">
+<div class="text-center">
+<span class="material-symbols-outlined text-4xl text-outline-variant mb-2">monitoring</span>
+<p class="font-mono-label text-on-surface-variant">Cost trend analysis visualization will render here.</p>
+</div>
+<!-- Decorative grid lines for technical feel -->
+<div class="absolute inset-0 pointer-events-none" style="background-image: linear-gradient(to right, #e1e3e4 1px, transparent 1px), linear-gradient(to bottom, #e1e3e4 1px, transparent 1px); background-size: 20px 20px; opacity: 0.3;"></div>
+</div>
+</div>
+<!-- Breakdown Visual -->
+<div class="bg-surface border border-outline-variant rounded-lg p-md">
+<h3 class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-bold mb-md">Cost Distribution</h3>
+<!-- Stacked Bar -->
+<div class="w-full h-8 flex rounded overflow-hidden shadow-inner border border-outline-variant">
+<div class="bg-tertiary-container h-full w-[29%]" title="Material: $2.81"></div>
+<div class="bg-secondary-fixed-dim h-full w-[6%]" title="Electricity: $0.63"></div>
+<div class="bg-surface-variant h-full w-[12%]" title="Depreciation: $1.13"></div>
+<div class="bg-outline h-full w-[52%]" title="Labor Flat: $5.12"></div>
+</div>
+<!-- Legend -->
+<div class="flex justify-between mt-sm font-mono-label text-on-surface-variant">
+<div class="flex items-center gap-xs"><div class="w-3 h-3 rounded-full bg-tertiary-container"></div> Material (29%)</div>
+<div class="flex items-center gap-xs"><div class="w-3 h-3 rounded-full bg-secondary-fixed-dim"></div> Power (6%)</div>
+<div class="flex items-center gap-xs"><div class="w-3 h-3 rounded-full bg-surface-variant"></div> Machine (12%)</div>
+<div class="flex items-center gap-xs"><div class="w-3 h-3 rounded-full bg-outline"></div> Labor (53%)</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

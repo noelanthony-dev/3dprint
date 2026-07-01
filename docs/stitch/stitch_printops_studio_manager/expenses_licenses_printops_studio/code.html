@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Expenses &amp; Licenses - PrintOps Studio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed": "#69ff87",
+                      "tertiary": "#fdbf02",
+                      "on-primary": "#003912",
+                      "secondary-fixed-dim": "#c7c6c6",
+                      "on-primary-container": "#004c1b",
+                      "surface": "#121415",
+                      "surface-container-high": "#282a2b",
+                      "tertiary-container": "#dba500",
+                      "on-secondary-container": "#b6b5b5",
+                      "tertiary-fixed": "#ffdf9e",
+                      "inverse-surface": "#e2e2e3",
+                      "on-secondary-fixed-variant": "#464747",
+                      "on-primary-fixed-variant": "#00531e",
+                      "surface-variant": "#333536",
+                      "on-error-container": "#ffdad6",
+                      "on-surface-variant": "#bbcbb8",
+                      "surface-container-lowest": "#0c0e0f",
+                      "on-background": "#e2e2e3",
+                      "on-tertiary-container": "#543e00",
+                      "secondary-container": "#464747",
+                      "secondary-fixed": "#e3e2e2",
+                      "on-secondary": "#303031",
+                      "surface-tint": "#3ce36a",
+                      "surface-container-low": "#1a1c1d",
+                      "on-surface": "#e2e2e3",
+                      "inverse-on-surface": "#2f3132",
+                      "error": "#ffb4ab",
+                      "primary-container": "#00c853",
+                      "on-secondary-fixed": "#1b1c1c",
+                      "outline": "#869583",
+                      "on-tertiary-fixed": "#261a00",
+                      "surface-container-highest": "#333536",
+                      "on-error": "#690005",
+                      "primary-fixed-dim": "#3ce36a",
+                      "tertiary-fixed-dim": "#fabd00",
+                      "surface-bright": "#38393a",
+                      "error-container": "#93000a",
+                      "outline-variant": "#3c4a3c",
+                      "on-tertiary-fixed-variant": "#5b4300",
+                      "surface-container": "#1e2021",
+                      "primary": "#3fe56c",
+                      "background": "#121415",
+                      "secondary": "#c7c6c6",
+                      "inverse-primary": "#006e2a",
+                      "on-primary-fixed": "#002108",
+                      "surface-dim": "#121415",
+                      "on-tertiary": "#3f2e00"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "unit-1": "4px",
+                      "unit-8": "32px",
+                      "unit-4": "16px",
+                      "base": "4px",
+                      "unit-6": "24px",
+                      "gutter": "16px",
+                      "container-margin": "24px",
+                      "unit-2": "8px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Geist"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "JetBrains Mono"
+                      ],
+                      "label-sm": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-md": [
+                              "Geist"
+                      ],
+                      "display-lg": [
+                              "Geist"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "label-sm": [
+                              "10px",
+                              {
+                                      "lineHeight": "14px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "40px",
+                              {
+                                      "lineHeight": "48px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #0B0D0E;
+            color: #e2e2e3;
+        }
+        .card-panel {
+            background-color: #171A1C;
+            border: 1px solid #2D3135;
+        }
+        .card-panel:hover {
+            border-color: #3D4248;
+        }
+        .table-header {
+            color: #869583;
+        }
+        .table-divider {
+            border-bottom: 1px solid #2D3135;
+        }
+        .popover-elevation {
+            background-color: #1E2225;
+            box-shadow: 0 12px 12px -0px rgba(0, 0, 0, 0.4);
+        }
+      </style>
+</head>
+<body class="font-body-md text-body-md text-on-background bg-[#0B0D0E] min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="w-64 h-screen fixed left-0 top-0 bg-surface-dim border-r border-outline-variant flex flex-col h-full py-unit-4 px-unit-2 z-20">
+<div class="mb-unit-8 px-unit-2">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">PrintOps Studio</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant mt-1">v2.4.0-stable</p>
+</div>
+<ul class="flex-1 space-y-1">
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="palette">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="box">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="calculate">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-3 py-2 rounded-DEFAULT text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" data-icon="backup">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto pt-4 border-t border-outline-variant flex items-center gap-3 px-2">
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A macro shot of a sleek, dark anodized aluminum textured surface with subtle laser-etched geometric patterns. The lighting is moody and technical, emphasizing the precision manufacturing aesthetic of the 3D printing industry." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCTG4_HDq1JU7f5VF4KKDgvPvWLEiuSIrXHRZg3W_vvF_Fka3ZTFYw2rjqm-DEU1mhbCPqqfcQ2snOdCKQgASZirOFgVgvgbMtpuaE6YBVDrRRmpW_bRXQsF3pkZ6Xzn6NsnDplZ_Lae-bE105nGnDw9ozJ-8FUj7olHRwb76y8JZ-xydqu4isHKkShEIj3mzwaXXVN-FvNcAEyoYF1guZLjhS35cePpkXdng4R9MrUIbKUOwsGyqNrLFk802Me23ZE7ARwMu1GQoOd"/>
+</div>
+<div class="flex-1">
+<p class="font-label-sm text-label-sm text-on-surface">Admin User</p>
+<p class="text-[10px] text-on-surface-variant">Online</p>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<div class="flex-1 ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="h-16 fixed top-0 right-0 left-64 bg-surface border-b border-outline-variant flex items-center justify-between px-gutter w-[calc(100%-16rem)] z-10">
+<div class="flex items-center gap-6">
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight">PrintOps Studio</h2>
+<nav class="hidden md:flex items-center gap-4">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-opacity scale-95 duration-100" href="#">Home</a>
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1 scale-95 duration-100" href="#">Stock</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" data-icon="search">search</span>
+<input class="bg-[#0B0D0E] border-none text-on-surface font-label-md text-label-md pl-8 pr-3 py-1.5 rounded-DEFAULT focus:ring-1 focus:ring-primary w-48" placeholder="Search..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-1.5 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="cloud_off">cloud_off</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+</button>
+</div>
+<div class="flex gap-2">
+<button class="bg-transparent border border-[#2D3135] text-on-surface font-label-md text-label-md px-3 py-1.5 rounded-DEFAULT hover:border-[#3D4248] transition-colors">
+                        Add Sale
+                    </button>
+<button class="bg-[#00C853] text-[#000000] font-label-md text-label-md font-bold px-3 py-1.5 rounded-DEFAULT hover:opacity-90 transition-opacity">
+                        Add Production Run
+                    </button>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden ml-2 cursor-pointer border border-[#2D3135]">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="A macro shot of a sleek, dark anodized aluminum textured surface with subtle laser-etched geometric patterns. The lighting is moody and technical, emphasizing the precision manufacturing aesthetic of the 3D printing industry." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAaTQrwfN65OEmX8Jr4lKdYt2feGOWGYchh8MPK3bZsdzXE91lJhKj6lkYRNWoFP1d2HqEHDDgPulaHS2n000BMP4Q7MdUBKg1TgJuvJJeUNkBj_N4ok5bcA92sS3n_GZcvDwvtQJbM4S6zjPRWw46xZHzDKF5lOlRa9lL-o4w4k_4UbV2MnvEFRGA1GSx1gslDuwhRPn9RKoY22ar5iTxaPcqcn92mbFM0IV3Qdidv47i6JUUzNObu0sr78IZJyR4CZ-G9RRzHHpUN"/>
+</div>
+</div>
+</header>
+<!-- Main Dashboard Content -->
+<main class="flex-1 mt-16 p-container-margin overflow-y-auto">
+<div class="mb-unit-6 flex items-center justify-between">
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Expenses &amp; Licenses</h2>
+<!-- Inner Tabs -->
+<div class="flex gap-1 bg-[#0B0D0E] p-1 rounded-DEFAULT border border-[#2D3135]">
+<button class="font-label-md text-label-md px-4 py-1.5 bg-surface-variant text-on-surface rounded-DEFAULT shadow-sm">Expenses</button>
+<button class="font-label-md text-label-md px-4 py-1.5 text-on-surface-variant hover:text-on-surface">Memberships</button>
+<button class="font-label-md text-label-md px-4 py-1.5 text-error hover:text-error-container flex items-center gap-1">
+<span class="material-symbols-outlined text-sm" data-icon="warning">warning</span>
+                        Warnings (2)
+                    </button>
+</div>
+</div>
+<!-- Dashboard Grid -->
+<div class="grid grid-cols-12 gap-unit-4">
+<!-- Left Column (Spans 8) -->
+<div class="col-span-12 xl:col-span-8 flex flex-col gap-unit-4">
+<!-- Expenses Table Card -->
+<div class="card-panel rounded-DEFAULT flex flex-col">
+<div class="p-unit-4 border-b border-[#2D3135] flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="receipt_long">receipt_long</span>
+                                RECENT EXPENSES
+                            </h3>
+<button class="font-label-md text-label-md text-primary hover:underline">View All</button>
+</div>
+<div class="p-0">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="table-header font-label-sm text-label-sm uppercase bg-[#0B0D0E]">
+<th class="py-2 px-unit-4 font-normal">Date</th>
+<th class="py-2 px-unit-4 font-normal">Type</th>
+<th class="py-2 px-unit-4 font-normal">Notes</th>
+<th class="py-2 px-unit-4 font-normal text-right">Amount</th>
+</tr>
+</thead>
+<tbody class="font-label-md text-label-md">
+<tr class="table-divider hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4 text-on-surface-variant">2023-10-25</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1.5 bg-[#1E2225] px-2 py-0.5 rounded border border-[#2D3135]">
+<div class="w-2 h-2 rounded-full" style="background-color: #fca5a5;"></div>
+                                                Filament
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-on-surface-variant truncate max-w-[200px]">Polymaker PolyTerra PLA Matte Red 1kg x5</td>
+<td class="py-3 px-unit-4 text-right text-on-surface font-bold">-$99.95</td>
+</tr>
+<tr class="table-divider hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4 text-on-surface-variant">2023-10-22</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1.5 bg-[#1E2225] px-2 py-0.5 rounded border border-[#2D3135]">
+<span class="material-symbols-outlined text-[10px] text-on-surface-variant" data-icon="build">build</span>
+                                                Equipment
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-on-surface-variant truncate max-w-[200px]">Bambu Lab X1C Replacement Hotend 0.4mm</td>
+<td class="py-3 px-unit-4 text-right text-on-surface font-bold">-$34.99</td>
+</tr>
+<tr class="table-divider hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4 text-on-surface-variant">2023-10-18</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1.5 bg-[#1E2225] px-2 py-0.5 rounded border border-[#2D3135]">
+<div class="w-2 h-2 rounded-full" style="background-color: #69ff87;"></div>
+                                                Filament
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-on-surface-variant truncate max-w-[200px]">Bambu Lab PETG Basic Neon Green 1kg x2</td>
+<td class="py-3 px-unit-4 text-right text-on-surface font-bold">-$55.98</td>
+</tr>
+<tr class="hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4 text-on-surface-variant">2023-10-15</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1.5 bg-[#1E2225] px-2 py-0.5 rounded border border-[#2D3135]">
+<span class="material-symbols-outlined text-[10px] text-on-surface-variant" data-icon="local_shipping">local_shipping</span>
+                                                Shipping
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-on-surface-variant truncate max-w-[200px]">USPS Priority Mail Supplies</td>
+<td class="py-3 px-unit-4 text-right text-on-surface font-bold">-$12.50</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Right Column (Spans 4) -->
+<div class="col-span-12 xl:col-span-4 flex flex-col gap-unit-4">
+<!-- License Warning Panel -->
+<div class="card-panel rounded-DEFAULT border-error border-opacity-50 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-1 h-full bg-error"></div>
+<div class="p-unit-4 border-b border-[#2D3135] bg-[#93000a] bg-opacity-10 flex items-center gap-2">
+<span class="material-symbols-outlined text-error" data-icon="warning">warning</span>
+<h3 class="font-label-md text-label-md text-error font-bold">LICENSE WARNINGS</h3>
+</div>
+<div class="p-unit-4 flex flex-col gap-3">
+<p class="font-body-md text-body-md text-on-surface-variant mb-2">2 products detected active in inventory with missing or expired commercial licenses.</p>
+<div class="bg-[#0B0D0E] border border-[#2D3135] p-3 rounded-DEFAULT flex items-start gap-3">
+<div class="w-12 h-12 bg-surface-variant rounded border border-[#2D3135] flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A rendering of a complex 3D printed mechanical planetary gear system in matte black and silver filament. The lighting is harsh and directional, emphasizing the technical precision of the layers." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBBS5ZQ60253YE0h9InKmjq1otNed7KZtHNb_yPjt3hHqVgqZGu9hWJRltnv6CaH2RTXazJpW3I93nNOL5oybhgCVSGYR0KvALq_kqdq7eEernNJLP9Z4EQm-lMgxb8YgCfzaKkSnCBchJLerQXhhJzEzvcuj0Nf4wvZWDoW0n10kd9Yw1tVGqDuVxc2gHAYUYO8JmYJ8jkOyUd073R04Tk8Xq5J5CfKSdKj8BiAQlS8GRpsvK3DGtvkVTF126xUZn6TMrAeapVFalX"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start mb-1">
+<p class="font-label-md text-label-md text-on-surface truncate">Articulated Dragon V2</p>
+<span class="font-label-sm text-label-sm text-error bg-[#93000a] bg-opacity-20 px-1.5 py-0.5 rounded border border-error border-opacity-30">EXPIRED</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Creator: Cinderwing3D</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">License ended: 2023-10-01</p>
+</div>
+</div>
+<div class="bg-[#0B0D0E] border border-[#2D3135] p-3 rounded-DEFAULT flex items-start gap-3">
+<div class="w-12 h-12 bg-surface-variant rounded border border-[#2D3135] flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A rendering of a minimalist geometric 3D printed vase in translucent neon green PETG. The background is completely dark, lit only by a sharp rim light to highlight the layer lines." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_Up2z7gpgPmGPVAsB9UwdLLV-sfsNymenjB4G_fkcMLJqKhDLJQRq2asM4OcB0R8K6XTl51uC793xLMJM-mjRtHYB9ehrSMQiieaDAdldBKLIW8rPWTJ7TyIZIEXq87fM35r7HdM_QjLaFyER-xQeI355JVHaY1Qu7zzthqI1TOCLHruo9IXzOCv7SYRv8ReBU4Wgo8zfgFN-4iCOvmpcJ3pMFvg8hmnd_xVfbW2o49JWizb3ZSMrqzjBol9TKR0mK2ow6GRWISvv"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between items-start mb-1">
+<p class="font-label-md text-label-md text-on-surface truncate">Hexagonal Planter</p>
+<span class="font-label-sm text-label-sm text-tertiary bg-[#dba500] bg-opacity-20 px-1.5 py-0.5 rounded border border-tertiary border-opacity-30">MISSING</span>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Creator: Unknown</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Action required: Add license</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Memberships Mini Table -->
+<div class="card-panel rounded-DEFAULT flex flex-col flex-1">
+<div class="p-unit-4 border-b border-[#2D3135] flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface flex items-center gap-2">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="card_membership">card_membership</span>
+                                ACTIVE MEMBERSHIPS
+                            </h3>
+</div>
+<div class="p-0 overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="table-header font-label-sm text-label-sm uppercase bg-[#0B0D0E]">
+<th class="py-2 px-unit-4 font-normal">Creator</th>
+<th class="py-2 px-unit-4 font-normal">Status</th>
+<th class="py-2 px-unit-4 font-normal text-right">Renewal</th>
+</tr>
+</thead>
+<tbody class="font-label-md text-label-md">
+<tr class="table-divider hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4">
+<div class="flex items-center gap-2">
+<span class="text-on-surface truncate max-w-[120px]">Zou3D</span>
+<span class="text-[10px] text-on-surface-variant px-1 border border-[#2D3135] rounded">Patreon</span>
+</div>
+</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1 text-primary bg-primary-container bg-opacity-10 px-1.5 py-0.5 rounded font-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                                Active
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-right text-on-surface-variant">Nov 15</td>
+</tr>
+<tr class="table-divider hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4">
+<div class="flex items-center gap-2">
+<span class="text-on-surface truncate max-w-[120px]">Hex3D</span>
+<span class="text-[10px] text-on-surface-variant px-1 border border-[#2D3135] rounded">Thangs</span>
+</div>
+</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1 text-tertiary bg-tertiary-container bg-opacity-10 px-1.5 py-0.5 rounded font-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary"></span>
+                                                Needs Renewal
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-right text-tertiary">Oct 30</td>
+</tr>
+<tr class="hover:bg-[#1E2225] transition-colors">
+<td class="py-3 px-unit-4">
+<div class="flex items-center gap-2">
+<span class="text-on-surface truncate max-w-[120px]">FlexiFactory</span>
+<span class="text-[10px] text-on-surface-variant px-1 border border-[#2D3135] rounded">Patreon</span>
+</div>
+</td>
+<td class="py-3 px-unit-4">
+<span class="inline-flex items-center gap-1 text-primary bg-primary-container bg-opacity-10 px-1.5 py-0.5 rounded font-label-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                                Active
+                                            </span>
+</td>
+<td class="py-3 px-unit-4 text-right text-on-surface-variant">Nov 05</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

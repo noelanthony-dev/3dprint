@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PrintOps Studio - Red Blossom Bookmark</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Geist Font (simulated via closest available or default system fallback if not hosted, but assuming standard implementation) -->
+<style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&display=swap'); /* Using Space Grotesk as a proxy for Geist's technical headline feel if Geist isn't universally available, but will stick to the config's 'Geist' declaration assuming local/build resolution */
+    </style>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+    </style>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#69ff87",
+                        "tertiary": "#fdbf02",
+                        "on-primary": "#003912",
+                        "secondary-fixed-dim": "#c7c6c6",
+                        "on-primary-container": "#004c1b",
+                        "surface": "#121415",
+                        "surface-container-high": "#282a2b",
+                        "tertiary-container": "#dba500",
+                        "on-secondary-container": "#b6b5b5",
+                        "tertiary-fixed": "#ffdf9e",
+                        "inverse-surface": "#e2e2e3",
+                        "on-secondary-fixed-variant": "#464747",
+                        "on-primary-fixed-variant": "#00531e",
+                        "surface-variant": "#333536",
+                        "on-error-container": "#ffdad6",
+                        "on-surface-variant": "#bbcbb8",
+                        "surface-container-lowest": "#0c0e0f",
+                        "on-background": "#e2e2e3",
+                        "on-tertiary-container": "#543e00",
+                        "secondary-container": "#464747",
+                        "secondary-fixed": "#e3e2e2",
+                        "on-secondary": "#303031",
+                        "surface-tint": "#3ce36a",
+                        "surface-container-low": "#1a1c1d",
+                        "on-surface": "#e2e2e3",
+                        "inverse-on-surface": "#2f3132",
+                        "error": "#ffb4ab",
+                        "primary-container": "#00c853",
+                        "on-secondary-fixed": "#1b1c1c",
+                        "outline": "#869583",
+                        "on-tertiary-fixed": "#261a00",
+                        "surface-container-highest": "#333536",
+                        "on-error": "#690005",
+                        "primary-fixed-dim": "#3ce36a",
+                        "tertiary-fixed-dim": "#fabd00",
+                        "surface-bright": "#38393a",
+                        "error-container": "#93000a",
+                        "outline-variant": "#3c4a3c",
+                        "on-tertiary-fixed-variant": "#5b4300",
+                        "surface-container": "#1e2021",
+                        "primary": "#3fe56c",
+                        "background": "#121415",
+                        "secondary": "#c7c6c6",
+                        "inverse-primary": "#006e2a",
+                        "on-primary-fixed": "#002108",
+                        "surface-dim": "#121415",
+                        "on-tertiary": "#3f2e00"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "unit-1": "4px",
+                        "unit-8": "32px",
+                        "unit-4": "16px",
+                        "base": "4px",
+                        "unit-6": "24px",
+                        "gutter": "16px",
+                        "container-margin": "24px",
+                        "unit-2": "8px"
+                    },
+                    "fontFamily": {
+                        "headline-lg": ["Geist", "Space Grotesk", "sans-serif"],
+                        "body-md": ["Inter", "sans-serif"],
+                        "body-lg": ["Inter", "sans-serif"],
+                        "label-md": ["JetBrains Mono", "monospace"],
+                        "label-sm": ["JetBrains Mono", "monospace"],
+                        "headline-md": ["Geist", "Space Grotesk", "sans-serif"],
+                        "display-lg": ["Geist", "Space Grotesk", "sans-serif"]
+                    },
+                    "fontSize": {
+                        "headline-lg": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "label-sm": ["10px", { "lineHeight": "14px", "fontWeight": "500" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "display-lg": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-surface text-on-surface font-body-md min-h-screen flex selection:bg-primary-container selection:text-on-primary-container">
+<!-- SideNavBar (Shared Component) -->
+<nav class="w-64 h-screen fixed left-0 top-0 border-r border-outline-variant bg-surface-dim flex flex-col py-unit-4 px-unit-2 z-50">
+<!-- Header -->
+<div class="px-unit-4 mb-unit-8 flex items-center gap-unit-2">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">terminal</span>
+</div>
+<div>
+<div class="font-headline-md text-headline-md font-bold text-primary truncate">PrintOps Studio</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">v2.4.0-stable</div>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex flex-col gap-1 flex-1 overflow-y-auto">
+<!-- Dashboard -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+</li>
+<!-- Products (ACTIVE) -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+</li>
+<!-- HueForge Match -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+</li>
+<!-- Inventory -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+</li>
+<!-- Costing -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+</li>
+<!-- Production -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+</li>
+<!-- Sales -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+</li>
+<!-- Expenses -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+</li>
+<!-- Reports -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</li>
+<!-- Shopping List -->
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+</li>
+<li class="mt-auto">
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-unit-4 px-unit-4 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- TopNavBar (Shared Component) -->
+<header class="h-16 fixed top-0 right-0 left-64 border-b border-outline-variant bg-surface flex items-center justify-between px-gutter w-auto z-40">
+<!-- Search / Context -->
+<div class="flex items-center gap-unit-4 flex-1">
+<div class="relative w-64">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant" style="font-size: 18px;">search</span>
+<input class="w-full bg-surface-container-low border border-outline-variant text-on-surface font-label-md rounded pl-9 pr-3 py-1.5 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors" placeholder="Search commands..." type="text"/>
+</div>
+<nav class="flex items-center gap-unit-4">
+<a class="font-label-md text-label-md text-on-surface-variant hover:text-primary transition-opacity scale-95 duration-100" href="#">Home</a>
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1 transition-opacity scale-95 duration-100" href="#">Stock</a>
+</nav>
+</div>
+<!-- Trailing Actions -->
+<div class="flex items-center gap-unit-4 shrink-0">
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">cloud_off</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">database</span>
+</button>
+<div class="w-px h-6 bg-outline-variant mx-1"></div>
+<button class="font-label-md text-label-md bg-transparent border border-outline-variant text-on-surface px-unit-4 py-1.5 rounded hover:border-surface-variant hover:bg-surface-variant transition-colors">
+                Add Sale
+            </button>
+<button class="font-label-md text-label-md bg-primary-container text-[#000000] font-bold px-unit-4 py-1.5 rounded hover:opacity-90 transition-opacity">
+                Add Production Run
+            </button>
+<img class="w-8 h-8 rounded border border-outline-variant object-cover ml-2" data-alt="A sleek, minimalist avatar profile picture for a professional user in a dark mode interface, featuring a subtle geometric abstract design in shades of neon green and dark charcoal grey." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB0fdZ7EZsvQ8QdNEca_CihzvkfBwHFdYXCviAfWYmjYsDAKUjMfVC75Hb4_WElrBROjaPVjRpTMtvn_HjKRF8FdqWbiEBrTuF6IentXC3CFK27WaocfWmfG6S7g8erVpApTzL663x9x9cc6ovjogeB2aLElWGBVTKzrOqHXKv5xrWQ2Fre6nXWImw5_DBHaNv-s3Qhk0oIPyLjlfmfrnorpND_zl0wPSKHHDMrXXF2oaTa45INolyKmBDzks2D3lVkoQ3HzzSOwdsY"/>
+</div>
+</header>
+<!-- Main Content Stage -->
+<main class="ml-64 mt-16 p-unit-6 flex-1 max-w-[1600px] w-full mx-auto flex flex-col gap-unit-6">
+<!-- Page Header -->
+<div class="flex flex-col gap-unit-2">
+<!-- Breadcrumbs -->
+<div class="flex items-center gap-2 font-label-md text-label-md text-on-surface-variant">
+<a class="hover:text-primary transition-colors" href="#">Library</a>
+<span class="material-symbols-outlined" style="font-size: 14px;">chevron_right</span>
+<span class="text-on-surface">Red Blossom Bookmark</span>
+</div>
+<!-- Title & Status -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-unit-4">
+<h1 class="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight">Red Blossom Bookmark</h1>
+<!-- Status Pills -->
+<div class="flex items-center gap-2">
+<div class="px-2 py-1 rounded bg-[#00c853]/10 border border-[#00c853]/20 flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container animate-pulse"></div>
+<span class="font-label-sm text-label-sm text-primary-container">ACTIVE</span>
+</div>
+<div class="px-2 py-1 rounded bg-secondary-container/30 border border-secondary-container flex items-center gap-1">
+<span class="material-symbols-outlined" style="font-size: 12px;">verified</span>
+<span class="font-label-sm text-label-sm text-secondary-fixed">LICENSE OK</span>
+</div>
+</div>
+</div>
+<!-- Page Actions -->
+<div class="flex items-center gap-2">
+<button class="p-2 rounded border border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary transition-colors" title="Edit Product">
+<span class="material-symbols-outlined" style="font-size: 20px;">edit</span>
+</button>
+<button class="p-2 rounded border border-outline-variant text-on-surface-variant hover:text-primary hover:border-primary transition-colors" title="Duplicate">
+<span class="material-symbols-outlined" style="font-size: 20px;">content_copy</span>
+</button>
+<button class="p-2 rounded border border-outline-variant text-on-surface-variant hover:text-error hover:border-error transition-colors" title="Archive">
+<span class="material-symbols-outlined" style="font-size: 20px;">archive</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Navigation Tabs -->
+<div class="flex items-center gap-unit-6 border-b border-outline-variant">
+<button class="font-label-md text-label-md text-primary border-b-2 border-primary pb-3 px-1 -mb-[1px]">Overview</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface pb-3 px-1 transition-colors">Author Filaments</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface pb-3 px-1 transition-colors">My Recipe</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface pb-3 px-1 transition-colors">Costing</button>
+<button class="font-label-md text-label-md text-on-surface-variant hover:text-on-surface pb-3 px-1 transition-colors">History</button>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-12 gap-unit-4">
+<!-- Product Preview (4 cols) -->
+<div class="col-span-12 md:col-span-4 bg-surface-container-low border border-outline-variant p-unit-4 flex flex-col gap-unit-4 rounded-DEFAULT group hover:border-[#3D4248] transition-colors">
+<div class="border-b border-outline-variant pb-2 flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Preview</h3>
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 16px;">image</span>
+</div>
+<div class="w-full aspect-square bg-[#0B0D0E] border border-[#2D3135] rounded overflow-hidden relative">
+<img class="w-full h-full object-cover opacity-80 mix-blend-luminosity hover:mix-blend-normal transition-all duration-500" data-alt="A highly detailed, professional macro photograph of a 3D printed bookmark featuring an intricate, geometric red blossom design. The print is crisp and precise, resting on a dark, anodized aluminum surface. High-contrast, moody industrial lighting highlights the layer lines and the vibrant neon red filament against the deep black background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnqGlYUKKJal4DiiOsEBSV7ZFK2bAl-wlT1awnbgHYthr5xuMq1NR1UDnOpxi69mEi42AtLbJYbUfcU9zsHRnoCP5-FkpzLPuCj2NpVnA2yUxFYkATxvu8kLnxhq5m0vBi-WBsYpHEneiuBu9PAAmCTorkPr_A9yeZZnaCwnLYwTHSFp7b2h9ZvNnW9B_n5YtxZFq9U5RUXyOUzsC4vdncGiTMH9qspwvs15rcukk2V8LuxEKYVHHEm67MW35t4t4VXn1iTY2rnlmx"/>
+<!-- Overlay Tech Grid -->
+<div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiMzYzRhM2MiLz48L3N2Zz4=')] opacity-20 pointer-events-none"></div>
+</div>
+</div>
+<!-- Key Stats Overview (4 cols) -->
+<div class="col-span-12 md:col-span-4 bg-surface-container-low border border-outline-variant p-unit-4 flex flex-col gap-unit-4 rounded-DEFAULT group hover:border-[#3D4248] transition-colors">
+<div class="border-b border-outline-variant pb-2 flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Telemetry</h3>
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 16px;">speed</span>
+</div>
+<div class="flex flex-col gap-3 mt-2">
+<!-- Stat Row -->
+<div class="flex items-center justify-between p-2 bg-[#0B0D0E] border border-[#2D3135] rounded">
+<span class="font-body-sm text-on-surface-variant">Current Stock</span>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-primary font-bold">12</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">UNITS</span>
+</div>
+</div>
+<!-- Stat Row -->
+<div class="flex items-center justify-between p-2 bg-[#0B0D0E] border border-[#2D3135] rounded">
+<span class="font-body-sm text-on-surface-variant">Material Cost</span>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-on-surface">₱15.00</span>
+</div>
+</div>
+<!-- Stat Row -->
+<div class="flex items-center justify-between p-2 bg-[#0B0D0E] border border-[#2D3135] rounded">
+<span class="font-body-sm text-on-surface-variant">Retail Price</span>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-tertiary">₱85.00</span>
+</div>
+</div>
+<!-- Stat Row -->
+<div class="flex items-center justify-between p-2 bg-[#0B0D0E] border border-[#2D3135] rounded border-l-2 border-l-primary-container">
+<span class="font-body-sm text-on-surface-variant">Profit Margin</span>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-primary-container font-bold">82.3%</span>
+<span class="material-symbols-outlined text-primary-container" style="font-size: 14px;">trending_up</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Costing Summary (Compact) (4 cols) -->
+<div class="col-span-12 md:col-span-4 bg-surface-container-low border border-outline-variant p-unit-4 flex flex-col gap-unit-4 rounded-DEFAULT group hover:border-[#3D4248] transition-colors relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary-container/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+<div class="border-b border-outline-variant pb-2 flex items-center justify-between">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Efficiency</h3>
+<span class="material-symbols-outlined text-on-surface-variant" style="font-size: 16px;">analytics</span>
+</div>
+<div class="flex flex-col h-full justify-center gap-6">
+<div>
+<div class="font-label-sm text-label-sm text-on-surface-variant mb-1">PROFIT / PRINT HOUR</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-lg text-headline-lg font-bold text-on-surface">₱140.00</span>
+<span class="font-label-sm text-label-sm text-primary">+12% vs avg</span>
+</div>
+<div class="mt-2 h-1 w-full bg-[#2D3135] rounded-full overflow-hidden">
+<div class="h-full bg-primary-container w-[75%] rounded-full shadow-[0_0_8px_rgba(0,200,83,0.5)]"></div>
+</div>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-on-surface-variant mb-1">FAILED PRINT RESERVE</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md font-bold text-on-surface">₱3.50</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">/ unit</span>
+</div>
+<div class="mt-2 h-1 w-full bg-[#2D3135] rounded-full overflow-hidden">
+<div class="h-full bg-tertiary w-[15%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Author Filaments Table (6 cols) -->
+<div class="col-span-12 md:col-span-6 bg-surface-container-low border border-outline-variant rounded-DEFAULT flex flex-col group hover:border-[#3D4248] transition-colors overflow-hidden">
+<div class="p-unit-4 border-b border-outline-variant flex items-center justify-between bg-surface-container/50">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 16px;">history_edu</span>
+                        Source Requirements
+                    </h3>
+</div>
+<div class="overflow-x-auto p-unit-4">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-[#2D3135]">
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal">Brand / Type</th>
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal">Color</th>
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal text-right">TD Value</th>
+</tr>
+</thead>
+<tbody class="font-label-md text-label-md">
+<tr class="border-b border-[#2D3135] hover:bg-[#1E2225] transition-colors">
+<td class="py-2 text-on-surface">PLA Kingroon</td>
+<td class="py-2 text-on-surface flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-[#111111] border border-outline-variant"></div>
+                                    Black
+                                </td>
+<td class="py-2 text-tertiary text-right">0.4</td>
+</tr>
+<tr class="border-b border-[#2D3135] hover:bg-[#1E2225] transition-colors">
+<td class="py-2 text-on-surface">PLA Generic</td>
+<td class="py-2 text-on-surface flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-[#FFFFFF] border border-outline-variant"></div>
+                                    White
+                                </td>
+<td class="py-2 text-tertiary text-right">5.5</td>
+</tr>
+<tr class="hover:bg-[#1E2225] transition-colors">
+<td class="py-2 text-on-surface">PLA Generic</td>
+<td class="py-2 text-on-surface flex items-center gap-2">
+<div class="w-3 h-3 rounded-sm bg-[#FF0000] border border-outline-variant"></div>
+                                    Red
+                                </td>
+<td class="py-2 text-tertiary text-right">4.0</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- My Recipe / Mapping (6 cols) -->
+<div class="col-span-12 md:col-span-6 bg-surface-container-low border border-outline-variant rounded-DEFAULT flex flex-col group hover:border-[#3D4248] transition-colors overflow-hidden">
+<div class="p-unit-4 border-b border-outline-variant flex items-center justify-between bg-surface-container/50">
+<h3 class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider flex items-center gap-2">
+<span class="material-symbols-outlined" style="font-size: 16px;">tune</span>
+                        Active Recipe Map
+                    </h3>
+<div class="px-2 py-0.5 rounded bg-primary-container/10 border border-primary-container/30 font-label-sm text-primary">MATCH RATE: 94%</div>
+</div>
+<div class="overflow-x-auto p-unit-4">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-[#2D3135]">
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal">Mapped Inventory</th>
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal">Est. Usage</th>
+<th class="font-label-sm text-label-sm text-on-surface-variant py-2 uppercase font-normal text-right">Cost</th>
+</tr>
+</thead>
+<tbody class="font-label-md text-label-md">
+<tr class="border-b border-[#2D3135] hover:bg-[#1E2225] transition-colors">
+<td class="py-2">
+<div class="flex items-center gap-3">
+<div class="w-4 h-4 rounded-sm bg-[#1A1A1A] border border-outline-variant shrink-0" title="#1A1A1A"></div>
+<div>
+<div class="text-on-surface">eSUN PLA+ Black</div>
+<div class="font-label-sm text-on-surface-variant">TD 0.5 (Var: +0.1)</div>
+</div>
+</div>
+</td>
+<td class="py-2 text-on-surface">12.4g</td>
+<td class="py-2 text-on-surface-variant text-right">₱8.20</td>
+</tr>
+<tr class="border-b border-[#2D3135] hover:bg-[#1E2225] transition-colors">
+<td class="py-2">
+<div class="flex items-center gap-3">
+<div class="w-4 h-4 rounded-sm bg-[#F5F5DC] border border-outline-variant shrink-0" title="#F5F5DC"></div>
+<div>
+<div class="text-on-surface">Bambu Ivory White</div>
+<div class="font-label-sm text-on-surface-variant">TD 5.2 (Var: -0.3)</div>
+</div>
+</div>
+</td>
+<td class="py-2 text-on-surface">4.1g</td>
+<td class="py-2 text-on-surface-variant text-right">₱3.15</td>
+</tr>
+<tr class="hover:bg-[#1E2225] transition-colors">
+<td class="py-2">
+<div class="flex items-center gap-3">
+<div class="w-4 h-4 rounded-sm bg-[#D32F2F] border border-outline-variant shrink-0" title="#D32F2F"></div>
+<div>
+<div class="text-on-surface">eSUN PLA+ Red</div>
+<div class="font-label-sm text-on-surface-variant">TD 4.1 (Var: +0.1)</div>
+</div>
+</div>
+</td>
+<td class="py-2 text-on-surface">5.8g</td>
+<td class="py-2 text-on-surface-variant text-right">₱3.65</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</body></html>

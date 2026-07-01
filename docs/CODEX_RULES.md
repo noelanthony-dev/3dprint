@@ -17,6 +17,14 @@ Use this file as a standing instruction set for future Codex work in this reposi
 - Keep SQLite access inside repository modules.
 - Prefer named exports for shared modules.
 
+## UI/UX
+
+- Treat `docs/stitch` and `docs/UI_UX.md` as the visual reference for future UI work.
+- Translate Stitch screens into project-native React, TypeScript, and lightweight CSS.
+- Do not paste generated Stitch HTML wholesale into the app.
+- Do not add a heavy styling or component dependency just to match a static screen.
+- Keep the Industrial Precision aesthetic: dense, technical, outlined, fast, and status-driven.
+
 ## Product Direction
 
 - Do not add cloud services.
@@ -47,4 +55,3 @@ Use this file as a standing instruction set for future Codex work in this reposi
 - Avoid database-heavy work on app boot.
 - Do not load product images on startup.
 - Run reports only when the report feature is opened or explicitly refreshed.
-

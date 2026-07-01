@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Production Runs - PrintOps Studio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "primary-fixed": "#69ff87",
+                      "tertiary": "#fdbf02",
+                      "on-primary": "#003912",
+                      "secondary-fixed-dim": "#c7c6c6",
+                      "on-primary-container": "#004c1b",
+                      "surface": "#121415",
+                      "surface-container-high": "#282a2b",
+                      "tertiary-container": "#dba500",
+                      "on-secondary-container": "#b6b5b5",
+                      "tertiary-fixed": "#ffdf9e",
+                      "inverse-surface": "#e2e2e3",
+                      "on-secondary-fixed-variant": "#464747",
+                      "on-primary-fixed-variant": "#00531e",
+                      "surface-variant": "#333536",
+                      "on-error-container": "#ffdad6",
+                      "on-surface-variant": "#bbcbb8",
+                      "surface-container-lowest": "#0c0e0f",
+                      "on-background": "#e2e2e3",
+                      "on-tertiary-container": "#543e00",
+                      "secondary-container": "#464747",
+                      "secondary-fixed": "#e3e2e2",
+                      "on-secondary": "#303031",
+                      "surface-tint": "#3ce36a",
+                      "surface-container-low": "#1a1c1d",
+                      "on-surface": "#e2e2e3",
+                      "inverse-on-surface": "#2f3132",
+                      "error": "#ffb4ab",
+                      "primary-container": "#00c853",
+                      "on-secondary-fixed": "#1b1c1c",
+                      "outline": "#869583",
+                      "on-tertiary-fixed": "#261a00",
+                      "surface-container-highest": "#333536",
+                      "on-error": "#690005",
+                      "primary-fixed-dim": "#3ce36a",
+                      "tertiary-fixed-dim": "#fabd00",
+                      "surface-bright": "#38393a",
+                      "error-container": "#93000a",
+                      "outline-variant": "#3c4a3c",
+                      "on-tertiary-fixed-variant": "#5b4300",
+                      "surface-container": "#1e2021",
+                      "primary": "#3fe56c",
+                      "background": "#121415",
+                      "secondary": "#c7c6c6",
+                      "inverse-primary": "#006e2a",
+                      "on-primary-fixed": "#002108",
+                      "surface-dim": "#121415",
+                      "on-tertiary": "#3f2e00"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "unit-1": "4px",
+                      "unit-8": "32px",
+                      "unit-4": "16px",
+                      "base": "4px",
+                      "unit-6": "24px",
+                      "gutter": "16px",
+                      "container-margin": "24px",
+                      "unit-2": "8px"
+              },
+              "fontFamily": {
+                      "headline-lg": [
+                              "Geist"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "label-md": [
+                              "JetBrains Mono"
+                      ],
+                      "label-sm": [
+                              "JetBrains Mono"
+                      ],
+                      "headline-md": [
+                              "Geist"
+                      ],
+                      "display-lg": [
+                              "Geist"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-md": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.02em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "label-sm": [
+                              "10px",
+                              {
+                                      "lineHeight": "14px",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-md": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "display-lg": [
+                              "40px",
+                              {
+                                      "lineHeight": "48px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        body {
+            background-color: #0B0D0E;
+            color: #e2e2e3;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[data-weight="fill"] {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0D0E; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2D3135; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3D4248; 
+        }
+
+        /* Input overrides for dark technical theme */
+        input[type="text"], input[type="number"], select, textarea {
+            background-color: #0B0D0E;
+            border: 1px solid #2D3135;
+            color: #e2e2e3;
+        }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+            border-color: #00C853;
+            box-shadow: none;
+            outline: none;
+        }
+    </style>
+</head>
+<body class="font-body-md text-body-md flex h-screen antialiased">
+<!-- SideNavBar (from JSON) -->
+<nav class="w-64 h-screen fixed left-0 top-0 bg-surface-dim dark:bg-surface-dim border-r border-outline-variant dark:border-outline-variant flex flex-col h-full py-unit-4 px-unit-2 z-40 hidden md:flex">
+<!-- Header -->
+<div class="mb-unit-8 px-unit-2 flex items-center gap-3">
+<img alt="User Profile" class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="A small, stylized, high-contrast avatar image suitable for a technical user profile in a futuristic industrial software interface. Sharp lines, neon green accents on a dark background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB1vlqu3MZCONbOq2TIGsSeNFipanzRcbtwwI7RfTHd5nIDhIh_UtagcI7MlMUzejpFdIOwTk2jop_v41O7TkcVBBUDj17IiW_GE4gsMP2yaAwMZKn0JjVCmU5GIfyk0G3esu6MiVBHck50NO_SYdNi1b2KSkirdLjkBl-MrUAl2sx3c9kigqeWT8YvSIBlFzkFZ7PSirkxW0k2lf7-5WgN2e-ndXQKoQajoLD_Tw3BaATCKyIbQljse_nRMO9eW1HmVzoyyNkSbM0D"/>
+<div>
+<h1 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary leading-tight">PrintOps Studio</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant font-mono">v2.4.0-stable</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<ul class="flex-1 space-y-unit-1 overflow-y-auto">
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="inventory_2">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="palette">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="box">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="calculate">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+</li>
+<li>
+<!-- ACTIVE NAV ITEM -->
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="precision_manufacturing">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="point_of_sale">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="payments">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="bar_chart">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="shopping_cart">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+</li>
+<li class="mt-auto pt-unit-4 border-t border-outline-variant">
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-unit-2 py-unit-2 rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined text-[20px]" data-icon="backup">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-0 md:ml-64 flex flex-col relative w-full h-screen overflow-hidden">
+<!-- TopNavBar (from JSON) -->
+<header class="h-16 fixed top-0 right-0 left-0 md:left-64 z-30 bg-surface dark:bg-surface flex items-center justify-between px-gutter w-full border-b border-outline-variant dark:border-outline-variant bg-surface flat no shadows transition-all duration-100">
+<!-- Left Side: Brand/Nav/Search -->
+<div class="flex items-center gap-unit-6">
+<h2 class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight hidden lg:block">PrintOps Studio</h2>
+<nav class="hidden md:flex gap-unit-4 ml-4">
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1" href="#">Home Stock</a>
+</nav>
+<div class="relative w-64 hidden sm:block ml-4">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="w-full pl-8 pr-3 py-1.5 rounded-sm font-label-md text-label-md text-on-surface bg-[#0B0D0E] border-[#2D3135] focus:border-[#00C853] focus:ring-0 placeholder:text-on-surface-variant" placeholder="Search runs..." type="text"/>
+</div>
+</div>
+<!-- Right Side: Actions -->
+<div class="flex items-center gap-unit-4">
+<button class="bg-[#00C853] text-[#000000] px-4 py-2 rounded-sm font-label-md text-label-md font-bold uppercase tracking-wider hover:bg-[#3ce36a] transition-colors flex items-center gap-2" onclick="toggleSidePanel()">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                    Add Production Run
+                </button>
+<button class="border border-[#2D3135] bg-transparent text-white px-4 py-2 rounded-sm font-label-md text-label-md uppercase tracking-wider hover:bg-[#2D3135] transition-colors hidden xl:block">
+                    Add Sale
+                </button>
+<div class="flex items-center gap-2 border-l border-[#2D3135] pl-4 ml-2">
+<button class="text-on-surface-variant hover:text-primary transition-opacity p-1">
+<span class="material-symbols-outlined" data-icon="cloud_off">cloud_off</span>
+</button>
+<button class="text-on-surface-variant hover:text-primary transition-opacity p-1">
+<span class="material-symbols-outlined" data-icon="database">database</span>
+</button>
+<img alt="User Profile" class="w-8 h-8 rounded-full object-cover ml-2 border border-outline-variant" data-alt="A small, stylized, high-contrast avatar image suitable for a technical user profile in a futuristic industrial software interface. Sharp lines, neon green accents on a dark background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdJzmYp7yYYci6yOc9JiVSz6be2dvjPr03jtcWuIqDXWTIOmcoaU-p0OOOcRp97Nr4HzOj8HX9Oo1a4y9QLjsO1PiAxryvWg8t49fB3JQu-leuMqkpN4TfL46XuVNWU100atvX31Kx90W-MjdgNPKV7BTUvpxatXvTnrpuFijUm_KJghAR1fxR8KuOYDJqInvblxtaPGF4OPmoUMIA6zk4dJmPwwPqXrFfy8bqm816j2pcR0zOIaG_INq-2cZNlVADT6BnLWD8LbWw"/>
+</div>
+</div>
+</header>
+<!-- Main Stage (Content) -->
+<main class="flex-1 mt-16 p-gutter md:p-container-margin overflow-y-auto w-full">
+<div class="flex justify-between items-end mb-unit-6 border-b border-[#2D3135] pb-unit-2">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface mb-1">Production History</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Telemetry and logged runs for inventory reconciliation.</p>
+</div>
+<div class="flex gap-2">
+<button class="border border-[#2D3135] bg-transparent text-on-surface-variant px-3 py-1 rounded-sm font-label-sm text-label-sm uppercase hover:text-white hover:border-[#3D4248] transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">filter_list</span> Filter
+                    </button>
+<button class="border border-[#2D3135] bg-transparent text-on-surface-variant px-3 py-1 rounded-sm font-label-sm text-label-sm uppercase hover:text-white hover:border-[#3D4248] transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">download</span> Export CSV
+                    </button>
+</div>
+</div>
+<!-- Bento/Grid Layout for Stats & Table -->
+<div class="grid grid-cols-12 gap-unit-4">
+<!-- KPI Cards (Top Row) -->
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-[#171A1C] border border-[#2D3135] p-unit-4 rounded-sm hover:border-[#3D4248] transition-colors">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Total Runs (30d)</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">history</span>
+</div>
+<div class="font-display-lg text-display-lg text-white">142</div>
+<div class="font-label-sm text-label-sm text-[#00C853] mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span> +12% vs last month
+                    </div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-3 bg-[#171A1C] border border-[#2D3135] p-unit-4 rounded-sm hover:border-[#3D4248] transition-colors">
+<div class="flex justify-between items-start mb-2">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Yield Rate</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">pie_chart</span>
+</div>
+<div class="font-display-lg text-display-lg text-white">96.4%</div>
+<div class="w-full bg-[#2D3135] h-1 mt-2 rounded-sm overflow-hidden">
+<div class="bg-[#00C853] h-full w-[96.4%]"></div>
+</div>
+</div>
+<div class="col-span-12 md:col-span-4 lg:col-span-6 bg-[#171A1C] border border-[#2D3135] p-unit-4 rounded-sm hover:border-[#3D4248] transition-colors flex items-center overflow-hidden relative">
+<div class="z-10 relative">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest block mb-2">System Status</span>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#00C853] animate-pulse"></span>
+<span class="font-label-md text-label-md text-white">4 Printers Active</span>
+</div>
+<div class="w-px h-4 bg-[#2D3135]"></div>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-[#2D3135]"></span>
+<span class="font-label-md text-label-md text-on-surface-variant">1 Idle</span>
+</div>
+</div>
+</div>
+<!-- Decorative technical background element -->
+<div class="absolute right-0 top-0 bottom-0 w-1/2 opacity-20 pointer-events-none" style="background-image: radial-gradient(circle at 100% 50%, #00C853 0%, transparent 60%);"></div>
+</div>
+<!-- Main Data Table Container -->
+<div class="col-span-12 bg-[#171A1C] border border-[#2D3135] rounded-sm mt-unit-4">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-[#2D3135] bg-[#121415]">
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono">Date / Time</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono">Product</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono">Profile</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono text-center">Yield (Good/Fail)</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono">Print Time</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono">Filaments</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono text-right">Est. Cost</th>
+<th class="p-3 font-label-sm text-label-sm text-on-surface-variant uppercase tracking-wider font-mono w-10"></th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md divide-y divide-[#2D3135]">
+<!-- Row 1 -->
+<tr class="hover:bg-[#1E2225] transition-colors group cursor-pointer">
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">
+<div>2023-10-24</div>
+<div class="text-on-surface-variant text-[10px]">14:30:00</div>
+</td>
+<td class="p-3">
+<div class="font-medium text-white">Articulated Dragon v2</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant font-mono">SKU-DRG-02</div>
+</td>
+<td class="p-3">
+<span class="inline-block px-2 py-1 bg-[#121415] border border-[#2D3135] rounded-sm font-label-sm text-label-sm text-on-surface-variant font-mono">0.2mm Standard</span>
+</td>
+<td class="p-3 text-center">
+<div class="flex items-center justify-center gap-2 font-mono font-label-md">
+<span class="text-[#00C853]">12</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-on-surface-variant">0</span>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">08h 15m</td>
+<td class="p-3">
+<div class="flex gap-1">
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="PLA+ Matte Black">
+<span class="w-3 h-3 rounded-sm bg-[#1A1C1D] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">145g</span>
+</div>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-white font-mono text-right">$3.45</td>
+<td class="p-3 text-right">
+<button class="text-on-surface-variant hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2 (With failures) -->
+<tr class="hover:bg-[#1E2225] transition-colors group cursor-pointer">
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">
+<div>2023-10-24</div>
+<div class="text-on-surface-variant text-[10px]">09:15:00</div>
+</td>
+<td class="p-3">
+<div class="font-medium text-white">Hexagon Wall Planter</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant font-mono">SKU-PLN-HX</div>
+</td>
+<td class="p-3">
+<span class="inline-block px-2 py-1 bg-[#121415] border border-[#2D3135] rounded-sm font-label-sm text-label-sm text-on-surface-variant font-mono">0.28mm Draft</span>
+</td>
+<td class="p-3 text-center">
+<div class="flex items-center justify-center gap-2 font-mono font-label-md">
+<span class="text-[#00C853]">4</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-[#ffb4ab]">2</span>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">14h 30m</td>
+<td class="p-3">
+<div class="flex gap-1 flex-wrap">
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="PETG Galaxy Purple">
+<span class="w-3 h-3 rounded-sm bg-[#8A2BE2] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">420g</span>
+</div>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-white font-mono text-right">$8.12</td>
+<td class="p-3 text-right">
+<button class="text-on-surface-variant hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-[#1E2225] transition-colors group cursor-pointer">
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">
+<div>2023-10-23</div>
+<div class="text-on-surface-variant text-[10px]">18:45:00</div>
+</td>
+<td class="p-3">
+<div class="font-medium text-white">Gridfinity Baseplate 4x4</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant font-mono">SKU-GRD-44</div>
+</td>
+<td class="p-3">
+<span class="inline-block px-2 py-1 bg-[#121415] border border-[#2D3135] rounded-sm font-label-sm text-label-sm text-on-surface-variant font-mono">0.2mm Structural</span>
+</td>
+<td class="p-3 text-center">
+<div class="flex items-center justify-center gap-2 font-mono font-label-md">
+<span class="text-[#00C853]">20</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-on-surface-variant">0</span>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">06h 20m</td>
+<td class="p-3">
+<div class="flex gap-1 flex-wrap">
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="ABS Slate Grey">
+<span class="w-3 h-3 rounded-sm bg-[#708090] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">210g</span>
+</div>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-white font-mono text-right">$4.80</td>
+<td class="p-3 text-right">
+<button class="text-on-surface-variant hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4 (Multi-color) -->
+<tr class="hover:bg-[#1E2225] transition-colors group cursor-pointer">
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">
+<div>2023-10-23</div>
+<div class="text-on-surface-variant text-[10px]">08:00:00</div>
+</td>
+<td class="p-3">
+<div class="font-medium text-white">HueForge Landscape Panel</div>
+<div class="font-label-sm text-label-sm text-on-surface-variant font-mono">SKU-HF-LND1</div>
+</td>
+<td class="p-3">
+<span class="inline-block px-2 py-1 bg-[#121415] border border-[#2D3135] rounded-sm font-label-sm text-label-sm text-on-surface-variant font-mono">0.08mm HF Detail</span>
+</td>
+<td class="p-3 text-center">
+<div class="flex items-center justify-center gap-2 font-mono font-label-md">
+<span class="text-[#00C853]">1</span>
+<span class="text-on-surface-variant">/</span>
+<span class="text-on-surface-variant">0</span>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-on-surface font-mono">04h 45m</td>
+<td class="p-3">
+<div class="flex gap-1 flex-wrap">
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="PLA Black">
+<span class="w-3 h-3 rounded-sm bg-[#1A1C1D] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">15g</span>
+</div>
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="PLA Blue">
+<span class="w-3 h-3 rounded-sm bg-[#0000FF] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">22g</span>
+</div>
+<div class="flex items-center gap-1 bg-[#121415] px-1.5 py-0.5 rounded-sm border border-[#2D3135]" title="PLA White">
+<span class="w-3 h-3 rounded-sm bg-[#FFFFFF] border border-[#3D4248]"></span>
+<span class="font-label-sm text-[10px] text-on-surface-variant font-mono">45g</span>
+</div>
+</div>
+</td>
+<td class="p-3 font-label-md text-label-md text-white font-mono text-right">$1.65</td>
+<td class="p-3 text-right">
+<button class="text-on-surface-variant hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination pseudo-element -->
+<div class="p-3 border-t border-[#2D3135] flex justify-between items-center bg-[#121415]">
+<span class="font-label-sm text-label-sm text-on-surface-variant font-mono">Showing 1-4 of 142 runs</span>
+<div class="flex gap-1">
+<button class="p-1 rounded-sm border border-[#2D3135] text-on-surface-variant hover:bg-[#2D3135] hover:text-white disabled:opacity-50" disabled=""><span class="material-symbols-outlined text-[16px]">chevron_left</span></button>
+<button class="p-1 rounded-sm border border-[#2D3135] text-on-surface-variant hover:bg-[#2D3135] hover:text-white"><span class="material-symbols-outlined text-[16px]">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Right Side Panel Overlay for "Log New Production Run" -->
+<div class="fixed inset-y-0 right-0 w-full md:w-[480px] bg-[#1E2225] border-l border-[#2D3135] shadow-[-12px_0_40px_rgba(0,0,0,0.6)] transform translate-x-full transition-transform duration-300 ease-in-out z-50 flex flex-col" id="sidePanel">
+<!-- Panel Header -->
+<div class="px-6 py-4 border-b border-[#2D3135] flex justify-between items-center bg-[#171A1C]">
+<h3 class="font-headline-md text-headline-md font-semibold text-white">Log Production Run</h3>
+<button class="text-on-surface-variant hover:text-white p-1 transition-colors" onclick="toggleSidePanel()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<!-- Panel Body (Scrollable) -->
+<div class="flex-1 overflow-y-auto p-6 space-y-6 bg-[#171A1C]">
+<!-- Warning Note -->
+<div class="bg-surface-dim border border-outline-variant p-4 rounded-sm flex gap-3 items-start">
+<span class="material-symbols-outlined text-tertiary mt-0.5 text-[20px]">info</span>
+<p class="font-body-sm text-body-sm text-on-surface-variant leading-snug">
+<strong class="text-white block mb-1">Inventory Impact</strong>
+                    Saving this run will automatically deduct estimated filament/add-on usage from your raw inventory and add the logged <span class="text-[#00C853] font-mono">Good Pieces</span> to your Home Stock.
+                </p>
+</div>
+<form class="space-y-5">
+<!-- Section: Definition -->
+<div>
+<h4 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-3 border-b border-[#2D3135] pb-1">Run Definition</h4>
+<div class="space-y-4">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 font-mono">Select Product</label>
+<select class="w-full p-2 text-sm rounded-sm font-mono text-on-surface focus:ring-1 focus:ring-[#00C853]">
+<option>Articulated Dragon v2 (SKU-DRG-02)</option>
+<option>Hexagon Wall Planter (SKU-PLN-HX)</option>
+<option>Gridfinity Baseplate 4x4 (SKU-GRD-44)</option>
+</select>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 font-mono">Print Profile</label>
+<select class="w-full p-2 text-sm rounded-sm font-mono text-on-surface focus:ring-1 focus:ring-[#00C853]">
+<option>0.2mm Standard</option>
+<option>0.28mm Draft</option>
+<option>0.12mm Detail</option>
+</select>
+</div>
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 font-mono">Run Date</label>
+<input class="w-full p-2 text-sm rounded-sm font-mono text-on-surface focus:ring-1 focus:ring-[#00C853] [&amp;::-webkit-calendar-picker-indicator]:invert-[0.8]" type="date" value="2023-10-24"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Results -->
+<div>
+<h4 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-3 border-b border-[#2D3135] pb-1">Yield Results</h4>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-[#0B0D0E] p-3 border border-[#2D3135] rounded-sm flex flex-col">
+<label class="font-label-sm text-label-sm text-[#00C853] mb-2 uppercase tracking-wide">Good Pieces</label>
+<div class="flex items-center">
+<button class="w-8 h-8 flex items-center justify-center bg-[#1E2225] border border-[#2D3135] text-white rounded-l-sm hover:bg-[#2D3135]" type="button">-</button>
+<input class="w-full h-8 text-center bg-transparent border-y border-[#2D3135] border-x-0 font-mono text-lg font-bold text-white focus:ring-0" type="number" value="12"/>
+<button class="w-8 h-8 flex items-center justify-center bg-[#1E2225] border border-[#2D3135] text-white rounded-r-sm hover:bg-[#2D3135]" type="button">+</button>
+</div>
+</div>
+<div class="bg-[#0B0D0E] p-3 border border-[#2D3135] rounded-sm flex flex-col">
+<label class="font-label-sm text-label-sm text-[#ffb4ab] mb-2 uppercase tracking-wide">Failed Pieces</label>
+<div class="flex items-center">
+<button class="w-8 h-8 flex items-center justify-center bg-[#1E2225] border border-[#2D3135] text-white rounded-l-sm hover:bg-[#2D3135]" type="button">-</button>
+<input class="w-full h-8 text-center bg-transparent border-y border-[#2D3135] border-x-0 font-mono text-lg font-bold text-white focus:ring-0" type="number" value="0"/>
+<button class="w-8 h-8 flex items-center justify-center bg-[#1E2225] border border-[#2D3135] text-white rounded-r-sm hover:bg-[#2D3135]" type="button">+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Section: Overrides -->
+<div>
+<h4 class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-3 border-b border-[#2D3135] pb-1 flex justify-between">
+                         Telemetry Overrides 
+                         <span class="text-[10px] lowercase normal-case text-on-surface-variant">(Optional)</span>
+</h4>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 font-mono">Actual Print Time</label>
+<input class="w-full p-2 text-sm rounded-sm font-mono text-on-surface placeholder:text-[#3D4248]" placeholder="e.g. 08h 15m" type="text"/>
+</div>
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1 font-mono">Total Grams Used</label>
+<input class="w-full p-2 text-sm rounded-sm font-mono text-on-surface placeholder:text-[#3D4248]" placeholder="Est: 145g" type="number"/>
+</div>
+</div>
+</div>
+</form>
+</div>
+<!-- Panel Footer -->
+<div class="p-4 border-t border-[#2D3135] bg-[#121415] flex justify-end gap-3">
+<button class="px-4 py-2 text-sm font-label-md uppercase tracking-wider text-on-surface-variant hover:text-white transition-colors" onclick="toggleSidePanel()">Cancel</button>
+<button class="bg-[#00C853] text-[#000000] px-6 py-2 rounded-sm font-label-md text-label-md font-bold uppercase tracking-wider hover:bg-[#3ce36a] transition-colors">
+                Save &amp; Update Stock
+            </button>
+</div>
+</div>
+<!-- Overlay background for side panel -->
+<div class="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 hidden opacity-0 transition-opacity duration-300" id="panelOverlay" onclick="toggleSidePanel()"></div>
+<script>
+        function toggleSidePanel() {
+            const panel = document.getElementById('sidePanel');
+            const overlay = document.getElementById('panelOverlay');
+            
+            if (panel.classList.contains('translate-x-full')) {
+                // Open
+                overlay.classList.remove('hidden');
+                // slight delay to allow display block to apply before animating opacity
+                setTimeout(() => {
+                    overlay.classList.remove('opacity-0');
+                    panel.classList.remove('translate-x-full');
+                }, 10);
+            } else {
+                // Close
+                overlay.classList.add('opacity-0');
+                panel.classList.add('translate-x-full');
+                // wait for transition to finish before hiding
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 300);
+            }
+        }
+    </script>
+</body></html>

@@ -54,6 +54,10 @@ No production business logic, forms, repository queries, database persistence, i
 `src/test`
 : Shared test setup and testing documentation.
 
+## UI/UX References
+
+Stitch design references are stored in `docs/stitch` and summarized in `docs/UI_UX.md`. Future UI work should translate those references into project-native React and CSS while preserving the app architecture boundaries.
+
 ## Feature Modules
 
 Planned feature areas:
@@ -114,4 +118,3 @@ Adding to the design library must not deduct inventory. Inventory should only be
 - Business calculations should be pure TypeScript and covered by focused tests.
 - Avoid global state libraries until a concrete need appears.
 - Avoid heavy UI, table, and chart dependencies during early phases.
-

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HueForge Match Checker - PrintOps Studio</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-error-container": "#93000a",
+                        "tertiary": "#585f6c",
+                        "primary": "#006e2a",
+                        "secondary-container": "#d9dff5",
+                        "surface-container-highest": "#e1e3e4",
+                        "secondary-fixed-dim": "#c0c6db",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container": "#edeeef",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-primary-fixed": "#002108",
+                        "inverse-surface": "#2e3132",
+                        "surface-bright": "#f8f9fa",
+                        "inverse-primary": "#3ce36a",
+                        "outline-variant": "#bbcbb8",
+                        "primary-container": "#00c853",
+                        "on-background": "#191c1d",
+                        "surface-container-high": "#e7e8e9",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary-container": "#004c1b",
+                        "on-surface-variant": "#3c4a3c",
+                        "outline": "#6c7b6a",
+                        "on-primary-fixed-variant": "#00531e",
+                        "error": "#ba1a1a",
+                        "on-secondary-fixed": "#141b2b",
+                        "surface-container-low": "#f3f4f5",
+                        "on-tertiary-fixed": "#151c27",
+                        "on-tertiary-fixed-variant": "#404754",
+                        "tertiary-fixed": "#dce2f3",
+                        "secondary": "#575e70",
+                        "tertiary-fixed-dim": "#c0c7d6",
+                        "tertiary-container": "#a7aebd",
+                        "surface-tint": "#006e2a",
+                        "secondary-fixed": "#dce2f7",
+                        "background": "#f8f9fa",
+                        "on-secondary-container": "#5c6274",
+                        "surface": "#f8f9fa",
+                        "on-surface": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "primary-fixed-dim": "#3ce36a",
+                        "on-tertiary-container": "#3b424e",
+                        "primary-fixed": "#69ff87",
+                        "error-container": "#ffdad6",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary-fixed-variant": "#404758",
+                        "on-error": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "margin": "24px",
+                        "base": "4px",
+                        "xs": "4px",
+                        "gutter": "16px",
+                        "lg": "24px",
+                        "sm": "8px",
+                        "xl": "32px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Geist"],
+                        "body-md": ["Geist"],
+                        "mono-label": ["Geist"],
+                        "label-md": ["Geist"],
+                        "body-lg": ["Geist"],
+                        "headline-lg": ["Geist"],
+                        "headline-sm": ["Geist"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-label": ["11px", { "lineHeight": "14px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { font-family: 'Geist', sans-serif; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="w-64 h-screen fixed left-0 top-0 border-r border-outline-variant bg-surface-container flex flex-col py-unit-4 px-unit-2 hidden md:flex z-50">
+<div class="px-gutter py-md mb-lg">
+<h1 class="font-headline-md text-headline-md font-bold text-primary">PrintOps Studio</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">v2.4.0-stable</p>
+</div>
+<nav class="flex-1 overflow-y-auto px-sm space-y-xs">
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md">Products</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-primary-fixed-variant bg-primary-container font-bold border-l-4 border-primary opacity-90 transition-all" href="#">
+<span class="material-symbols-outlined">palette</span>
+<span class="font-label-md text-label-md">HueForge Match</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">box</span>
+<span class="font-label-md text-label-md">Inventory</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">calculate</span>
+<span class="font-label-md text-label-md">Costing</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">precision_manufacturing</span>
+<span class="font-label-md text-label-md">Production</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">point_of_sale</span>
+<span class="font-label-md text-label-md">Sales</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Expenses</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">bar_chart</span>
+<span class="font-label-md text-label-md">Reports</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">shopping_cart</span>
+<span class="font-label-md text-label-md">Shopping List</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm rounded text-on-surface-variant font-medium hover:bg-surface-variant hover:text-on-surface transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">backup</span>
+<span class="font-label-md text-label-md">Backup</span>
+</a>
+</nav>
+<div class="p-gutter mt-auto border-t border-outline-variant">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container">person</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">User Profile</span>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<div class="flex-1 md:ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="h-16 fixed top-0 right-0 left-0 md:left-64 flex items-center justify-between px-gutter w-full bg-surface border-b border-outline-variant z-40">
+<div class="flex items-center gap-lg">
+<span class="font-headline-lg text-headline-lg font-black text-on-surface tracking-tight md:hidden">PrintOps Studio</span>
+<div class="hidden md:flex items-center border border-outline-variant rounded bg-surface-container-low px-sm py-xs">
+<span class="material-symbols-outlined text-on-surface-variant mr-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 font-body-md text-body-md text-on-surface outline-none" placeholder="Search..." type="text"/>
+</div>
+<nav class="hidden lg:flex gap-md">
+<a class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1" href="#">Home Stock</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-opacity scale-95 duration-100">cloud_off</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-opacity scale-95 duration-100">database</button>
+<button class="bg-surface text-on-surface border border-outline-variant px-md py-sm rounded font-label-md text-label-md hover:text-primary transition-opacity scale-95 duration-100">Add Sale</button>
+<button class="bg-primary-container text-on-background px-md py-sm rounded font-label-md text-label-md hover:text-primary transition-opacity scale-95 duration-100">Add Production Run</button>
+<div class="w-8 h-8 rounded-full bg-secondary-container md:hidden flex items-center justify-center">
+<span class="material-symbols-outlined text-on-secondary-container">person</span>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<main class="flex-1 pt-16 p-margin overflow-y-auto bg-background">
+<div class="max-w-7xl mx-auto space-y-lg">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">HueForge Match Checker</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Analyze filament transmission distances and color profiles for optimal HueForge blending.</p>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-margin">
+<!-- Control Panel (Left Panel) -->
+<div class="lg:col-span-1 bg-surface border border-outline-variant rounded-lg p-md flex flex-col gap-md">
+<h3 class="font-headline-sm text-headline-sm text-on-surface border-b border-outline-variant pb-xs">Target Color Profile</h3>
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface-variant">Upload Image / Reference</label>
+<div class="border-2 border-dashed border-outline-variant rounded p-xl flex flex-col items-center justify-center text-center cursor-pointer hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-tertiary mb-sm text-3xl">upload_file</span>
+<span class="font-body-md text-body-md text-on-surface">Drag & drop or click to upload</span>
+</div>
+</div>
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface-variant">Base Filament Type</label>
+<select class="w-full bg-surface border border-outline-variant rounded p-sm font-body-md text-body-md text-on-surface focus:border-on-background focus:ring-0 outline-none">
+<option>PLA Basic</option>
+<option>PETG</option>
+<option>ABS</option>
+</select>
+</div>
+<div class="space-y-sm">
+<label class="font-label-md text-label-md text-on-surface-variant">Max Layer Height (mm)</label>
+<input class="w-full bg-surface border border-outline-variant rounded p-sm font-body-md text-body-md text-on-surface focus:border-on-background focus:ring-0 outline-none" type="number" value="2.0"/>
+</div>
+<button class="mt-auto w-full bg-primary-container text-on-background px-md py-sm rounded font-label-md text-label-md uppercase tracking-wider">Calculate Match</button>
+</div>
+<!-- Results Panel (Right Panel) -->
+<div class="lg:col-span-2 space-y-margin">
+<!-- Top Stats Row -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-md">
+<div class="bg-surface border border-outline-variant rounded-lg p-md flex flex-col justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Match Score</span>
+<span class="font-headline-md text-headline-md text-primary">94%</span>
+</div>
+<div class="bg-surface border border-outline-variant rounded-lg p-md flex flex-col justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Avg TD</span>
+<span class="font-headline-md text-headline-md text-on-surface">3.2</span>
+</div>
+<div class="bg-surface border border-outline-variant rounded-lg p-md flex flex-col justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Swaps Req.</span>
+<span class="font-headline-md text-headline-md text-on-surface">4</span>
+</div>
+<div class="bg-surface border border-outline-variant rounded-lg p-md flex flex-col justify-between">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Feasibility</span>
+<span class="font-headline-md text-headline-md text-primary-container bg-on-background px-xs py-xs rounded w-fit self-start mt-xs">High</span>
+</div>
+</div>
+<!-- Data Table -->
+<div class="bg-surface border border-outline-variant rounded-lg overflow-hidden">
+<div class="p-md border-b border-outline-variant bg-surface-container-low">
+<h3 class="font-label-md text-label-md uppercase text-on-surface tracking-wider">Recommended Filament Stack</h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container border-b border-outline-variant">
+<th class="p-sm font-mono-label text-mono-label text-on-surface-variant uppercase">Layer Z</th>
+<th class="p-sm font-mono-label text-mono-label text-on-surface-variant uppercase">Color Hex</th>
+<th class="p-sm font-mono-label text-mono-label text-on-surface-variant uppercase">Brand / Name</th>
+<th class="p-sm font-mono-label text-mono-label text-on-surface-variant uppercase">TD Value</th>
+<th class="p-sm font-mono-label text-mono-label text-on-surface-variant uppercase">Action</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-surface divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-sm font-mono-label">0.00 - 0.48</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-4 h-4 rounded border border-outline-variant" style="background-color: #1a1a1a;"></div>
+<span class="font-mono-label">#1a1a1a</span>
+</td>
+<td class="p-sm">Bambu PLA Matte Black</td>
+<td class="p-sm font-mono-label">0.5</td>
+<td class="p-sm"><span class="bg-surface-container text-on-surface-variant px-xs py-xs rounded font-mono-label">Base</span></td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-sm font-mono-label">0.48 - 1.12</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-4 h-4 rounded border border-outline-variant" style="background-color: #8b0000;"></div>
+<span class="font-mono-label">#8b0000</span>
+</td>
+<td class="p-sm">PolyLite PLA Silk Red</td>
+<td class="p-sm font-mono-label">2.1</td>
+<td class="p-sm"><span class="bg-surface-container text-on-surface-variant px-xs py-xs rounded font-mono-label">Swap 1</span></td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-sm font-mono-label">1.12 - 1.64</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-4 h-4 rounded border border-outline-variant" style="background-color: #ffa500;"></div>
+<span class="font-mono-label">#ffa500</span>
+</td>
+<td class="p-sm">Hatchbox PLA Orange</td>
+<td class="p-sm font-mono-label">4.5</td>
+<td class="p-sm"><span class="bg-surface-container text-on-surface-variant px-xs py-xs rounded font-mono-label">Swap 2</span></td>
+</tr>
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="p-sm font-mono-label">1.64 - 2.00</td>
+<td class="p-sm flex items-center gap-xs">
+<div class="w-4 h-4 rounded border border-outline-variant" style="background-color: #f5f5f5;"></div>
+<span class="font-mono-label">#f5f5f5</span>
+</td>
+<td class="p-sm">Sunlu PLA+ White</td>
+<td class="p-sm font-mono-label">6.0</td>
+<td class="p-sm"><span class="bg-surface-container text-on-surface-variant px-xs py-xs rounded font-mono-label">Swap 3</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>
