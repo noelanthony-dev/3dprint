@@ -32,39 +32,47 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 - Keep product costing links, production deductions, stock adjustment history, and shopping list generation out of this phase.
 - Status: complete for the add/edit/list MVP.
 
-## Phase 5: Design Library / Products
+## Phase 5: Finished Goods Inventory MVP
+
+- Add finished goods home-stock screens.
+- Track product/design reference text, sale unit, ready quantity, reserved quantity, and notes.
+- Add manual stock adjustments through repository modules with adjustment history.
+- Keep cafe stock, sales, production automation, and product library CRUD out of this phase.
+- Status: complete for the home-stock add/edit/list and manual adjustment MVP.
+
+## Phase 6: Design Library / Products
 
 - Add product and design library models.
 - Support source links, author details, categories, sale units, and one optional image field.
 - Avoid complex image management.
 
-## Phase 6: HueForge Match Checker
+## Phase 7: HueForge Match Checker
 
 - Add HueForge requirement entry.
 - Match owned filament by type, color, TD, and stock availability.
 - Add Culori only when perceptual color matching is implemented.
 - Add "Add to Design Library" without deducting inventory.
 
-## Phase 7: Print Profiles and Costing
+## Phase 8: Print Profiles and Costing
 
 - Add print profile inputs.
 - Add pure costing and pricing formulas.
 - Add focused unit tests before relying on calculations in UI.
 
-## Phase 8: Production Runs and Sales
+## Phase 9: Production Runs and Sales
 
 - Log production runs with expected, good, and failed pieces.
 - Deduct filament and add-ons when production runs are logged.
 - Add sales records and finished goods stock movement.
 
-## Phase 9: Expenses, Memberships, Reports
+## Phase 10: Expenses, Memberships, Reports
 
 - Track expenses, memberships, and commercial licenses.
 - Show license warnings without hard blocks.
 - Add basic monthly report pages.
 - Run report calculations only when reports are opened or refreshed.
 
-## Phase 10: Backup / Export / Import and Polish
+## Phase 11: Backup / Export / Import and Polish
 
 - Add manual backup/export/import workflows.
 - Add Tauri dialog and file-system plugin integration.

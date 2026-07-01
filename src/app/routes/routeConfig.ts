@@ -161,7 +161,7 @@ export const appRoutes = [
     Page: AddOnsInventoryPage,
   },
   {
-    description: "Finished goods inventory page placeholder.",
+    description: "Finished goods home-stock tracking.",
     id: "inventory-finished-goods",
     label: "Finished Goods",
     path: "/inventory/finished-goods",

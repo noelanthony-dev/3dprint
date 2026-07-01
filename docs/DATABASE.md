@@ -4,7 +4,7 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slices are filament inventory and add-ons/hardware inventory.
+The current implemented persistence slices are filament inventory, add-ons/hardware inventory, and finished goods home stock.
 
 ## SQLite Location
 
@@ -76,6 +76,36 @@ Implemented fields:
 
 The `addons` schema is currently created by `src/data/repositories/addOnsRepository.ts` on first repository use. It supports manual add/edit/list workflows only. Production deductions, shopping list generation, and product costing links are intentionally deferred.
 
+## Finished Goods Inventory Slice
+
+Implemented tables:
+
+- `finished_goods`
+- `finished_good_stock_adjustments`
+
+Implemented `finished_goods` fields:
+
+- `id`
+- `product_reference`
+- `sale_unit`
+- `quantity_ready`
+- `quantity_reserved`
+- `notes`
+- `created_at`
+- `updated_at`
+
+Implemented `finished_good_stock_adjustments` fields:
+
+- `id`
+- `finished_good_id`
+- `quantity_delta`
+- `quantity_after`
+- `reason`
+- `notes`
+- `created_at`
+
+The `finished_goods` and `finished_good_stock_adjustments` schemas are currently created by `src/data/repositories/finishedGoodsRepository.ts` on first repository use. This slice tracks home stock only. Cafe stock, sales records, production-run automation, and product-library foreign keys are intentionally deferred.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
@@ -86,7 +116,6 @@ The current `0000_scaffold_only.sql` file remains documentation-only and must no
 
 Future schema planning should consider these tables:
 
-- `finished_goods`
 - `products`
 - `product_images`
 - `author_filament_requirements`
@@ -100,7 +129,6 @@ Future schema planning should consider these tables:
 - `expenses`
 - `memberships`
 - `shopping_list_items`
-- `stock_adjustments`
 - `settings`
 
 Do not implement the full schema until the relevant feature phase is approved.
