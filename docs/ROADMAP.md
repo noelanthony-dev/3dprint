@@ -27,8 +27,10 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 ## Phase 4: Add-ons and Hardware
 
 - Add add-ons and hardware inventory screens.
-- Add stock adjustment tests.
-- Keep grams-left deductions estimate-based with manual adjustment.
+- Track item name, category, unit, quantity on hand, low-stock threshold, unit cost, supplier notes, and active state.
+- Add pure helper tests and SQLite repository boundary tests.
+- Keep product costing links, production deductions, stock adjustment history, and shopping list generation out of this phase.
+- Status: complete for the add/edit/list MVP.
 
 ## Phase 5: Design Library / Products
 

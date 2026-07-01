@@ -4,7 +4,7 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slice is filament inventory only.
+The current implemented persistence slices are filament inventory and add-ons/hardware inventory.
 
 ## SQLite Location
 
@@ -12,7 +12,7 @@ The frontend database client loads:
 
 - `sqlite:printops-studio.db`
 
-For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when the filament inventory repository is used.
+For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when a persistence-backed inventory repository is used.
 
 ## Access Pattern
 
@@ -53,6 +53,29 @@ Implemented fields:
 
 The `filaments` schema is currently created by `src/data/repositories/filamentsRepository.ts` on first repository use. This keeps schema work out of React and avoids database work during application boot.
 
+## Add-ons and Hardware Slice
+
+Implemented table:
+
+- `addons`
+
+Implemented fields:
+
+- `id`
+- `item_name`
+- `category`
+- `unit`
+- `quantity_on_hand`
+- `low_stock_threshold`
+- `unit_cost`
+- `supplier`
+- `notes`
+- `is_active`
+- `created_at`
+- `updated_at`
+
+The `addons` schema is currently created by `src/data/repositories/addOnsRepository.ts` on first repository use. It supports manual add/edit/list workflows only. Production deductions, shopping list generation, and product costing links are intentionally deferred.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
@@ -63,7 +86,6 @@ The current `0000_scaffold_only.sql` file remains documentation-only and must no
 
 Future schema planning should consider these tables:
 
-- `addons`
 - `finished_goods`
 - `products`
 - `product_images`

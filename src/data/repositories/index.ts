@@ -1,3 +1,4 @@
+export * from "./addOnsRepository";
 export * from "./filamentsRepository";
 
 export const repositoryBoundary = {

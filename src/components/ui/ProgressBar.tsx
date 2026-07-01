@@ -20,8 +20,7 @@ export function ProgressBar({
           style={{ width: `${boundedValue}%` }}
         />
       </span>
-      <span className="progress__label">{boundedValue}%</span>
+      <span className="progress__label">{label}</span>
     </span>
   );
 }
-

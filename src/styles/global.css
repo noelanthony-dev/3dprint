@@ -1029,7 +1029,8 @@ textarea {
   font-size: 0.82rem;
 }
 
-.filament-form {
+.filament-form,
+.inventory-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
@@ -1174,7 +1175,8 @@ textarea {
     grid-column: auto;
   }
 
-  .filament-form {
+  .filament-form,
+  .inventory-form {
     grid-template-columns: 1fr;
   }
 }

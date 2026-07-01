@@ -154,7 +154,7 @@ export const appRoutes = [
     Page: FilamentInventoryPage,
   },
   {
-    description: "Add-ons and hardware inventory page placeholder.",
+    description: "Add-ons and hardware inventory tracking.",
     id: "inventory-addons",
     label: "Add-ons",
     path: "/inventory/add-ons",
@@ -242,4 +242,3 @@ export function normalizeRoutePath(value: string): RoutePath {
 
   return defaultRoute.path;
 }
-
