@@ -1,0 +1,23 @@
+-- Scaffold-only migration placeholder.
+-- Do not run this as a production schema.
+--
+-- Planned future tables:
+-- filaments
+-- addons
+-- finished_goods
+-- products
+-- product_images
+-- author_filament_requirements
+-- print_profiles
+-- print_profile_filaments
+-- product_addons
+-- production_runs
+-- production_run_filaments
+-- production_run_addons
+-- sales
+-- expenses
+-- memberships
+-- shopping_list_items
+-- stock_adjustments
+-- settings
+

@@ -1,0 +1,2 @@
+export { SalesPage } from "./SalesPage";
+

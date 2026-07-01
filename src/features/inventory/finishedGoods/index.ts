@@ -1,0 +1,2 @@
+export { FinishedGoodsInventoryPage } from "./FinishedGoodsInventoryPage";
+

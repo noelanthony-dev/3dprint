@@ -1,0 +1,2 @@
+export { AddOnsInventoryPage } from "./AddOnsInventoryPage";
+

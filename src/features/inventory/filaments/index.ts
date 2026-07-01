@@ -1,0 +1,2 @@
+export { FilamentInventoryPage } from "./FilamentInventoryPage";
+
