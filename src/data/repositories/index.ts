@@ -7,6 +7,7 @@ export * from "./printProfilesRepository";
 export * from "./productionRunsRepository";
 export * from "./productsRepository";
 export * from "./salesRepository";
+export * from "./shoppingListRepository";
 
 export const repositoryBoundary = {
   description: "All future SQLite access must go through repositories.",

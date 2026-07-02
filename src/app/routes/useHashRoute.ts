@@ -10,12 +10,27 @@ function readHashRoute(): RoutePath {
   return normalizeRoutePath(window.location.hash);
 }
 
+function syncInvalidHash(normalizedPath: RoutePath): void {
+  if (typeof window === "undefined" || window.location.hash === "") {
+    return;
+  }
+
+  const rawPath = window.location.hash.slice(1) || "/";
+
+  if (rawPath !== normalizedPath) {
+    window.history.replaceState(null, "", `#${normalizedPath}`);
+  }
+}
+
 export function useHashRoute() {
   const [activePath, setActivePath] = useState<RoutePath>(readHashRoute);
 
   useEffect(() => {
     const updateActivePath = () => {
-      setActivePath(readHashRoute());
+      const normalizedPath = readHashRoute();
+
+      syncInvalidHash(normalizedPath);
+      setActivePath(normalizedPath);
     };
 
     window.addEventListener("hashchange", updateActivePath);
@@ -41,4 +56,3 @@ export function useHashRoute() {
 
   return { activePath, navigate };
 }
-

@@ -4,6 +4,7 @@ interface DataTableProps {
   readonly columns: readonly string[];
   readonly columnsTemplate?: string;
   readonly density?: "default" | "dense";
+  readonly emptyMessage?: string;
   readonly footer?: string;
   readonly rows: readonly (readonly ReactNode[])[];
 }
@@ -12,6 +13,7 @@ export function DataTable({
   columns,
   columnsTemplate,
   density = "default",
+  emptyMessage = "No records to display.",
   footer,
   rows,
 }: DataTableProps) {
@@ -29,15 +31,23 @@ export function DataTable({
         ))}
       </div>
       <div className="data-table__body">
-        {rows.map((row, rowIndex) => (
-          <div className="data-table__row" key={rowIndex} role="row">
-            {row.map((cell, cellIndex) => (
-              <span key={cellIndex} role="cell">
-                {cell}
-              </span>
-            ))}
+        {rows.length === 0 ? (
+          <div className="data-table__row data-table__row--empty" role="row">
+            <span role="cell" style={{ gridColumn: `1 / span ${columns.length}` }}>
+              {emptyMessage}
+            </span>
           </div>
-        ))}
+        ) : (
+          rows.map((row, rowIndex) => (
+            <div className="data-table__row" key={rowIndex} role="row">
+              {row.map((cell, cellIndex) => (
+                <span key={cellIndex} role="cell">
+                  {cell}
+                </span>
+              ))}
+            </div>
+          ))
+        )}
       </div>
       {footer ? <div className="data-table__footer">{footer}</div> : null}
     </div>

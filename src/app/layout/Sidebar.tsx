@@ -36,7 +36,7 @@ export function Sidebar({ activePath, onNavigate, routes }: SidebarProps) {
         </span>
         <div>
           <strong>PrintOps Studio</strong>
-          <span>v0.1 scaffold</span>
+          <span>v0.1 MVP</span>
         </div>
       </div>
 
@@ -67,7 +67,7 @@ export function Sidebar({ activePath, onNavigate, routes }: SidebarProps) {
       <div className="sidebar__footer">
         <span className="sidebar__footer-label">System</span>
         <span>Local-only desktop</span>
-        <span className="sidebar__online">Ready for native plugins</span>
+        <span className="sidebar__online">Native plugins active</span>
       </div>
     </aside>
   );

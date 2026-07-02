@@ -4,7 +4,9 @@
 
 All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
 
-The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, HueForge match snapshots, print profiles/costing, production runs with estimated stock movements, sales with finished goods stock movement, and expenses/memberships with commercial-use warning fields.
+The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, HueForge match snapshots, print profiles/costing, production runs with estimated stock movements, sales with finished goods stock movement, expenses/memberships with commercial-use warning fields, and shopping list items.
+
+Local app settings are stored in `localStorage` under a versioned PrintOps key. They are not SQLite business records, but full backup exports include them alongside the SQLite database payload.
 
 ## SQLite Location
 
@@ -12,7 +14,7 @@ The frontend database client loads:
 
 - `sqlite:printops-studio.db`
 
-For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when a persistence-backed inventory repository is used.
+For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when a persistence-backed repository is used.
 
 ## Access Pattern
 
@@ -351,11 +353,63 @@ Implemented `memberships` fields:
 
 The expenses and memberships schema is currently created by `src/data/repositories/expensesRepository.ts` on first repository use. Recurrence helpers, monthly totals, monthly-equivalent estimates, and commercial-use warning display live in `src/domain/expenses`. Memberships and license subscriptions are tracked as monthly or recurring business expenses only; they are not allocated into product costing. License warnings are informational and do not block products, production, or sales.
 
+## Shopping List Slice
+
+Implemented table:
+
+- `shopping_list_items`
+
+Implemented fields:
+
+- `id`
+- `item_name`
+- `category`
+- `quantity_needed`
+- `unit`
+- `priority`
+- `status`
+- `source_type`
+- `source_note`
+- `notes`
+- `created_at`
+- `updated_at`
+
+The shopping list schema is currently created by `src/data/repositories/shoppingListRepository.ts` on first repository use. Manual shopping items are persisted locally. Generated suggestions are calculated in `src/domain/shopping` from low-stock add-ons and missing HueForge filament requirements read through repository modules; suggestions are explainable and non-destructive until explicitly added as shopping list items. This slice does not implement online ordering, external APIs, automatic purchasing, reminders, or sync.
+
 ## Migration Folder
 
 Migrations live in `src/data/db/migrations`.
 
 The current `0000_scaffold_only.sql` file remains documentation-only and must not be treated as production schema. A fuller migration runner can replace the repository-local schema creation once more persisted modules exist.
+
+## Settings Slice
+
+Implemented local-only settings:
+
+- currency display
+- dark-mode preference
+- metric-units preference
+- labor-rate default
+- electricity-rate default
+- machine-life default
+- expected failure-rate default
+- HueForge transmission-distance thresholds
+- HueForge acceptable Delta E threshold
+
+Settings are normalized and validated in `src/domain/settings`, persisted through `src/data/settings/localSettingsRepository.ts`, and surfaced in the Settings page. They remain local-only and do not add accounts, sync, Firebase, or authentication.
+
+## Backup / Export / Import Slice
+
+Implemented manual workflows:
+
+- create full local backup
+- restore full local backup
+- export settings
+- import settings
+
+Full backups are JSON envelopes with PrintOps metadata, app version, backup format version, creation timestamp, settings, and the SQLite database bytes encoded as base64. Import validation checks the backup format, supported format version, SQLite file header, database byte count, and settings ranges before restore. Full restore closes the SQL plugin pool, writes the SQLite database back to Tauri app data, and saves included settings; the UI instructs the user to restart afterward so native SQLite handles reload cleanly.
+
+The native workflow uses the stable Tauri dialog and file-system plugins. Backups are explicit user-triggered files only. There is no background backup job, cloud storage, automatic sync, or authentication.
 
 ## Planned Tables
 
@@ -364,11 +418,9 @@ Future schema planning should consider these tables:
 - `product_images`
 - `print_profile_filaments`
 - `product_addons`
-- `shopping_list_items`
-- `settings`
 
 Do not implement the full schema until the relevant feature phase is approved.
 
 ## Backup Direction
 
-Backup, export, and import should be manual workflows later through Tauri dialog and file-system plugins. Do not add background sync or remote storage.
+Backup, export, and import are manual workflows through Tauri dialog and file-system plugins. Do not add background sync, automatic backup jobs, or remote storage.

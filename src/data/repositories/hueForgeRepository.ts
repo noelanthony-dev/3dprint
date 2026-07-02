@@ -4,6 +4,8 @@ import type {
   HueForgeRequirementInput,
   HueForgeRequirementMatch,
 } from "@/domain/hueforge";
+import type { FilamentMaterial } from "@/domain/inventory";
+import type { HueForgeMissingRequirement } from "@/domain/shopping";
 
 export interface SaveHueForgeAnalysisInput {
   readonly feasibilityNotes: string;
@@ -14,7 +16,21 @@ export interface SaveHueForgeAnalysisInput {
 }
 
 export interface HueForgeRepository {
+  listMissingRequirements(): Promise<HueForgeMissingRequirement[]>;
   saveAnalysis(input: SaveHueForgeAnalysisInput): Promise<void>;
+}
+
+interface HueForgeMissingRequirementRow {
+  readonly brand: string;
+  readonly color_name: string;
+  readonly hex_color: string;
+  readonly layer_range: string | null;
+  readonly material_type: string;
+  readonly product_id: number;
+  readonly required_grams: number;
+  readonly role: string;
+  readonly transmission_distance: number;
+  readonly warning: string | null;
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
@@ -36,6 +52,28 @@ export function createHueForgeRepository(
   }
 
   return {
+    async listMissingRequirements() {
+      const db = await database();
+      const rows = await db.select<HueForgeMissingRequirementRow[]>(
+        `SELECT
+          product_id,
+          role,
+          brand,
+          material_type,
+          color_name,
+          hex_color,
+          transmission_distance,
+          required_grams,
+          layer_range,
+          warning
+         FROM author_filament_requirements
+         WHERE match_status = 'missing'
+         ORDER BY product_id DESC, role COLLATE NOCASE`,
+      );
+
+      return rows.map(mapMissingRequirementRow);
+    },
+
     async saveAnalysis(input) {
       const db = await database();
 
@@ -174,6 +212,21 @@ function toRequirementValues(
     match.stockSignal,
     match.warning,
   ];
+}
+
+function mapMissingRequirementRow(row: HueForgeMissingRequirementRow): HueForgeMissingRequirement {
+  return {
+    brand: row.brand,
+    colorName: row.color_name,
+    hexColor: row.hex_color,
+    layerRange: row.layer_range ?? "",
+    materialType: row.material_type as FilamentMaterial,
+    productId: row.product_id,
+    requiredGrams: row.required_grams,
+    role: row.role,
+    transmissionDistance: row.transmission_distance,
+    warning: row.warning ?? "",
+  };
 }
 
 export const hueForgeRepository = createHueForgeRepository();

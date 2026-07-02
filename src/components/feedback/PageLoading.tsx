@@ -4,9 +4,8 @@ interface PageLoadingProps {
 
 export function PageLoading({ label }: PageLoadingProps) {
   return (
-    <div className="page-loading" role="status">
+    <div className="page-loading" aria-live="polite" role="status">
       Loading {label}
     </div>
   );
 }
-

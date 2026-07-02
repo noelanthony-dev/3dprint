@@ -93,15 +93,29 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 - Add manual shopping list items.
 - Add generated suggestions for low-stock add-ons and missing HueForge filaments if the source modules exist.
 - Keep generated suggestions explainable and non-destructive.
+- Keep ordering, external APIs, automatic purchasing, reminders, and sync out of this phase.
+- Status: complete for manual shopping items and generated, non-destructive low-stock/missing-filament suggestions.
 
 ## Phase 13: Monthly Reports
 
 - Add basic monthly report pages.
 - Run report calculations only when reports are opened or refreshed.
 - Keep report calculations in `src/domain/reports`.
+- Status: complete for on-demand sales, expenses, production, inventory movement, and simple profit summaries.
 
-## Phase 14: Backup / Export / Import and Polish
+## Phase 14: Settings, Backup, Export, and Import
 
-- Add manual backup/export/import workflows.
-- Add Tauri dialog and file-system plugin integration.
-- Improve UI polish and performance after core workflows exist.
+- Add local settings for costing defaults, HueForge thresholds, unit display, currency display, and dark-mode preference.
+- Add manual full backup, full restore, settings export, and settings import workflows.
+- Add Tauri dialog and file-system plugin integration with explicit user-triggered actions.
+- Validate backup metadata, SQLite payloads, and settings imports before writing restored data.
+- Keep automatic sync, cloud storage, authentication, and background backup jobs out of this phase.
+- Status: complete for local settings plus manual backup/export/import MVP.
+
+## Phase 15: MVP Polish, QA, and Packaging
+
+- Review navigation, keyboard usability, empty states, error states, loading states, and responsive behavior.
+- Improve visual consistency with the Stitch Industrial Precision design direction.
+- Add missing tests for critical pure logic and repository-adjacent paths.
+- Verify startup performance, lazy loading, frontend checks, and native packaging.
+- Status: complete for MVP hardening and debug `.app` packaging. Full DMG bundling still needs follow-up because Tauri's generated `bundle_dmg.sh` fails after the `.app` is created.

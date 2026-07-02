@@ -13,8 +13,8 @@ export function Page({
   actions,
   children,
   description,
-  eyebrow = "Offline scaffold",
-  meta = ["Local database later", "No sync", "No auth"],
+  eyebrow = "Offline MVP",
+  meta = ["Local SQLite", "No sync", "No auth"],
   title,
 }: PageProps) {
   return (

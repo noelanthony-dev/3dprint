@@ -67,6 +67,32 @@ button {
   cursor: pointer;
 }
 
+:focus-visible {
+  outline: 2px solid var(--color-primary-bright);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 100;
+  top: var(--space-2);
+  left: var(--space-2);
+  transform: translateY(-140%);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary);
+  color: #001f0a;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: var(--space-2) var(--space-3);
+  text-decoration: none;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 input,
 textarea {
   width: 100%;
@@ -560,6 +586,38 @@ textarea {
   gap: var(--space-4);
 }
 
+.inventory-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.inventory-entry-card {
+  display: grid;
+  gap: var(--space-3);
+  min-height: 160px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: #0c0f10;
+  color: var(--color-muted);
+  padding: var(--space-4);
+  text-decoration: none;
+}
+
+.inventory-entry-card:hover,
+.inventory-entry-card:focus-visible {
+  border-color: var(--color-primary);
+}
+
+.inventory-entry-card strong {
+  color: var(--color-text);
+  font-size: 1.1rem;
+}
+
+.inventory-entry-card span:last-child {
+  font-size: 0.86rem;
+}
+
 .panel {
   min-width: 0;
 }
@@ -625,7 +683,7 @@ textarea {
 }
 
 .data-table {
-  overflow: hidden;
+  overflow-x: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
 }
@@ -634,6 +692,7 @@ textarea {
 .data-table__row {
   display: grid;
   grid-template-columns: var(--table-columns, repeat(4, minmax(0, 1fr)));
+  min-width: min(680px, 100%);
 }
 
 .data-table__head {
@@ -672,6 +731,11 @@ textarea {
   font-size: 0.78rem;
 }
 
+.data-table__row--empty > span {
+  color: var(--color-muted);
+  font-family: var(--mono);
+}
+
 .data-table[data-density="dense"] .badge {
   min-height: 22px;
   font-size: 0.62rem;
@@ -692,6 +756,27 @@ textarea {
 }
 
 .table-link:hover {
+  color: var(--color-primary-bright);
+}
+
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.table-actions button {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  padding: var(--space-1) var(--space-2);
+}
+
+.table-actions button:hover:not(:disabled) {
+  border-color: var(--color-primary);
   color: var(--color-primary-bright);
 }
 
@@ -961,6 +1046,38 @@ textarea {
   color: var(--color-muted);
 }
 
+.suggestion-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.suggestion-list__item {
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  padding: var(--space-3);
+}
+
+.suggestion-list__item > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.suggestion-list__item strong {
+  color: var(--color-text);
+}
+
+.suggestion-list__item p,
+.suggestion-list__item small {
+  margin: 0;
+  color: var(--color-muted);
+}
+
 .cost-breakdown {
   display: grid;
   gap: var(--space-3);
@@ -1166,6 +1283,13 @@ textarea {
   text-align: right;
 }
 
+.settings-checkbox {
+  justify-self: end;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+}
+
 .product-detail-preview {
   display: grid;
   min-height: 220px;
@@ -1294,7 +1418,8 @@ textarea {
   .content-grid--split,
   .content-grid--two,
   .content-grid--costing,
-  .content-grid--hueforge {
+  .content-grid--hueforge,
+  .inventory-entry-grid {
     grid-template-columns: 1fr 1fr;
   }
 
@@ -1360,7 +1485,8 @@ textarea {
   .content-grid--split,
   .content-grid--two,
   .content-grid--costing,
-  .content-grid--hueforge {
+  .content-grid--hueforge,
+  .inventory-entry-grid {
     grid-template-columns: 1fr;
   }
 

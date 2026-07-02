@@ -36,5 +36,10 @@ describe("routeConfig", () => {
     expect(findRouteByPath("/missing").path).toBe("/");
     expect(normalizeRoutePath("#/missing")).toBe("/");
   });
-});
 
+  it("keeps completed MVP route descriptions out of placeholder language", () => {
+    expect(appRoutes.map((route) => route.description).join(" ")).not.toMatch(
+      /placeholder|later/i,
+    );
+  });
+});

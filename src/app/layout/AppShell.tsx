@@ -21,6 +21,9 @@ export function AppShell({
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to content
+      </a>
       <Sidebar activePath={activePath} onNavigate={onNavigate} routes={routes} />
       <div className="workspace">
         <header className="topbar">
@@ -31,14 +34,16 @@ export function AppShell({
           <div className="topbar__status" aria-label="Application status">
             <span>Offline mode</span>
             <span>Home stock</span>
-            <span>SQLite planned</span>
+            <span>SQLite active</span>
           </div>
           <div className="topbar__actions">
-            <ToolbarButton>Log Sale</ToolbarButton>
-            <ToolbarButton tone="primary">Production Run</ToolbarButton>
+            <ToolbarButton onClick={() => onNavigate("/sales")}>Log Sale</ToolbarButton>
+            <ToolbarButton onClick={() => onNavigate("/production")} tone="primary">
+              Production Run
+            </ToolbarButton>
           </div>
         </header>
-        <main className="app-main" tabIndex={-1}>
+        <main className="app-main" id="main-content" tabIndex={-1}>
           {children}
         </main>
       </div>

@@ -9,6 +9,19 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
+  private missingRequirementRow = {
+    brand: "Bambu",
+    color_name: "Jade White",
+    hex_color: "#f7f7ee",
+    layer_range: "L0-L12",
+    material_type: "PLA",
+    product_id: 7,
+    required_grams: 35,
+    role: "Base",
+    transmission_distance: 2.1,
+    warning: "No usable PLA match for Jade White.",
+  };
+
   async execute(query: string, bindValues: readonly unknown[] = []): Promise<QueryResult> {
     this.executed.push({ query, values: bindValues });
 
@@ -17,6 +30,10 @@ class FakeDatabase implements SqlDatabase {
 
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
+
+    if (query.includes("FROM author_filament_requirements")) {
+      return [this.missingRequirementRow] as T;
+    }
 
     return [] as T;
   }
@@ -103,5 +120,21 @@ describe("HueForge repository", () => {
     expect(requirementInsert?.values[0]).toBe(3);
     expect(requirementInsert?.values[10]).toBe("Sunlu Matte Black");
     expect(requirementInsert?.values[12]).toBe("excellent");
+  });
+
+  it("lists missing requirements for shopping suggestions", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createHueForgeRepository(async () => fakeDb);
+
+    const missing = await repository.listMissingRequirements();
+
+    expect(fakeDb.selected[0]?.query).toContain("WHERE match_status = 'missing'");
+    expect(missing[0]).toMatchObject({
+      brand: "Bambu",
+      colorName: "Jade White",
+      materialType: "PLA",
+      productId: 7,
+      requiredGrams: 35,
+    });
   });
 });

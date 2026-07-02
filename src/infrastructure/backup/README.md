@@ -1,4 +1,5 @@
 # Backup Infrastructure
 
-Future manual backup, export, and import adapters. Do not add cloud sync or background synchronization.
+Manual backup, export, and import adapters built on Tauri dialog and file-system plugins.
 
+This infrastructure is only called from user-triggered backup page actions. It does not schedule work, sync to cloud storage, or run in the background.
