@@ -43,7 +43,7 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 ## Phase 6: Design Library / Products
 
 - Add product and design library screens.
-- Track design name, source link, author/designer, category, sale unit, commercial license status and notes, general notes, and one optional image reference.
+- Track design name, source link, author/designer, category, sale unit, commercial license status, optional recurring license cost, general notes, and one optional image reference.
 - Add pure helper tests and SQLite repository boundary tests.
 - Keep HueForge matching, inventory deduction, costing, production, sales, and complex image management out of this phase.
 - Status: complete for the product/design add/edit/list and detail MVP.
@@ -59,7 +59,7 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 ## Phase 8: Print Profiles and Costing
 
 - Add print profile inputs linked to product/design records.
-- Track filament usage estimates, purge/support grams, add-on estimate text/cost, print time, electricity, wear, labor, yield/failure allowance, sale unit, and target markup.
+- Track filament usage estimates, purge/support grams, selected add-on/hardware item and quantity, print time, settings-sourced electricity/wear/labor assumptions, yield/failure allowance, sale unit, and target markup.
 - Add pure costing and pricing formulas with focused tests.
 - Keep inventory deduction, production runs, sales, reports, and license subscription allocation out of this phase.
 - Status: complete for saved print profiles and costing/pricing guidance.

@@ -19,6 +19,7 @@ export interface SalesRepository {
   get(id: number): Promise<SaleRecord | null>;
   list(): Promise<SaleRecord[]>;
   listStockMovements(saleId: number): Promise<SaleStockMovementRecord[]>;
+  recordSaleWithStockMovement(input: SaleCreateInput): Promise<SaleRecord>;
 }
 
 interface SaleRow {
@@ -219,7 +220,142 @@ export function createSalesRepository(
 
       return rows.map(mapSaleStockMovementRow);
     },
+
+    async recordSaleWithStockMovement(input) {
+      const validation = validateSaleInput(input);
+
+      if (!validation.valid) {
+        throw new Error(Object.values(validation.errors)[0] ?? "Invalid sale.");
+      }
+
+      if (input.stockQuantityAfter !== input.stockQuantityBefore - input.quantity) {
+        throw new Error("Sale stock movement does not match the sale quantity.");
+      }
+
+      if (input.stockQuantityAfter < 0) {
+        throw new Error("Sale cannot reduce ready quantity below zero.");
+      }
+
+      const totals = calculateSaleTotals(input);
+      const db = await database();
+      let insertedId: number | null = null;
+
+      await db.execute("BEGIN IMMEDIATE");
+
+      try {
+        const stockResult = await db.execute(
+          `UPDATE finished_goods
+           SET
+            quantity_ready = $1,
+            updated_at = datetime('now')
+           WHERE id = $2
+            AND quantity_ready = $3
+            AND quantity_reserved <= $1`,
+          [input.stockQuantityAfter, input.finishedGoodId, input.stockQuantityBefore],
+        );
+
+        if (stockResult.rowsAffected === 0) {
+          throw new Error("Finished goods stock changed before the sale could be recorded.");
+        }
+
+        await db.execute(
+          `INSERT INTO finished_good_stock_adjustments (
+            finished_good_id,
+            quantity_delta,
+            quantity_after,
+            reason,
+            notes
+          ) VALUES ($1, $2, $3, $4, $5)`,
+          [
+            input.finishedGoodId,
+            -input.quantity,
+            input.stockQuantityAfter,
+            "sale",
+            saleAdjustmentNote(input),
+          ],
+        );
+
+        insertedId = await insertSaleRows(db, input, totals);
+
+        await db.execute("COMMIT");
+      } catch (error) {
+        await db.execute("ROLLBACK");
+        throw error;
+      }
+
+      if (insertedId == null) {
+        throw new Error("Inserted sale id was not captured.");
+      }
+
+      const created = await this.get(insertedId);
+
+      if (!created) {
+        throw new Error("Inserted sale could not be loaded.");
+      }
+
+      return created;
+    },
   };
+}
+
+async function insertSaleRows(
+  db: SqlDatabase,
+  input: SaleCreateInput,
+  totals = calculateSaleTotals(input),
+): Promise<number> {
+  const result = await db.execute(
+    `INSERT INTO sales (
+      finished_good_id,
+      product_reference,
+      sale_date,
+      quantity,
+      sale_unit,
+      channel,
+      gross_revenue,
+      discounts_fees,
+      net_revenue,
+      notes,
+      stock_quantity_before,
+      stock_quantity_after
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+    [
+      input.finishedGoodId,
+      input.productReference.trim(),
+      input.saleDate.trim(),
+      input.quantity,
+      input.saleUnit,
+      input.channel,
+      totals.grossRevenue,
+      totals.discountsFees,
+      totals.netRevenue,
+      input.notes.trim(),
+      input.stockQuantityBefore,
+      input.stockQuantityAfter,
+    ],
+  );
+
+  if (result.lastInsertId == null) {
+    throw new Error("SQLite did not return the inserted sale id.");
+  }
+
+  await db.execute(
+    `INSERT INTO sale_stock_movements (
+      sale_id,
+      finished_good_id,
+      quantity_delta,
+      quantity_before,
+      quantity_after
+    ) VALUES ($1, $2, $3, $4, $5)`,
+    [
+      result.lastInsertId,
+      input.finishedGoodId,
+      -input.quantity,
+      input.stockQuantityBefore,
+      input.stockQuantityAfter,
+    ],
+  );
+
+  return result.lastInsertId;
 }
 
 async function ensureSalesSchema(db: SqlDatabase): Promise<void> {
@@ -304,6 +440,10 @@ function mapSaleStockMovementRow(row: SaleStockMovementRow): SaleStockMovementRe
     quantityDelta: row.quantity_delta,
     saleId: row.sale_id,
   };
+}
+
+function saleAdjustmentNote(input: SaleCreateInput): string {
+  return `Sale ${input.saleDate.trim()}: ${input.quantity} ${input.saleUnit} via ${input.channel}. ${input.notes.trim()}`.trim();
 }
 
 export const salesRepository = createSalesRepository();

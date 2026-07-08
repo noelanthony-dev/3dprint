@@ -9,6 +9,8 @@ import {
 const validInput: PrintProfileInput = {
   addOnCost: 2.5,
   addOnDescription: "Magnets and box",
+  addOnId: 4,
+  addOnQuantity: 5,
   electricityRatePerKwh: 0.15,
   expectedFailedUnits: 1,
   expectedGoodUnits: 10,
@@ -70,5 +72,16 @@ describe("print costing", () => {
     expect(result.errors.productId).toBeDefined();
     expect(result.errors.profileName).toBeDefined();
     expect(result.errors.targetMarkup).toBeDefined();
+  });
+
+  it("requires an add-on selection before add-on quantity is costed", () => {
+    const result = validatePrintProfileInput({
+      ...validInput,
+      addOnId: null,
+      addOnQuantity: 2,
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.errors.addOnId).toBeDefined();
   });
 });

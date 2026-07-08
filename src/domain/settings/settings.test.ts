@@ -17,7 +17,7 @@ describe("settings domain", () => {
         metricUnits: false,
       }),
     ).toMatchObject({
-      currencySymbol: "USD ($)",
+      currencySymbol: "PHP (₱)",
       darkMode: false,
       electricityRatePerKwh: 0.2,
       metricUnits: false,
@@ -32,6 +32,8 @@ describe("settings domain", () => {
       hueForgeMaxTransmissionDistance: 1,
       hueForgeMinTransmissionDistance: 2,
       machineLifeHours: 0,
+      printerPowerWatts: -1,
+      wearRatePerHour: -1,
     });
 
     expect(result.valid).toBe(false);
@@ -39,6 +41,8 @@ describe("settings domain", () => {
     expect(result.errors.hueForgeAcceptableDeltaE).toBeDefined();
     expect(result.errors.hueForgeMaxTransmissionDistance).toBeDefined();
     expect(result.errors.machineLifeHours).toBeDefined();
+    expect(result.errors.printerPowerWatts).toBeDefined();
+    expect(result.errors.wearRatePerHour).toBeDefined();
   });
 
   it("accepts the default settings", () => {

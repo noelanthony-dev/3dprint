@@ -22,10 +22,11 @@ import type { PrintProfileRecord } from "@/domain/costing";
 import {
   formatGramsLeft,
   formatQuantity,
+  normalizeHexColor,
   type AddOnRecord,
   type FilamentRecord,
 } from "@/domain/inventory";
-import type { ProductRecord } from "@/domain/products";
+import type { ProductHueForgeFilament, ProductRecord } from "@/domain/products";
 import {
   calculateProductionDeductionPlan,
   validateProductionRunInput,
@@ -158,6 +159,20 @@ export function ProductionRunsPage() {
   const deductionPlan = selectedProfile
     ? calculateProductionDeductionPlan(selectedProfile, input)
     : emptyPlan;
+  const productFilamentRequirements = selectedProduct
+    ? getProductFilamentRequirements(selectedProduct)
+    : [];
+  const selectableFilamentsForRun = filaments.filter(isUsableProductionFilament);
+  const suggestedFilaments = selectedProduct
+    ? getSuggestedInventoryFilaments(
+        selectedProduct,
+        selectableFilamentsForRun,
+        deductionPlan.filamentGramsToDeduct,
+      )
+    : [];
+  const otherFilaments = selectableFilamentsForRun.filter(
+    (filament) => !suggestedFilaments.some((suggested) => suggested.id === filament.id),
+  );
 
   const totalGoodPieces = runs.reduce((sum, run) => sum + run.goodPieces, 0);
   const totalFailedPieces = runs.reduce((sum, run) => sum + run.failedPieces, 0);
@@ -172,29 +187,28 @@ export function ProductionRunsPage() {
     const nextProfile = nextProduct
       ? profiles.find((profile) => profile.productId === nextProduct.id)
       : null;
+    const nextProfileDefaults = getProfileRunDefaults(nextProfile);
 
     setForm((current) => ({
       ...current,
-      expectedPieces: nextProfile
-        ? String(nextProfile.expectedGoodUnits + nextProfile.expectedFailedUnits)
-        : current.expectedPieces,
-      failedPieces: nextProfile ? String(nextProfile.expectedFailedUnits) : current.failedPieces,
-      goodPieces: nextProfile ? String(nextProfile.expectedGoodUnits) : current.goodPieces,
+      ...nextProfileDefaults,
       printProfileId: nextProfile ? String(nextProfile.id) : "",
       productId,
+      filamentId: chooseRecommendedFilamentId(
+        nextProduct ?? null,
+        filaments,
+        nextProfile ? nextProfile.filamentGrams + nextProfile.supportGrams : 0,
+      ),
     }));
   }
 
   function handleProfileChange(printProfileId: string): void {
     const nextProfile = profiles.find((profile) => String(profile.id) === printProfileId);
+    const nextProfileDefaults = getProfileRunDefaults(nextProfile);
 
     setForm((current) => ({
       ...current,
-      expectedPieces: nextProfile
-        ? String(nextProfile.expectedGoodUnits + nextProfile.expectedFailedUnits)
-        : current.expectedPieces,
-      failedPieces: nextProfile ? String(nextProfile.expectedFailedUnits) : current.failedPieces,
-      goodPieces: nextProfile ? String(nextProfile.expectedGoodUnits) : current.goodPieces,
+      ...nextProfileDefaults,
       printProfileId,
     }));
   }
@@ -233,7 +247,7 @@ export function ProductionRunsPage() {
       actions={
         <>
           <ToolbarButton onClick={() => void loadProductionData()}>Refresh</ToolbarButton>
-          <ToolbarButton disabled={isSaving || products.length === 0} form="production-run-form" tone="primary" type="submit">
+          <ToolbarButton disabled={isSaving || products.length === 0 || selectedProfile == null} form="production-run-form" tone="primary" type="submit">
             Log Run
           </ToolbarButton>
         </>
@@ -311,7 +325,10 @@ export function ProductionRunsPage() {
                   ))}
                 </select>
               </FormField>
-              <FormField label="Print Profile">
+              <FormField
+                label="Print Profile"
+                tooltip="A saved production preset from Print Profiles & Costing. It supplies grams, expected yield, and add-on defaults for this run."
+              >
                 <select onChange={(event) => handleProfileChange(event.target.value)} value={form.printProfileId}>
                   <option value="">Choose profile...</option>
                   {selectableProfiles.map((profile) => (
@@ -321,17 +338,53 @@ export function ProductionRunsPage() {
                   ))}
                 </select>
               </FormField>
+              {selectedProduct && selectableProfiles.length === 0 ? (
+                <div className="callout callout--warning" data-wide="true">
+                  <Badge tone="warning">Profile Required</Badge>
+                  <p>Create a print profile for this product in Print Profiles & Costing before logging production.</p>
+                </div>
+              ) : null}
               <FormField label="Run Date">
                 <input onChange={(event) => setFormValue("runDate", event.target.value, setForm)} type="date" value={form.runDate} />
               </FormField>
-              <FormField label="Filament Spool" wide>
+              {productFilamentRequirements.length > 0 ? (
+                <div className="form-section production-requirements">
+                  <div className="form-section__header">
+                    <span>Product Filament Requirements</span>
+                    <Badge>{productFilamentRequirements.length} rows</Badge>
+                  </div>
+                  <div className="production-requirements__list">
+                    {productFilamentRequirements.map((requirement, index) => (
+                      <span key={`${requirement.brand}-${requirement.colorName}-${index}`}>
+                        {formatProductFilamentRequirement(requirement)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <FormField
+                label="Deduct From Inventory"
+                tooltip="The print profile decides how many grams to deduct. This selects which local stock record loses those grams."
+                wide
+              >
                 <select onChange={(event) => setFormValue("filamentId", event.target.value, setForm)} value={form.filamentId}>
-                  <option value="">Choose filament...</option>
-                  {filaments.map((filament) => (
-                    <option key={filament.id} value={filament.id}>
-                      {filamentNames.get(filament.id)}
-                    </option>
-                  ))}
+                  <option value="">Choose inventory stock...</option>
+                  {suggestedFilaments.length > 0 ? (
+                    <optgroup label="Suggested for selected product">
+                      {suggestedFilaments.map((filament) => (
+                        <option key={filament.id} value={filament.id}>
+                          {filamentNames.get(filament.id)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  <optgroup label={suggestedFilaments.length > 0 ? "Other stock" : "Available stock"}>
+                    {otherFilaments.map((filament) => (
+                      <option key={filament.id} value={filament.id}>
+                        {filamentNames.get(filament.id)}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
               </FormField>
               <FormField label="Expected Pieces">
@@ -363,7 +416,7 @@ export function ProductionRunsPage() {
                 <textarea onChange={(event) => setFormValue("notes", event.target.value, setForm)} value={form.notes} />
               </FormField>
               <div className="form-actions">
-                <ToolbarButton disabled={isSaving || products.length === 0 || profiles.length === 0 || filaments.length === 0} tone="primary" type="submit">
+                <ToolbarButton disabled={isSaving || products.length === 0 || selectedProfile == null || filaments.length === 0} tone="primary" type="submit">
                   Save & Update Stock
                 </ToolbarButton>
               </div>
@@ -380,8 +433,10 @@ export function ProductionRunsPage() {
               <strong>{formatGramsLeft(deductionPlan.filamentGramsToDeduct)}</strong>
               <span>Failure Rate</span>
               <strong>{(deductionPlan.failureRate * 100).toFixed(1)}%</strong>
-              <span>Selected Spool</span>
+              <span>Deducting From</span>
               <strong>{selectedFilament ? formatGramsLeft(selectedFilament.estimatedGramsLeft) : "--"}</strong>
+              <span>Product Filaments</span>
+              <strong>{productFilamentRequirements.length > 0 ? productFilamentRequirements.length : "--"}</strong>
               <span>Add-on Deduction</span>
               <strong>{selectedAddOn ? formatQuantity(deductionPlan.addOnQuantityToDeduct, selectedAddOn.unit) : "--"}</strong>
             </div>
@@ -401,15 +456,24 @@ export function ProductionRunsPage() {
 function FormField({
   children,
   label,
+  tooltip,
   wide = false,
 }: {
   readonly children: ReactNode;
   readonly label: string;
+  readonly tooltip?: string;
   readonly wide?: boolean;
 }) {
   return (
     <label className="form-field" data-wide={wide ? "true" : "false"}>
-      <span>{label}</span>
+      <span className="form-field__label">
+        {label}
+        {tooltip ? (
+          <span className="form-field__help" data-tooltip={tooltip} tabIndex={0}>
+            ?
+          </span>
+        ) : null}
+      </span>
       {children}
     </label>
   );
@@ -429,18 +493,165 @@ function hydrateEmptySelections(
   const profile = product
     ? profiles.find((candidate) => candidate.productId === product.id)
     : profiles[0];
+  const profileDefaults = getProfileRunDefaults(profile);
 
   return {
     ...current,
-    expectedPieces: profile
-      ? String(profile.expectedGoodUnits + profile.expectedFailedUnits)
-      : current.expectedPieces,
-    failedPieces: profile ? String(profile.expectedFailedUnits) : current.failedPieces,
-    filamentId: filaments[0] ? String(filaments[0].id) : "",
-    goodPieces: profile ? String(profile.expectedGoodUnits) : current.goodPieces,
+    ...profileDefaults,
+    filamentId: chooseRecommendedFilamentId(
+      product ?? null,
+      filaments,
+      profile ? profile.filamentGrams + profile.supportGrams : 0,
+    ),
     printProfileId: profile ? String(profile.id) : "",
     productId: product ? String(product.id) : "",
   };
+}
+
+function getProfileRunDefaults(
+  profile: PrintProfileRecord | null | undefined,
+): Pick<
+  RunFormState,
+  "addOnId" | "addOnQuantity" | "expectedPieces" | "failedPieces" | "goodPieces"
+> {
+  if (!profile) {
+    return {
+      addOnId: "",
+      addOnQuantity: "0",
+      expectedPieces: "",
+      failedPieces: "0",
+      goodPieces: "",
+    };
+  }
+
+  return {
+    addOnId: profile.addOnId == null ? "" : String(profile.addOnId),
+    addOnQuantity: profile.addOnId == null ? "0" : String(profile.addOnQuantity),
+    expectedPieces: String(profile.expectedGoodUnits + profile.expectedFailedUnits),
+    failedPieces: String(profile.expectedFailedUnits),
+    goodPieces: String(profile.expectedGoodUnits),
+  };
+}
+
+function getProductFilamentRequirements(
+  product: ProductRecord,
+): readonly ProductHueForgeFilament[] {
+  return product.hueForgeFilaments.filter(
+    (requirement) =>
+      requirement.requiredGrams > 0 ||
+      requirement.brand.trim() ||
+      requirement.colorName.trim() ||
+      requirement.materialType !== "Other",
+  );
+}
+
+function getSuggestedInventoryFilaments(
+  product: ProductRecord,
+  filaments: readonly FilamentRecord[],
+  requiredGrams: number,
+): readonly FilamentRecord[] {
+  const requirements = getProductFilamentRequirements(product);
+  const openEnoughFilaments = filaments.filter(
+    (filament) => isUsableProductionFilament(filament) && filament.estimatedGramsLeft >= requiredGrams,
+  );
+  const exactMatches = openEnoughFilaments.filter((filament) =>
+    requirements.some((requirement) => doesFilamentMatchRequirement(filament, requirement)),
+  );
+
+  if (exactMatches.length > 0) {
+    return sortFilamentsForProduction(exactMatches);
+  }
+
+  const materialMatches = openEnoughFilaments.filter((filament) =>
+    requirements.some((requirement) => filament.materialType === requirement.materialType),
+  );
+
+  if (materialMatches.length > 0) {
+    return sortFilamentsForProduction(materialMatches);
+  }
+
+  return sortFilamentsForProduction(openEnoughFilaments);
+}
+
+function chooseRecommendedFilamentId(
+  product: ProductRecord | null,
+  filaments: readonly FilamentRecord[],
+  requiredGrams: number,
+): string {
+  const suggested = product
+    ? getSuggestedInventoryFilaments(product, filaments, requiredGrams)
+    : sortFilamentsForProduction(
+        filaments.filter(
+          (filament) =>
+            isUsableProductionFilament(filament) &&
+            filament.estimatedGramsLeft >= requiredGrams,
+        ),
+      );
+
+  return suggested[0] ? String(suggested[0].id) : filaments[0] ? String(filaments[0].id) : "";
+}
+
+function isUsableProductionFilament(filament: FilamentRecord): boolean {
+  return filament.spoolStatus !== "archived" && filament.spoolStatus !== "empty";
+}
+
+function doesFilamentMatchRequirement(
+  filament: FilamentRecord,
+  requirement: ProductHueForgeFilament,
+): boolean {
+  if (filament.materialType !== requirement.materialType) {
+    return false;
+  }
+
+  const requirementBrand = requirement.brand.trim().toLowerCase();
+  const requirementColor = requirement.colorName.trim().toLowerCase();
+  const brandMatches =
+    !requirementBrand || filament.brand.trim().toLowerCase() === requirementBrand;
+  const colorMatches =
+    !requirementColor || filament.colorName.trim().toLowerCase() === requirementColor;
+  const hexMatches =
+    !requirement.hexColor.trim() ||
+    normalizeHexColor(filament.hexColor) === normalizeHexColor(requirement.hexColor);
+
+  return brandMatches && colorMatches && hexMatches;
+}
+
+function sortFilamentsForProduction(filaments: readonly FilamentRecord[]): readonly FilamentRecord[] {
+  return [...filaments].sort((left, right) => {
+    const statusDelta = getProductionStatusRank(left) - getProductionStatusRank(right);
+
+    if (statusDelta !== 0) {
+      return statusDelta;
+    }
+
+    return right.estimatedGramsLeft - left.estimatedGramsLeft;
+  });
+}
+
+function getProductionStatusRank(filament: FilamentRecord): number {
+  if (filament.spoolStatus === "open") {
+    return 0;
+  }
+
+  if (filament.spoolStatus === "sealed") {
+    return 1;
+  }
+
+  if (filament.spoolStatus === "empty") {
+    return 2;
+  }
+
+  return 3;
+}
+
+function formatProductFilamentRequirement(requirement: ProductHueForgeFilament): string {
+  const grams = requirement.requiredGrams > 0 ? `${formatGramsLeft(requirement.requiredGrams)} ` : "";
+  const brand = requirement.brand.trim();
+  const color = requirement.colorName.trim();
+  const material = requirement.materialType === "Other" ? "" : requirement.materialType;
+  const name = [brand, color, material].filter(Boolean).join(" ");
+
+  return `${grams}${name || "Basic filament"}`;
 }
 
 function setFormValue<K extends keyof RunFormState>(
@@ -488,5 +699,9 @@ function formatRepositoryError(error: unknown): string {
     return error.message;
   }
 
-  return "Production storage is unavailable. Open the app through Tauri to use local SQLite.";
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  return "Production storage is unavailable. Refresh the page and check the local SQLite setup if it continues.";
 }

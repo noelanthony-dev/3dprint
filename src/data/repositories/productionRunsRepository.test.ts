@@ -8,6 +8,8 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
+  constructor(private readonly productionRunColumns = currentProductionRunColumns) {}
+
   private runRow = {
     addon_id: 3,
     addon_quantity_deducted: 12,
@@ -60,6 +62,10 @@ class FakeDatabase implements SqlDatabase {
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
 
+    if (query.includes("PRAGMA table_info(production_runs)")) {
+      return this.productionRunColumns.map((name) => ({ name })) as T;
+    }
+
     if (query.includes("FROM production_run_filaments")) {
       return [this.filamentDeductionRow] as T;
     }
@@ -71,6 +77,25 @@ class FakeDatabase implements SqlDatabase {
     return [this.runRow] as T;
   }
 }
+
+const currentProductionRunColumns = [
+  "id",
+  "product_id",
+  "print_profile_id",
+  "filament_id",
+  "addon_id",
+  "run_date",
+  "expected_pieces",
+  "good_pieces",
+  "failed_pieces",
+  "failure_reason",
+  "notes",
+  "filament_grams_deducted",
+  "addon_quantity_deducted",
+  "finished_good_id",
+  "created_at",
+  "updated_at",
+];
 
 const input: ProductionRunCreateInput = {
   addOnDeduction: {
@@ -115,7 +140,42 @@ describe("production runs repository", () => {
     expect(fakeDb.executed.some((statement) =>
       statement.query.includes("CREATE TABLE IF NOT EXISTS production_run_addons"),
     )).toBe(true);
-    expect(fakeDb.selected[0]?.query).toContain("FROM production_runs");
+    expect(fakeDb.selected.some((statement) =>
+      statement.query.includes("PRAGMA table_info(production_runs)"),
+    )).toBe(true);
+    expect(fakeDb.selected.some((statement) =>
+      statement.query.includes("FROM production_runs"),
+    )).toBe(true);
+  });
+
+  it("adds columns that are missing from older production run tables", async () => {
+    const fakeDb = new FakeDatabase(
+      currentProductionRunColumns.filter(
+        (column) =>
+          ![
+            "addon_id",
+            "filament_grams_deducted",
+            "addon_quantity_deducted",
+            "finished_good_id",
+          ].includes(column),
+      ),
+    );
+    const repository = createProductionRunsRepository(async () => fakeDb);
+
+    await repository.list();
+
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE production_runs ADD COLUMN addon_id INTEGER"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE production_runs ADD COLUMN filament_grams_deducted"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE production_runs ADD COLUMN addon_quantity_deducted"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE production_runs ADD COLUMN finished_good_id INTEGER"),
+    )).toBe(true);
   });
 
   it("binds production run and deduction values instead of interpolating notes", async () => {

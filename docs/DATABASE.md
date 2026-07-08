@@ -147,13 +147,14 @@ Implemented fields:
 - `category`
 - `sale_unit`
 - `commercial_license_status`
-- `license_notes`
+- `license_cost_amount`
+- `license_billing_interval`
 - `notes`
 - `image_reference`
 - `created_at`
 - `updated_at`
 
-The `products` schema is currently created by `src/data/repositories/productsRepository.ts` on first repository use. The `image_reference` field stores one optional reference string only. There is no image upload, copying, resizing, gallery, product costing, HueForge matching, production automation, or sales integration in this slice.
+The `products` schema is currently created by `src/data/repositories/productsRepository.ts` on first repository use. The `image_reference` field stores one optional reference string only. Product records track warning-only commercial license status plus optional recurring license cost by monthly, quarterly, or yearly billing interval. There is no image upload, copying, resizing, gallery, HueForge matching, production automation, or sales integration in this slice.
 
 ## HueForge Match Slice
 
@@ -211,7 +212,9 @@ Implemented fields:
 - `filament_grams`
 - `support_grams`
 - `filament_cost_per_kg`
+- `add_on_id`
 - `add_on_description`
+- `add_on_quantity`
 - `add_on_cost`
 - `print_hours`
 - `print_minutes`
@@ -227,7 +230,7 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The `print_profiles` schema is currently created by `src/data/repositories/printProfilesRepository.ts` on first repository use. Profiles are linked to `products.id` and store costing inputs only. They do not deduct filament, consume add-ons, log production runs, create sales, or allocate license subscriptions.
+The `print_profiles` schema is currently created by `src/data/repositories/printProfilesRepository.ts` on first repository use. Profiles are linked to `products.id` and may reference one add-on/hardware item from `addons.id`; add-on cost is saved as a calculation snapshot and does not deduct stock. Electricity, printer watts, wear rate, and labor rate are sourced from local Settings in the Costing UI and saved into the profile as a snapshot. Profiles do not deduct filament, consume add-ons, log production runs, create sales, or allocate license subscriptions.
 
 ## Production Runs Slice
 
@@ -391,6 +394,8 @@ Implemented local-only settings:
 - metric-units preference
 - labor-rate default
 - electricity-rate default
+- printer-power default
+- wear-and-tear rate default
 - machine-life default
 - expected failure-rate default
 - HueForge transmission-distance thresholds

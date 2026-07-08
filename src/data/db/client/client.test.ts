@@ -30,6 +30,7 @@ describe("database client", () => {
     await expect(getDatabase()).resolves.toBe(firstDatabase);
     await expect(getDatabase()).resolves.toBe(firstDatabase);
     expect(loadDatabase).toHaveBeenCalledTimes(1);
+    expect(firstDatabase.execute).toHaveBeenCalledWith("PRAGMA busy_timeout = 5000");
 
     await expect(closeDatabase()).resolves.toBe(true);
     expect(firstClose).toHaveBeenCalledTimes(1);

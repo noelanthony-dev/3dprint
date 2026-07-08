@@ -284,8 +284,8 @@ function currentMonthInputValue(): string {
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
+  return new Intl.NumberFormat("en-PH", {
+    currency: "PHP",
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);

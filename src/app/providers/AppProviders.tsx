@@ -1,6 +1,7 @@
 import type { PropsWithChildren } from "react";
 
-export function AppProviders({ children }: PropsWithChildren) {
-  return children;
-}
+import { ThemeProvider } from "@/app/theme";
 
+export function AppProviders({ children }: PropsWithChildren) {
+  return <ThemeProvider>{children}</ThemeProvider>;
+}

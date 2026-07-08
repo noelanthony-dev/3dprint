@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useMemo,
   useState,
   type Dispatch,
@@ -6,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 
+import { Toast, type ToastMessage, type ToastTone } from "@/components/feedback/Toast";
 import { Page } from "@/components/layout/Page";
 import { Badge, MetricPanel, Panel, ToolbarButton } from "@/components/ui";
 import { localSettingsRepository } from "@/data/settings/localSettingsRepository";
@@ -17,34 +19,90 @@ import {
 } from "@/domain/settings";
 
 export function SettingsPage() {
-  const [message, setMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => localSettingsRepository.load());
+  const [toast, setToast] = useState<ToastMessage | null>(null);
 
   const validation = useMemo(() => validateAppSettings(settings), [settings]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+  const clearToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((tone: ToastTone, title: string, message: string) => {
+    setToast({
+      id: Date.now(),
+      message,
+      title,
+      tone,
+    });
+  }, []);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
     if (!validation.valid) {
-      setMessage(Object.values(validation.errors)[0] ?? "Check the settings values.");
+      showToast(
+        "warning",
+        "Check Settings",
+        Object.values(validation.errors)[0] ?? "Check the settings values.",
+      );
       return;
     }
 
-    setSettings(localSettingsRepository.save(settings));
-    setMessage("Settings saved locally.");
+    setIsSaving(true);
+
+    try {
+      await waitForFeedback();
+      const currentDarkMode = localSettingsRepository.load().darkMode;
+      const savedSettings = localSettingsRepository.save({
+        ...settings,
+        darkMode: currentDarkMode,
+      });
+      setSettings(savedSettings);
+      showToast("success", "Settings Saved", "Local settings were updated.");
+    } catch (error) {
+      showToast(
+        "danger",
+        "Save Failed",
+        error instanceof Error ? error.message : "Settings could not be saved locally.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleReset(): void {
-    setSettings(localSettingsRepository.reset());
-    setMessage("Settings reset to local defaults.");
+    try {
+      const currentDarkMode = localSettingsRepository.load().darkMode;
+      const resetSettings = localSettingsRepository.save({
+        ...DEFAULT_APP_SETTINGS,
+        darkMode: currentDarkMode,
+      });
+
+      setSettings(resetSettings);
+      showToast("success", "Defaults Restored", "Local settings were reset without changing theme.");
+    } catch (error) {
+      showToast(
+        "danger",
+        "Reset Failed",
+        error instanceof Error ? error.message : "Settings could not be reset locally.",
+      );
+    }
   }
 
   return (
     <Page
       actions={
         <>
-          <ToolbarButton onClick={handleReset}>Reset Defaults</ToolbarButton>
-          <ToolbarButton form="settings-form" tone="primary" type="submit">
+          <ToolbarButton disabled={isSaving} onClick={handleReset}>Reset Defaults</ToolbarButton>
+          <ToolbarButton
+            form="settings-form"
+            isLoading={isSaving}
+            loadingLabel="Saving"
+            tone="primary"
+            type="submit"
+          >
             Save Settings
           </ToolbarButton>
         </>
@@ -53,16 +111,11 @@ export function SettingsPage() {
       meta={["Local preferences", "No account", "No sync"]}
       title="Settings"
     >
-      {message ? (
-        <div className={message.includes("saved") || message.includes("reset") ? "callout" : "callout callout--warning"}>
-          <Badge tone={message.includes("saved") || message.includes("reset") ? "success" : "warning"}>Settings</Badge>
-          <p>{message}</p>
-        </div>
-      ) : null}
+      <Toast onDismiss={clearToast} toast={toast} />
 
       <div className="metric-grid">
         <MetricPanel detail={settings.currencySymbol} label="Currency" value={settings.currencySymbol} />
-        <MetricPanel detail="costing default" label="Labor Rate" value={formatCurrency(settings.laborRateHourly)} />
+        <MetricPanel detail="costing default" label="Labor Rate" value={formatCurrency(settings.laborRateHourly, settings.currencySymbol)} />
         <MetricPanel detail="costing default" label="Electricity" value={`${settings.electricityRatePerKwh.toFixed(2)} / kWh`} />
         <MetricPanel detail="HueForge matching" label="Delta E" value={settings.hueForgeAcceptableDeltaE.toFixed(1)} />
       </div>
@@ -72,7 +125,7 @@ export function SettingsPage() {
           <Panel title="Cost Assumptions">
             <div className="inventory-form">
               <label className="form-field">
-                <span>Labor Rate ($/hr)</span>
+                <span>Labor Rate ({getCurrencyUnitLabel(settings.currencySymbol)}/hr)</span>
                 <input
                   min="0"
                   onChange={(event) => updateNumber(setSettings, "laborRateHourly", event.target.value)}
@@ -82,7 +135,7 @@ export function SettingsPage() {
                 />
               </label>
               <label className="form-field">
-                <span>Electricity ($/kWh)</span>
+                <span>Electricity ({getCurrencyUnitLabel(settings.currencySymbol)}/kWh)</span>
                 <input
                   min="0"
                   onChange={(event) => updateNumber(setSettings, "electricityRatePerKwh", event.target.value)}
@@ -99,6 +152,26 @@ export function SettingsPage() {
                   step="1"
                   type="number"
                   value={settings.machineLifeHours}
+                />
+              </label>
+              <label className="form-field">
+                <span>Printer Power (watts)</span>
+                <input
+                  min="0"
+                  onChange={(event) => updateNumber(setSettings, "printerPowerWatts", event.target.value)}
+                  step="1"
+                  type="number"
+                  value={settings.printerPowerWatts}
+                />
+              </label>
+              <label className="form-field">
+                <span>Wear & Tear ({getCurrencyUnitLabel(settings.currencySymbol)}/hr)</span>
+                <input
+                  min="0"
+                  onChange={(event) => updateNumber(setSettings, "wearRatePerHour", event.target.value)}
+                  step="0.01"
+                  type="number"
+                  value={settings.wearRatePerHour}
                 />
               </label>
               <label className="form-field">
@@ -154,13 +227,6 @@ export function SettingsPage() {
         <div className="side-stack">
           <Panel title="Preferences">
             <div className="key-value-list">
-              <span>Dark mode</span>
-              <input
-                checked={settings.darkMode}
-                className="settings-checkbox"
-                onChange={(event) => updateBoolean(setSettings, "darkMode", event.target.checked)}
-                type="checkbox"
-              />
               <span>Metric units</span>
               <input
                 checked={settings.metricUnits}
@@ -209,9 +275,13 @@ export function SettingsPage() {
           <Panel title="Local Defaults">
             <div className="key-value-list">
               <span>Default labor</span>
-              <strong>{formatCurrency(DEFAULT_APP_SETTINGS.laborRateHourly)}</strong>
+              <strong>{formatCurrency(DEFAULT_APP_SETTINGS.laborRateHourly, DEFAULT_APP_SETTINGS.currencySymbol)}</strong>
               <span>Default electricity</span>
               <strong>{DEFAULT_APP_SETTINGS.electricityRatePerKwh.toFixed(2)} / kWh</strong>
+              <span>Default printer power</span>
+              <strong>{DEFAULT_APP_SETTINGS.printerPowerWatts.toFixed(0)} watts</strong>
+              <span>Default wear</span>
+              <strong>{formatCurrency(DEFAULT_APP_SETTINGS.wearRatePerHour, DEFAULT_APP_SETTINGS.currencySymbol)} / hr</strong>
               <span>Default failure</span>
               <strong>{DEFAULT_APP_SETTINGS.expectedFailureRatePercent.toFixed(1)}%</strong>
               <span>Default Delta E</span>
@@ -235,6 +305,8 @@ function updateNumber(
     | "hueForgeMinTransmissionDistance"
     | "laborRateHourly"
     | "machineLifeHours"
+    | "printerPowerWatts"
+    | "wearRatePerHour"
   >,
   value: string,
 ): void {
@@ -246,7 +318,7 @@ function updateNumber(
 
 function updateBoolean(
   setSettings: Dispatch<SetStateAction<AppSettings>>,
-  key: keyof Pick<AppSettings, "darkMode" | "metricUnits">,
+  key: keyof Pick<AppSettings, "metricUnits">,
   value: boolean,
 ): void {
   setSettings((current) => ({
@@ -255,10 +327,27 @@ function updateBoolean(
   }));
 }
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    currency: "USD",
+function formatCurrency(value: number, currencyDisplay: AppSettings["currencySymbol"]): string {
+  const currencyCode = getCurrencyCode(currencyDisplay);
+  const locale = currencyCode === "PHP" ? "en-PH" : "en-US";
+
+  return new Intl.NumberFormat(locale, {
+    currency: currencyCode,
     maximumFractionDigits: 2,
     style: "currency",
   }).format(value);
+}
+
+function getCurrencyCode(currencyDisplay: AppSettings["currencySymbol"]): string {
+  return currencyDisplay.slice(0, 3);
+}
+
+function getCurrencyUnitLabel(currencyDisplay: AppSettings["currencySymbol"]): string {
+  return getCurrencyCode(currencyDisplay) === "PHP" ? "₱" : currencyDisplay.slice(0, 3);
+}
+
+function waitForFeedback(): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 500);
+  });
 }

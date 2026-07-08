@@ -321,6 +321,35 @@ async function ensureProductionRunsSchema(db: SqlDatabase): Promise<void> {
     )
   `);
 
+  await addColumnIfMissing(db, "production_runs", "addon_id", "INTEGER");
+  await addColumnIfMissing(db, "production_runs", "failure_reason", "TEXT");
+  await addColumnIfMissing(db, "production_runs", "notes", "TEXT");
+  await addColumnIfMissing(
+    db,
+    "production_runs",
+    "filament_grams_deducted",
+    "REAL NOT NULL DEFAULT 0 CHECK (filament_grams_deducted >= 0)",
+  );
+  await addColumnIfMissing(
+    db,
+    "production_runs",
+    "addon_quantity_deducted",
+    "REAL NOT NULL DEFAULT 0 CHECK (addon_quantity_deducted >= 0)",
+  );
+  await addColumnIfMissing(db, "production_runs", "finished_good_id", "INTEGER");
+  await addColumnIfMissing(
+    db,
+    "production_runs",
+    "created_at",
+    "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
+  );
+  await addColumnIfMissing(
+    db,
+    "production_runs",
+    "updated_at",
+    "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
+  );
+
   await db.execute(`
     CREATE INDEX IF NOT EXISTS idx_production_runs_date
     ON production_runs (run_date DESC, created_at DESC)
@@ -368,6 +397,19 @@ async function ensureProductionRunsSchema(db: SqlDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_production_run_addons_run
     ON production_run_addons (production_run_id)
   `);
+}
+
+async function addColumnIfMissing(
+  db: SqlDatabase,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): Promise<void> {
+  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
+
+  if (!columns.some((column) => column.name === columnName)) {
+    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
 }
 
 function mapProductionRunRow(row: ProductionRunRow): ProductionRunRecord {

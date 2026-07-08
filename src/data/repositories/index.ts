@@ -1,5 +1,6 @@
 export * from "./addOnsRepository";
 export * from "./expensesRepository";
+export * from "./filamentProfilesRepository";
 export * from "./filamentsRepository";
 export * from "./finishedGoodsRepository";
 export * from "./hueForgeRepository";

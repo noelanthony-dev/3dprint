@@ -56,17 +56,12 @@ export function createSalesService(
       }
 
       const stockQuantityBefore = finishedGood.quantityReady;
-      const updatedStock = await dependencies.finishedGoods.adjustStock(finishedGood.id, {
-        notes: saleAdjustmentNote(input),
-        quantityDelta: -input.quantity,
-        reason: "sale",
-      });
       const totals = calculateSaleTotals(input);
-      const sale = await dependencies.sales.create({
+      const sale = await dependencies.sales.recordSaleWithStockMovement({
         ...input,
         productReference: finishedGood.productReference,
         saleUnit: finishedGood.saleUnit,
-        stockQuantityAfter: updatedStock.quantityReady,
+        stockQuantityAfter: stockQuantityBefore - input.quantity,
         stockQuantityBefore,
       });
 
@@ -76,10 +71,6 @@ export function createSalesService(
       };
     },
   };
-}
-
-function saleAdjustmentNote(input: SaleInput): string {
-  return `Sale ${input.saleDate}: ${input.quantity} ${input.saleUnit} via ${input.channel}. ${input.notes}`.trim();
 }
 
 export const salesService = createSalesService();

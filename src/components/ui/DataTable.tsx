@@ -7,6 +7,7 @@ interface DataTableProps {
   readonly emptyMessage?: string;
   readonly footer?: string;
   readonly rows: readonly (readonly ReactNode[])[];
+  readonly selectedRowIndex?: number | null;
 }
 
 export function DataTable({
@@ -16,6 +17,7 @@ export function DataTable({
   emptyMessage = "No records to display.",
   footer,
   rows,
+  selectedRowIndex = null,
 }: DataTableProps) {
   const tableStyle = {
     "--table-columns": columnsTemplate ?? `repeat(${columns.length}, minmax(0, 1fr))`,
@@ -39,7 +41,13 @@ export function DataTable({
           </div>
         ) : (
           rows.map((row, rowIndex) => (
-            <div className="data-table__row" key={rowIndex} role="row">
+            <div
+              aria-selected={selectedRowIndex === rowIndex}
+              className="data-table__row"
+              data-selected={selectedRowIndex === rowIndex ? "true" : "false"}
+              key={rowIndex}
+              role="row"
+            >
               {row.map((cell, cellIndex) => (
                 <span key={cellIndex} role="cell">
                   {cell}

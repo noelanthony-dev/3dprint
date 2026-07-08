@@ -1,6 +1,6 @@
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
-export const CURRENCY_OPTIONS = ["USD ($)", "PHP (PHP)", "EUR (EUR)", "GBP (GBP)"] as const;
+export const CURRENCY_OPTIONS = ["PHP (₱)", "USD ($)", "EUR (EUR)", "GBP (GBP)"] as const;
 
 export interface AppSettings {
   readonly currencySymbol: (typeof CURRENCY_OPTIONS)[number];
@@ -13,6 +13,8 @@ export interface AppSettings {
   readonly laborRateHourly: number;
   readonly machineLifeHours: number;
   readonly metricUnits: boolean;
+  readonly printerPowerWatts: number;
+  readonly wearRatePerHour: number;
 }
 
 export interface SettingsValidationResult {
@@ -21,16 +23,18 @@ export interface SettingsValidationResult {
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  currencySymbol: "USD ($)",
+  currencySymbol: "PHP (₱)",
   darkMode: true,
-  electricityRatePerKwh: 0.12,
+  electricityRatePerKwh: 15,
   expectedFailureRatePercent: 5,
-  hueForgeAcceptableDeltaE: 2.5,
-  hueForgeMaxTransmissionDistance: 15,
-  hueForgeMinTransmissionDistance: 1.5,
+  hueForgeAcceptableDeltaE: 0.5,
+  hueForgeMaxTransmissionDistance: 100,
+  hueForgeMinTransmissionDistance: 0.1,
   laborRateHourly: 25,
   machineLifeHours: 5_000,
   metricUnits: true,
+  printerPowerWatts: 100,
+  wearRatePerHour: 0.1,
 };
 
 export function normalizeAppSettings(value: unknown): AppSettings {
@@ -70,6 +74,11 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     metricUnits: typeof value.metricUnits === "boolean"
       ? value.metricUnits
       : DEFAULT_APP_SETTINGS.metricUnits,
+    printerPowerWatts: normalizeNumber(
+      value.printerPowerWatts,
+      DEFAULT_APP_SETTINGS.printerPowerWatts,
+    ),
+    wearRatePerHour: normalizeNumber(value.wearRatePerHour, DEFAULT_APP_SETTINGS.wearRatePerHour),
   };
 }
 
@@ -90,6 +99,14 @@ export function validateAppSettings(settings: AppSettings): SettingsValidationRe
 
   if (settings.machineLifeHours <= 0) {
     errors.machineLifeHours = "Machine life must be greater than zero.";
+  }
+
+  if (settings.printerPowerWatts < 0) {
+    errors.printerPowerWatts = "Printer watts cannot be negative.";
+  }
+
+  if (settings.wearRatePerHour < 0) {
+    errors.wearRatePerHour = "Wear rate cannot be negative.";
   }
 
   if (settings.expectedFailureRatePercent < 0 || settings.expectedFailureRatePercent > 100) {

@@ -19,7 +19,7 @@ import {
   SegmentedFilter,
   ToolbarButton,
 } from "@/components/ui";
-import { finishedGoodsRepository } from "@/data/repositories";
+import { finishedGoodsRepository, productsRepository } from "@/data/repositories";
 import {
   FINISHED_GOOD_SALE_UNITS,
   formatFinishedGoodsQuantity,
@@ -35,6 +35,7 @@ import {
   type FinishedGoodStockAdjustmentInput,
   type FinishedGoodStockAdjustmentRecord,
 } from "@/domain/inventory";
+import type { ProductRecord } from "@/domain/products";
 
 type FilterValue = "all" | FinishedGoodQuantityStatus;
 
@@ -82,9 +83,12 @@ export function FinishedGoodsInventoryPage() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [finishedGoods, setFinishedGoods] = useState<FinishedGoodRecord[]>([]);
   const [form, setForm] = useState<FinishedGoodFormState>(emptyForm);
+  const [isAdjustmentOpen, setIsAdjustmentOpen] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isAdjusting, setIsAdjusting] = useState(false);
+  const [products, setProducts] = useState<ProductRecord[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -94,8 +98,12 @@ export function FinishedGoodsInventoryPage() {
     setError(null);
 
     try {
-      const loaded = await finishedGoodsRepository.list();
+      const [loaded, loadedProducts] = await Promise.all([
+        finishedGoodsRepository.list(),
+        productsRepository.list(),
+      ]);
       setFinishedGoods(loaded);
+      setProducts(loadedProducts);
       setSelectedId((current) => current ?? loaded[0]?.id ?? null);
     } catch (loadError) {
       setError(formatRepositoryError(loadError));
@@ -159,6 +167,7 @@ export function FinishedGoodsInventoryPage() {
     setEditingId(null);
     setForm(emptyForm);
     setValidationMessage(null);
+    setIsFormOpen(true);
   }
 
   function startEdit(item: FinishedGoodRecord): void {
@@ -166,6 +175,26 @@ export function FinishedGoodsInventoryPage() {
     setSelectedId(item.id);
     setForm(toFormState(item));
     setValidationMessage(null);
+    setIsFormOpen(true);
+  }
+
+  function closeForm(): void {
+    if (!isSaving) {
+      setIsFormOpen(false);
+      setValidationMessage(null);
+    }
+  }
+
+  function openAdjustment(): void {
+    setValidationMessage(null);
+    setIsAdjustmentOpen(true);
+  }
+
+  function closeAdjustment(): void {
+    if (!isAdjusting) {
+      setIsAdjustmentOpen(false);
+      setValidationMessage(null);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -194,6 +223,7 @@ export function FinishedGoodsInventoryPage() {
       setSelectedId(saved.id);
       setEditingId(saved.id);
       setForm(toFormState(saved));
+      setIsFormOpen(false);
       await loadAdjustments(saved.id);
     } catch (saveError) {
       setError(formatRepositoryError(saveError));
@@ -234,6 +264,7 @@ export function FinishedGoodsInventoryPage() {
         editingId === adjusted.id ? toFormState(adjusted) : current,
       );
       setAdjustmentForm(emptyAdjustmentForm);
+      setIsAdjustmentOpen(false);
       await loadAdjustments(adjusted.id);
     } catch (adjustError) {
       setError(formatRepositoryError(adjustError));
@@ -338,6 +369,7 @@ export function FinishedGoodsInventoryPage() {
               <FinishedGoodDetail
                 adjustments={adjustments}
                 item={selectedFinishedGood}
+                onAdjust={openAdjustment}
                 onEdit={() => startEdit(selectedFinishedGood)}
               />
             ) : (
@@ -348,8 +380,35 @@ export function FinishedGoodsInventoryPage() {
             )}
           </Panel>
 
-          <Panel title="Manual Adjustment">
-            <form className="inventory-form" onSubmit={(event) => void handleAdjustmentSubmit(event)}>
+        </div>
+      </div>
+
+      {isAdjustmentOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="finished-good-adjustment-title"
+            aria-modal="true"
+            className="modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <h2 id="finished-good-adjustment-title">Manual Adjustment</h2>
+              <button
+                aria-label="Close adjustment form"
+                disabled={isAdjusting}
+                onClick={closeAdjustment}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <form className="inventory-form modal__body" onSubmit={(event) => void handleAdjustmentSubmit(event)}>
+              {selectedFinishedGood ? (
+                <div className="callout" data-wide="true">
+                  <Badge>{selectedFinishedGood.saleUnit}</Badge>
+                  <p>{selectedFinishedGood.productReference}</p>
+                </div>
+              ) : null}
               <FormField label="Delta">
                 <input
                   inputMode="numeric"
@@ -375,9 +434,19 @@ export function FinishedGoodsInventoryPage() {
                   value={adjustmentForm.notes}
                 />
               </FormField>
+              {validationMessage ? (
+                <div className="form-message" role="alert">
+                  {validationMessage}
+                </div>
+              ) : null}
               <div className="form-actions">
+                <ToolbarButton disabled={isAdjusting} onClick={closeAdjustment}>
+                  Cancel
+                </ToolbarButton>
                 <ToolbarButton
-                  disabled={!selectedFinishedGood || isAdjusting}
+                  disabled={!selectedFinishedGood}
+                  isLoading={isAdjusting}
+                  loadingLabel="Applying"
                   tone="primary"
                   type="submit"
                 >
@@ -385,17 +454,47 @@ export function FinishedGoodsInventoryPage() {
                 </ToolbarButton>
               </div>
             </form>
-          </Panel>
+          </section>
+        </div>
+      ) : null}
 
-          <Panel title={editingId == null ? "Add Finished Good" : "Edit Finished Good"}>
-            <form className="inventory-form" onSubmit={(event) => void handleSubmit(event)}>
+      {isFormOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="finished-good-form-title"
+            aria-modal="true"
+            className="modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <h2 id="finished-good-form-title">
+                {editingId == null ? "Add Finished Good" : "Edit Finished Good"}
+              </h2>
+              <button
+                aria-label="Close finished good form"
+                disabled={isSaving}
+                onClick={closeForm}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <form className="inventory-form modal__body" onSubmit={(event) => void handleSubmit(event)}>
               <FormField label="Product / Design" wide>
-                <input
+                <select
                   onChange={(event) =>
-                    setFormValue("productReference", event.target.value, setForm)
+                    handleProductSelectionChange(event.target.value, products, setForm)
                   }
-                  value={form.productReference}
-                />
+                  value={getProductSelectionValue(form.productReference, products)}
+                >
+                  <option value="">Choose product...</option>
+                  {getCurrentReferenceOption(form.productReference, products)}
+                  {products.map((product) => (
+                    <option key={product.id} value={String(product.id)}>
+                      {product.designName}
+                    </option>
+                  ))}
+                </select>
               </FormField>
               <FormField label="Sale Unit">
                 <select
@@ -439,15 +538,25 @@ export function FinishedGoodsInventoryPage() {
                 </div>
               ) : null}
               <div className="form-actions">
-                <ToolbarButton onClick={startCreate}>Clear</ToolbarButton>
-                <ToolbarButton disabled={isSaving} tone="primary" type="submit">
+                <ToolbarButton disabled={isSaving} onClick={startCreate}>
+                  Clear
+                </ToolbarButton>
+                <ToolbarButton disabled={isSaving} onClick={closeForm}>
+                  Cancel
+                </ToolbarButton>
+                <ToolbarButton
+                  isLoading={isSaving}
+                  loadingLabel={editingId == null ? "Saving" : "Updating"}
+                  tone="primary"
+                  type="submit"
+                >
                   {editingId == null ? "Save Stock" : "Update Stock"}
                 </ToolbarButton>
               </div>
             </form>
-          </Panel>
+          </section>
         </div>
-      </div>
+      ) : null}
     </Page>
   );
 }
@@ -455,10 +564,12 @@ export function FinishedGoodsInventoryPage() {
 function FinishedGoodDetail({
   adjustments,
   item,
+  onAdjust,
   onEdit,
 }: {
   readonly adjustments: readonly FinishedGoodStockAdjustmentRecord[];
   readonly item: FinishedGoodRecord;
+  readonly onAdjust: () => void;
   readonly onEdit: () => void;
 }) {
   const available = getAvailableFinishedGoodsQuantity(item);
@@ -496,9 +607,12 @@ function FinishedGoodDetail({
         <p>{item.notes || "No finished-good notes saved."}</p>
       </div>
       <AdjustmentList adjustments={adjustments} saleUnit={item.saleUnit} />
-      <ToolbarButton onClick={onEdit} tone="primary">
-        Edit Selected
-      </ToolbarButton>
+      <div className="form-actions">
+        <ToolbarButton onClick={onAdjust}>Adjust Stock</ToolbarButton>
+        <ToolbarButton onClick={onEdit} tone="primary">
+          Edit Selected
+        </ToolbarButton>
+      </div>
     </div>
   );
 }
@@ -566,6 +680,50 @@ function setAdjustmentValue<K extends keyof AdjustmentFormState>(
   setForm: Dispatch<SetStateAction<AdjustmentFormState>>,
 ): void {
   setForm((current) => ({ ...current, [key]: value }));
+}
+
+function handleProductSelectionChange(
+  selectedValue: string,
+  products: readonly ProductRecord[],
+  setForm: Dispatch<SetStateAction<FinishedGoodFormState>>,
+): void {
+  const product = products.find((item) => String(item.id) === selectedValue);
+
+  setForm((current) => ({
+    ...current,
+    productReference: product?.designName ?? "",
+    saleUnit: (product?.saleUnit as FinishedGoodSaleUnit | undefined) ?? current.saleUnit,
+  }));
+}
+
+function getProductSelectionValue(
+  productReference: string,
+  products: readonly ProductRecord[],
+): string {
+  const matchingProduct = products.find((product) => product.designName === productReference);
+
+  if (matchingProduct) {
+    return String(matchingProduct.id);
+  }
+
+  return productReference.trim() ? "current-reference" : "";
+}
+
+function getCurrentReferenceOption(
+  productReference: string,
+  products: readonly ProductRecord[],
+): ReactNode {
+  const hasMatchingProduct = products.some((product) => product.designName === productReference);
+
+  if (!productReference.trim() || hasMatchingProduct) {
+    return null;
+  }
+
+  return (
+    <option value="current-reference">
+      {productReference} (saved reference)
+    </option>
+  );
 }
 
 function toFinishedGoodInput(form: FinishedGoodFormState): FinishedGoodInput {

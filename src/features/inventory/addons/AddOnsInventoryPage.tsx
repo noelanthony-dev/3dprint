@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -8,6 +9,7 @@ import {
   type SetStateAction,
 } from "react";
 
+import { Toast, type ToastMessage, type ToastTone } from "@/components/feedback/Toast";
 import { Page } from "@/components/layout/Page";
 import {
   Badge,
@@ -78,13 +80,28 @@ export function AddOnsInventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterValue>("all");
   const [form, setForm] = useState<AddOnFormState>(emptyForm);
+  const [isFormOpen, setIsFormOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
-  async function loadAddOns(): Promise<void> {
+  const clearToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((tone: ToastTone, title: string, message: string) => {
+    setToast({
+      id: Date.now(),
+      message,
+      title,
+      tone,
+    });
+  }, []);
+
+  async function loadAddOns(showFeedback = false): Promise<void> {
     setIsLoading(true);
     setError(null);
 
@@ -92,8 +109,15 @@ export function AddOnsInventoryPage() {
       const loaded = await addOnsRepository.list();
       setAddOns(loaded);
       setSelectedId((current) => current ?? loaded[0]?.id ?? null);
+      if (showFeedback) {
+        showToast("success", "Items Refreshed", "Local add-on records were reloaded.");
+      }
     } catch (loadError) {
-      setError(formatRepositoryError(loadError));
+      const message = formatRepositoryError(loadError);
+      setError(message);
+      if (showFeedback) {
+        showToast("danger", "Refresh Failed", message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -144,12 +168,23 @@ export function AddOnsInventoryPage() {
     setEditingId(null);
     setForm(emptyForm);
     setValidationMessage(null);
+    setIsFormOpen(true);
   }
 
   function startEdit(item: AddOnRecord): void {
     setEditingId(item.id);
     setSelectedId(item.id);
     setForm(toFormState(item));
+    setValidationMessage(null);
+    setIsFormOpen(true);
+  }
+
+  function closeForm(): void {
+    if (isSaving) {
+      return;
+    }
+
+    setIsFormOpen(false);
     setValidationMessage(null);
   }
 
@@ -161,7 +196,9 @@ export function AddOnsInventoryPage() {
     const validation = validateAddOnInput(input);
 
     if (!validation.valid) {
-      setValidationMessage(Object.values(validation.errors)[0] ?? "Check the add-on fields.");
+      const message = Object.values(validation.errors)[0] ?? "Check the add-on fields.";
+      setValidationMessage(message);
+      showToast("warning", "Check Item", message);
       return;
     }
 
@@ -179,8 +216,16 @@ export function AddOnsInventoryPage() {
       setSelectedId(saved.id);
       setEditingId(saved.id);
       setForm(toFormState(saved));
+      setIsFormOpen(false);
+      showToast(
+        "success",
+        editingId == null ? "Item Saved" : "Item Updated",
+        `${saved.itemName} was saved locally.`,
+      );
     } catch (saveError) {
-      setError(formatRepositoryError(saveError));
+      const message = formatRepositoryError(saveError);
+      setError(message);
+      showToast("danger", "Save Failed", message);
     } finally {
       setIsSaving(false);
     }
@@ -190,16 +235,25 @@ export function AddOnsInventoryPage() {
     <Page
       actions={
         <>
-          <ToolbarButton onClick={() => void loadAddOns()}>Refresh</ToolbarButton>
+          <ToolbarButton
+            isLoading={isLoading}
+            loadingLabel="Refreshing"
+            onClick={() => void loadAddOns(true)}
+          >
+            Refresh
+          </ToolbarButton>
           <ToolbarButton onClick={startCreate} tone="primary">
             Add Item
           </ToolbarButton>
         </>
       }
       description="Track hardware, packaging, embellishments, and shop consumables with manual stock levels and low-stock thresholds."
-      meta={["SQLite local", "Manual edits", "No costing link yet"]}
+      eyebrow=""
+      meta={[]}
       title="Add-ons & Hardware"
     >
+      <Toast onDismiss={clearToast} toast={toast} />
+
       {error ? (
         <div className="callout callout--warning">
           <Badge tone="warning">Storage</Badge>
@@ -230,7 +284,7 @@ export function AddOnsInventoryPage() {
         <MetricPanel detail="local records" label="Items" value={String(addOns.length)} />
         <MetricPanel detail="at or below threshold" label="Low Stock" tone="warning" value={String(lowCount)} />
         <MetricPanel detail="available for use" label="Active" tone="success" value={String(activeCount)} />
-        <MetricPanel detail={`${inactiveCount} inactive`} label="Inventory Value" value={`$${inventoryValue.toFixed(2)}`} />
+        <MetricPanel detail={`${inactiveCount} inactive`} label="Inventory Value" value={`₱${inventoryValue.toFixed(2)}`} />
       </div>
 
       <div className="content-grid content-grid--split">
@@ -270,7 +324,7 @@ export function AddOnsInventoryPage() {
                   tone={progressTone}
                   value={getStockPercent(item)}
                 />,
-                `$${item.unitCost.toFixed(2)}`,
+                `₱${item.unitCost.toFixed(2)}`,
                 item.supplier || "--",
                 <Badge tone={stockTone[signal]}>{signal}</Badge>,
               ];
@@ -289,102 +343,55 @@ export function AddOnsInventoryPage() {
               </div>
             )}
           </Panel>
+        </div>
+      </div>
 
-          <Panel title={editingId == null ? "Add Item" : "Edit Item"}>
-            <form className="inventory-form" onSubmit={(event) => void handleSubmit(event)}>
-              <FormField label="Item Name">
-                <input
-                  onChange={(event) => setFormValue("itemName", event.target.value, setForm)}
-                  value={form.itemName}
-                />
-              </FormField>
-              <FormField label="Category">
-                <select
-                  onChange={(event) =>
-                    setFormValue("category", event.target.value as AddOnCategory, setForm)
-                  }
-                  value={form.category}
-                >
-                  {ADD_ON_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Unit">
-                <select
-                  onChange={(event) => setFormValue("unit", event.target.value as AddOnUnit, setForm)}
-                  value={form.unit}
-                >
-                  {ADD_ON_UNITS.map((unit) => (
-                    <option key={unit} value={unit}>
-                      {unit}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="State">
-                <select
-                  onChange={(event) =>
-                    setFormValue("isActive", event.target.value as AddOnFormState["isActive"], setForm)
-                  }
-                  value={form.isActive}
-                >
-                  <option value="active">active</option>
-                  <option value="inactive">inactive</option>
-                </select>
-              </FormField>
-              <FormField label="Quantity">
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setFormValue("quantityOnHand", event.target.value, setForm)}
-                  value={form.quantityOnHand}
-                />
-              </FormField>
-              <FormField label="Low Threshold">
-                <input
-                  inputMode="decimal"
-                  onChange={(event) =>
-                    setFormValue("lowStockThreshold", event.target.value, setForm)
-                  }
-                  value={form.lowStockThreshold}
-                />
-              </FormField>
-              <FormField label="Unit Cost">
-                <input
-                  inputMode="decimal"
-                  onChange={(event) => setFormValue("unitCost", event.target.value, setForm)}
-                  value={form.unitCost}
-                />
-              </FormField>
-              <FormField label="Supplier">
-                <input
-                  onChange={(event) => setFormValue("supplier", event.target.value, setForm)}
-                  value={form.supplier}
-                />
-              </FormField>
-              <FormField label="Notes" wide>
-                <textarea
-                  onChange={(event) => setFormValue("notes", event.target.value, setForm)}
-                  value={form.notes}
-                />
-              </FormField>
+      {isFormOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="addon-form-title"
+            aria-modal="true"
+            className="modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <h2 id="addon-form-title">{editingId == null ? "Add Item" : "Edit Item"}</h2>
+              <button
+                aria-label="Close item form"
+                disabled={isSaving}
+                onClick={closeForm}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <form className="inventory-form modal__body" onSubmit={(event) => void handleSubmit(event)}>
+              <AddOnFormFields form={form} setForm={setForm} />
               {validationMessage ? (
                 <div className="form-message" role="alert">
                   {validationMessage}
                 </div>
               ) : null}
               <div className="form-actions">
-                <ToolbarButton onClick={startCreate}>Clear</ToolbarButton>
-                <ToolbarButton disabled={isSaving} tone="primary" type="submit">
+                <ToolbarButton disabled={isSaving} onClick={startCreate}>
+                  Clear
+                </ToolbarButton>
+                <ToolbarButton disabled={isSaving} onClick={closeForm}>
+                  Cancel
+                </ToolbarButton>
+                <ToolbarButton
+                  isLoading={isSaving}
+                  loadingLabel={editingId == null ? "Saving" : "Updating"}
+                  tone="primary"
+                  type="submit"
+                >
                   {editingId == null ? "Save Item" : "Update Item"}
                 </ToolbarButton>
               </div>
             </form>
-          </Panel>
+          </section>
         </div>
-      </div>
+      ) : null}
     </Page>
   );
 }
@@ -424,7 +431,7 @@ function AddOnDetail({
         <span>Low Threshold</span>
         <strong>{formatQuantity(item.lowStockThreshold, item.unit)}</strong>
         <span>Unit Cost</span>
-        <strong>${item.unitCost.toFixed(2)}</strong>
+        <strong>₱{item.unitCost.toFixed(2)}</strong>
         <span>Supplier</span>
         <strong>{item.supplier || "--"}</strong>
         <span>State</span>
@@ -438,6 +445,95 @@ function AddOnDetail({
         Edit Selected
       </ToolbarButton>
     </div>
+  );
+}
+
+function AddOnFormFields({
+  form,
+  setForm,
+}: {
+  readonly form: AddOnFormState;
+  readonly setForm: Dispatch<SetStateAction<AddOnFormState>>;
+}) {
+  return (
+    <>
+      <FormField label="Item Name">
+        <input
+          onChange={(event) => setFormValue("itemName", event.target.value, setForm)}
+          value={form.itemName}
+        />
+      </FormField>
+      <FormField label="Category">
+        <select
+          onChange={(event) =>
+            setFormValue("category", event.target.value as AddOnCategory, setForm)
+          }
+          value={form.category}
+        >
+          {ADD_ON_CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {category}
+            </option>
+          ))}
+        </select>
+      </FormField>
+      <FormField label="Unit">
+        <select
+          onChange={(event) => setFormValue("unit", event.target.value as AddOnUnit, setForm)}
+          value={form.unit}
+        >
+          {ADD_ON_UNITS.map((unit) => (
+            <option key={unit} value={unit}>
+              {unit}
+            </option>
+          ))}
+        </select>
+      </FormField>
+      <FormField label="State">
+        <select
+          onChange={(event) =>
+            setFormValue("isActive", event.target.value as AddOnFormState["isActive"], setForm)
+          }
+          value={form.isActive}
+        >
+          <option value="active">active</option>
+          <option value="inactive">inactive</option>
+        </select>
+      </FormField>
+      <FormField label="Quantity">
+        <input
+          inputMode="decimal"
+          onChange={(event) => setFormValue("quantityOnHand", event.target.value, setForm)}
+          value={form.quantityOnHand}
+        />
+      </FormField>
+      <FormField label="Low Threshold">
+        <input
+          inputMode="decimal"
+          onChange={(event) => setFormValue("lowStockThreshold", event.target.value, setForm)}
+          value={form.lowStockThreshold}
+        />
+      </FormField>
+      <FormField label="Unit Cost">
+        <input
+          inputMode="decimal"
+          onChange={(event) => setFormValue("unitCost", event.target.value, setForm)}
+          value={form.unitCost}
+        />
+      </FormField>
+      <FormField label="Supplier">
+        <input
+          onChange={(event) => setFormValue("supplier", event.target.value, setForm)}
+          value={form.supplier}
+        />
+      </FormField>
+      <FormField label="Notes" wide>
+        <textarea
+          onChange={(event) => setFormValue("notes", event.target.value, setForm)}
+          value={form.notes}
+        />
+      </FormField>
+    </>
   );
 }
 

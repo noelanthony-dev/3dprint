@@ -13,7 +13,7 @@ export function Page({
   actions,
   children,
   description,
-  eyebrow = "Offline MVP",
+  eyebrow = "",
   meta = ["Local SQLite", "No sync", "No auth"],
   title,
 }: PageProps) {
@@ -21,14 +21,16 @@ export function Page({
     <section className="page">
       <header className="page__header">
         <div className="page__title-group">
-          <p className="page__eyebrow">{eyebrow}</p>
+          {eyebrow ? <p className="page__eyebrow">{eyebrow}</p> : null}
           <h1>{title}</h1>
           <p>{description}</p>
-          <div className="page__meta" aria-label="Page status">
-            {meta.map((item) => (
-              <span key={item}>{item}</span>
-            ))}
-          </div>
+          {meta.length > 0 ? (
+            <div className="page__meta" aria-label="Page status">
+              {meta.map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
         {actions ? <div className="page__actions">{actions}</div> : null}
       </header>

@@ -32,10 +32,11 @@ import {
   type HueForgeMatchStatus,
   type HueForgeRequirementInput,
 } from "@/domain/hueforge";
+import type { ProductCategory } from "@/domain/products";
 
 interface DesignFormState {
   readonly authorName: string;
-  readonly category: "Accessory" | "Decor" | "Utility" | "Toy" | "HueForge" | "Other";
+  readonly category: ProductCategory;
   readonly designName: string;
   readonly imageReference: string;
   readonly notes: string;
@@ -67,7 +68,7 @@ const emptyRequirement: RequirementFormState = {
 
 const initialDesignForm: DesignFormState = {
   authorName: "NeonPrints3D",
-  category: "HueForge",
+  category: "Bookmarks",
   designName: "Cyberpunk Cityscape",
   imageReference: "",
   notes: "Requires author filament matching review. RGB color distance is a temporary heuristic; test-print before production if TD or color warnings appear.",
@@ -203,8 +204,21 @@ export function HueForgeMatchCheckerPage() {
         category: designForm.category,
         commercialLicenseStatus: "unknown",
         designName: designForm.designName,
+        filamentMode: "hueforge",
+        hueForgeFilaments: parsedRequirements.map((requirement) => ({
+          brand: requirement.brand,
+          colorName: requirement.colorName,
+          hexColor: requirement.hexColor,
+          layerRange: requirement.layerRange,
+          materialType: requirement.materialType,
+          purchaseSource: "",
+          requiredGrams: requirement.requiredGrams,
+          role: requirement.role,
+          transmissionDistance: requirement.transmissionDistance,
+        })),
         imageReference: designForm.imageReference,
-        licenseNotes: "HueForge import. Verify commercial license before selling.",
+        licenseBillingInterval: "none",
+        licenseCostAmount: 0,
         notes: `${designForm.notes}\n\n${analysis.feasibilityNotes}`.trim(),
         saleUnit: designForm.saleUnit,
         sourceLink: designForm.sourceLink,

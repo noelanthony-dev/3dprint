@@ -16,7 +16,7 @@ export interface SqlDatabase {
 let databasePromise: Promise<SqlDatabase> | null = null;
 
 export function getDatabase(): Promise<SqlDatabase> {
-  databasePromise ??= Database.load(PRINTOPS_DB_PATH);
+  databasePromise ??= loadDatabase();
 
   return databasePromise;
 }
@@ -38,3 +38,11 @@ export const databaseClientStatus = {
   persistenceEnabled: true,
   rawSqlAllowedInReact: false,
 } as const;
+
+async function loadDatabase(): Promise<SqlDatabase> {
+  const database = await Database.load(PRINTOPS_DB_PATH);
+
+  await database.execute("PRAGMA busy_timeout = 5000");
+
+  return database;
+}

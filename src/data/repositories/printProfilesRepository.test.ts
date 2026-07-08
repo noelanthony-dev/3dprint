@@ -12,6 +12,8 @@ class FakeDatabase implements SqlDatabase {
   private row = {
     add_on_cost: 2.5,
     add_on_description: "Magnets and box",
+    add_on_id: 4,
+    add_on_quantity: 5,
     created_at: "2026-07-01T00:00:00.000Z",
     electricity_rate_per_kwh: 0.15,
     expected_failed_units: 1,
@@ -47,6 +49,13 @@ class FakeDatabase implements SqlDatabase {
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
 
+    if (query.includes("PRAGMA table_info")) {
+      return [
+        { name: "add_on_id" },
+        { name: "add_on_quantity" },
+      ] as T;
+    }
+
     return [this.row] as T;
   }
 }
@@ -54,6 +63,8 @@ class FakeDatabase implements SqlDatabase {
 const input: PrintProfileInput = {
   addOnCost: 2.5,
   addOnDescription: " Magnets and box ",
+  addOnId: 4,
+  addOnQuantity: 5,
   electricityRatePerKwh: 0.15,
   expectedFailedUnits: 1,
   expectedGoodUnits: 10,
@@ -82,7 +93,8 @@ describe("print profiles repository", () => {
 
     expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS print_profiles");
     expect(fakeDb.executed[1]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_print_profiles_product");
-    expect(fakeDb.selected[0]?.query).toContain("FROM print_profiles");
+    expect(fakeDb.selected[0]?.query).toContain("PRAGMA table_info");
+    expect(fakeDb.selected[2]?.query).toContain("FROM print_profiles");
   });
 
   it("binds create values instead of interpolating profile text", async () => {
@@ -98,7 +110,9 @@ describe("print profiles repository", () => {
     expect(insert?.query).toContain("VALUES ($1, $2, $3");
     expect(insert?.query).not.toContain("0.2mm Standard");
     expect(insert?.values[1]).toBe("0.2mm Standard");
-    expect(insert?.values[6]).toBe("Magnets and box");
-    expect(insert?.values[17]).toBe(3);
+    expect(insert?.values[6]).toBe(4);
+    expect(insert?.values[7]).toBe("Magnets and box");
+    expect(insert?.values[8]).toBe(5);
+    expect(insert?.values[19]).toBe(3);
   });
 });

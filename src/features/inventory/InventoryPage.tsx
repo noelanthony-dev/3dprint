@@ -1,5 +1,5 @@
 import { Page } from "@/components/layout/Page";
-import { Badge, MetricPanel, Panel } from "@/components/ui";
+import { Badge, Panel } from "@/components/ui";
 
 const inventoryAreas = [
   {
@@ -29,16 +29,9 @@ export function InventoryPage() {
   return (
     <Page
       description="Choose an inventory workspace for material stock, hardware, or ready-to-sell finished goods."
-      meta={["Repository backed", "Manual adjustments", "Home stock only"]}
+      meta={[]}
       title="Inventory"
     >
-      <div className="metric-grid">
-        <MetricPanel detail="filament / add-ons / goods" label="Stock Areas" value="3" />
-        <MetricPanel detail="tracked in app" label="Home Stock" tone="success" value="Active" />
-        <MetricPanel detail="low-stock helpers" label="Alerts" tone="warning" value="Local" />
-        <MetricPanel detail="not tracked here" label="Cafe Stock" value="External" />
-      </div>
-
       <Panel title="Inventory Workspaces">
         <div className="inventory-entry-grid">
           {inventoryAreas.map((area) => (

@@ -38,6 +38,7 @@ interface SaleFormState {
   readonly channel: SalesChannel;
   readonly discountsFees: string;
   readonly finishedGoodId: string;
+  readonly finishedGoodQuery: string;
   readonly grossRevenue: string;
   readonly notes: string;
   readonly quantity: string;
@@ -48,6 +49,7 @@ const emptyForm: SaleFormState = {
   channel: "Local",
   discountsFees: "0",
   finishedGoodId: "",
+  finishedGoodQuery: "",
   grossRevenue: "0",
   notes: "",
   quantity: "1",
@@ -76,10 +78,18 @@ export function SalesPage() {
 
       setFinishedGoods(loadedFinishedGoods);
       setSales(loadedSales);
-      setForm((current) => ({
-        ...current,
-        finishedGoodId: current.finishedGoodId || (loadedFinishedGoods[0] ? String(loadedFinishedGoods[0].id) : ""),
-      }));
+      setForm((current) => {
+        const selectedId = current.finishedGoodId || (loadedFinishedGoods[0] ? String(loadedFinishedGoods[0].id) : "");
+        const selectedStock = loadedFinishedGoods.find((item) => String(item.id) === selectedId) ?? null;
+
+        return {
+          ...current,
+          finishedGoodId: selectedStock ? String(selectedStock.id) : "",
+          finishedGoodQuery: selectedStock
+            ? getFinishedGoodOptionLabel(selectedStock)
+            : current.finishedGoodQuery,
+        };
+      });
     } catch (loadError) {
       setError(formatRepositoryError(loadError));
     } finally {
@@ -189,11 +199,10 @@ export function SalesPage() {
         <MetricPanel detail="net per order" label="Avg Order" value={formatCurrency(averageOrder)} />
       </div>
 
-      <div className="content-grid content-grid--costing">
+      <div className="content-grid content-grid--sales">
         <div className="side-stack">
-          <Panel
-            title="Transaction Overview"
-            actions={
+          <Panel title="Transaction Overview">
+            <div className="sales-filter-bar">
               <SegmentedFilter
                 label="Channels"
                 onChange={(value) => setChannelFilter(value as "All" | SalesChannel)}
@@ -205,8 +214,7 @@ export function SalesPage() {
                   })),
                 ]}
               />
-            }
-          >
+            </div>
             <DataTable
               columns={["Date", "Product", "Channel", "Qty", "Gross", "Net", "Stock"]}
               columnsTemplate="0.68fr minmax(150px, 1.35fr) 0.65fr 0.42fr 0.58fr 0.58fr 0.5fr"
@@ -229,16 +237,20 @@ export function SalesPage() {
 
         <div className="side-stack">
           <Panel title="Add Sale" actions={<Badge>{selectedFinishedGood?.saleUnit ?? "Unit"}</Badge>}>
-            <form className="inventory-form" id="sale-entry-form" onSubmit={(event) => void handleSubmit(event)}>
+            <form className="inventory-form sales-form" id="sale-entry-form" onSubmit={(event) => void handleSubmit(event)}>
               <FormField label="Finished Good" wide>
-                <select onChange={(event) => setFormValue("finishedGoodId", event.target.value, setForm)} value={form.finishedGoodId}>
-                  <option value="">Choose stock item...</option>
+                <input
+                  autoComplete="off"
+                  list="finished-good-options"
+                  onChange={(event) => setFinishedGoodQuery(event.target.value, finishedGoods, setForm)}
+                  placeholder="Type finished good..."
+                  value={form.finishedGoodQuery}
+                />
+                <datalist id="finished-good-options">
                   {finishedGoods.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.productReference} ({formatFinishedGoodsQuantity(item.quantityReady, item.saleUnit)})
-                    </option>
+                    <option key={item.id} value={getFinishedGoodOptionLabel(item)} />
                   ))}
-                </select>
+                </datalist>
               </FormField>
               <FormField label="Sale Date">
                 <input onChange={(event) => setFormValue("saleDate", event.target.value, setForm)} type="date" value={form.saleDate} />
@@ -342,6 +354,45 @@ function setFormValue<K extends keyof SaleFormState>(
   setForm((current) => ({ ...current, [key]: value }));
 }
 
+function setFinishedGoodQuery(
+  value: string,
+  finishedGoods: readonly FinishedGoodRecord[],
+  setForm: Dispatch<SetStateAction<SaleFormState>>,
+): void {
+  const matchedStock = findFinishedGoodByQuery(value, finishedGoods);
+
+  setForm((current) => ({
+    ...current,
+    finishedGoodId: matchedStock ? String(matchedStock.id) : "",
+    finishedGoodQuery: value,
+  }));
+}
+
+function findFinishedGoodByQuery(
+  value: string,
+  finishedGoods: readonly FinishedGoodRecord[],
+): FinishedGoodRecord | null {
+  const normalized = normalizeFinishedGoodQuery(value);
+
+  if (!normalized) {
+    return null;
+  }
+
+  return (
+    finishedGoods.find((item) => normalizeFinishedGoodQuery(getFinishedGoodOptionLabel(item)) === normalized) ??
+    finishedGoods.find((item) => normalizeFinishedGoodQuery(item.productReference) === normalized) ??
+    null
+  );
+}
+
+function getFinishedGoodOptionLabel(item: FinishedGoodRecord): string {
+  return `${item.productReference} (${formatFinishedGoodsQuantity(item.quantityReady, item.saleUnit)})`;
+}
+
+function normalizeFinishedGoodQuery(value: string): string {
+  return value.trim().toLocaleLowerCase();
+}
+
 function toSaleInput(form: SaleFormState, selectedStock: FinishedGoodRecord | null): SaleInput {
   return {
     channel: form.channel,
@@ -369,17 +420,46 @@ function todayInputValue(): string {
 }
 
 function formatCurrency(value: number): string {
-  return `$${value.toFixed(2)}`;
+  return `₱${value.toFixed(2)}`;
 }
 
 function formatRepositoryError(error: unknown): string {
-  if (error instanceof Error) {
-    if (error.message.includes("invoke")) {
-      return "Native SQLite storage is available when the app is opened through Tauri. Browser preview can render the screen but cannot access the local database.";
-    }
+  const message = getErrorMessage(error);
 
+  if (error instanceof Error) {
+    if (isBrowserPreviewError(error)) {
+      return "Browser preview cannot access the Tauri SQLite plugin. Open the desktop app to load and save local sales.";
+    }
+  }
+
+  return message
+    ? `Sales storage could not be opened: ${message}`
+    : "Sales storage could not be opened.";
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
     return error.message;
   }
 
-  return "Sales storage is unavailable. Open the app through Tauri to use local SQLite.";
+  if (typeof error === "string") {
+    return error.trim();
+  }
+
+  if (error && typeof error === "object") {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  return "";
+}
+
+function isBrowserPreviewError(error: Error): boolean {
+  const hasTauriRuntime =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+  return !hasTauriRuntime && error.message.includes("invoke");
 }

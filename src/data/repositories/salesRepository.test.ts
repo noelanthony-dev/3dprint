@@ -8,6 +8,8 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
+  constructor(private readonly failSaleInsert = false) {}
+
   private saleRow = {
     channel: "Local",
     created_at: "2026-07-02T00:00:00.000Z",
@@ -40,6 +42,10 @@ class FakeDatabase implements SqlDatabase {
     this.executed.push({ query, values: bindValues });
 
     if (query.includes("INSERT INTO sales")) {
+      if (this.failSaleInsert) {
+        throw new Error("insert failed");
+      }
+
       return { lastInsertId: 1, rowsAffected: 1 };
     }
 
@@ -107,5 +113,61 @@ describe("sales repository", () => {
     expect(saleInsert?.values[8]).toBe(42.5);
     expect(saleInsert?.values[9]).toBe("Cash sale");
     expect(movementInsert?.values).toEqual([1, 4, -3, 10, 7]);
+  });
+
+  it("records sales, finished goods adjustments, and sale movements in one transaction", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createSalesRepository(async () => fakeDb);
+
+    await repository.recordSaleWithStockMovement(input);
+
+    const stockUpdateIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("UPDATE finished_goods"),
+    );
+    const finishedGoodsAdjustmentIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("INSERT INTO finished_good_stock_adjustments"),
+    );
+    const saleInsertIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("INSERT INTO sales"),
+    );
+    const saleMovementIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("INSERT INTO sale_stock_movements"),
+    );
+
+    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
+    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(true);
+    expect(stockUpdateIndex).toBeGreaterThan(-1);
+    expect(finishedGoodsAdjustmentIndex).toBeGreaterThan(stockUpdateIndex);
+    expect(saleInsertIndex).toBeGreaterThan(finishedGoodsAdjustmentIndex);
+    expect(saleMovementIndex).toBeGreaterThan(saleInsertIndex);
+    expect(fakeDb.executed[stockUpdateIndex]?.values).toEqual([7, 4, 10]);
+    expect(fakeDb.executed[finishedGoodsAdjustmentIndex]?.values).toEqual([
+      4,
+      -3,
+      7,
+      "sale",
+      "Sale 2026-07-02: 3 piece via Local. Cash sale",
+    ]);
+  });
+
+  it("rolls back the stock update when sale insertion fails", async () => {
+    const fakeDb = new FakeDatabase(true);
+    const repository = createSalesRepository(async () => fakeDb);
+
+    await expect(repository.recordSaleWithStockMovement(input)).rejects.toThrow("insert failed");
+
+    const stockUpdateIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("UPDATE finished_goods"),
+    );
+    const saleInsertIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("INSERT INTO sales"),
+    );
+    const rollbackIndex = fakeDb.executed.findIndex((statement) => statement.query === "ROLLBACK");
+
+    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
+    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(false);
+    expect(stockUpdateIndex).toBeGreaterThan(-1);
+    expect(saleInsertIndex).toBeGreaterThan(stockUpdateIndex);
+    expect(rollbackIndex).toBeGreaterThan(saleInsertIndex);
   });
 });
