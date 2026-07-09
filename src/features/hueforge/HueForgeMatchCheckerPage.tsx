@@ -226,15 +226,19 @@ export function HueForgeMatchCheckerPage() {
         sourceLink: designForm.sourceLink,
       });
 
-      await hueForgeRepository.saveAnalysis({
-        feasibilityNotes: analysis.feasibilityNotes,
-        feasibilityStatus: analysis.feasibilityStatus,
-        matches: analysis.matches,
-        missingWarnings: analysis.missingWarnings,
-        productId: product.id,
-      });
+      try {
+        await hueForgeRepository.saveAnalysis({
+          feasibilityNotes: analysis.feasibilityNotes,
+          feasibilityStatus: analysis.feasibilityStatus,
+          matches: analysis.matches,
+          missingWarnings: analysis.missingWarnings,
+          productId: product.id,
+        });
 
-      setSaveMessage(`Saved ${product.designName} to Design Library without deducting inventory.`);
+        setSaveMessage(`Saved ${product.designName} to Design Library without deducting inventory.`);
+      } catch {
+        setValidationMessage("Saved to Design Library, but the match review could not be stored. Product is still available in Products.");
+      }
     } catch (saveError) {
       setError(formatRepositoryError(saveError));
     } finally {
@@ -284,7 +288,9 @@ export function HueForgeMatchCheckerPage() {
       ) : null}
       {validationMessage ? (
         <div className="callout callout--warning">
-          <Badge tone="warning">Validation</Badge>
+          <Badge tone="warning">
+            {validationMessage.startsWith("Saved to Design Library") ? "Review" : "Validation"}
+          </Badge>
           <p>{validationMessage}</p>
         </div>
       ) : null}
@@ -667,6 +673,7 @@ function toShoppingListItem(
     itemName: `${requirement.brand} ${requirement.colorName} ${requirement.materialType}`.trim(),
     notes: `Required color is ${colorStatus} against owned inventory. Color closeness score ${colorScore}.`,
     priority: "high",
+    productId: null,
     quantityNeeded,
     sourceNote: `${designName}${authorName ? ` by ${authorName}` : ""}; required light pass-through ${formatLightValue(requirement.transmissionDistance, "not entered")}; ${normalizeHexColor(requirement.hexColor)}.`,
     sourceType: "missing-hueforge-filament",
@@ -829,13 +836,17 @@ function formatPlainHueForgeCopy(copy: string): string {
 }
 
 function formatRepositoryError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
   if (error instanceof Error) {
-    if (error.message.includes("invoke")) {
+    if (message.includes("invoke")) {
       return "Native SQLite storage is available when the app is opened through Tauri. Browser preview can render the screen but cannot access the local database.";
     }
 
-    return error.message;
+    return message;
   }
 
-  return "HueForge matching storage is unavailable. Open the app through Tauri to use local SQLite.";
+  return message && message !== "undefined"
+    ? message
+    : "HueForge storage is unavailable. Refresh the page and try again.";
 }

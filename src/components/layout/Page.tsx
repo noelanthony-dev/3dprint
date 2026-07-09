@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 interface PageProps {
   readonly actions?: ReactNode;
   readonly children?: ReactNode;
-  readonly description: string;
+  readonly description?: string;
   readonly eyebrow?: string;
   readonly meta?: readonly string[];
   readonly title: string;
@@ -23,7 +23,7 @@ export function Page({
         <div className="page__title-group">
           {eyebrow ? <p className="page__eyebrow">{eyebrow}</p> : null}
           <h1>{title}</h1>
-          <p>{description}</p>
+          {description ? <p>{description}</p> : null}
           {meta.length > 0 ? (
             <div className="page__meta" aria-label="Page status">
               {meta.map((item) => (

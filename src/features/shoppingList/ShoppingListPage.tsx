@@ -9,24 +9,24 @@ import {
 } from "react";
 
 import { Page } from "@/components/layout/Page";
-import { Badge, DataTable, MetricPanel, Panel, ToolbarButton } from "@/components/ui";
+import { Badge, DataTable, Panel, ProductDesignCombobox, ToolbarButton } from "@/components/ui";
 import {
   addOnsRepository,
   hueForgeRepository,
+  productsRepository,
   shoppingListRepository,
 } from "@/data/repositories";
 import { formatQuantity, type AddOnRecord } from "@/domain/inventory";
+import type { ProductRecord } from "@/domain/products";
 import {
   buildLowStockAddOnSuggestions,
   buildMissingHueForgeFilamentSuggestions,
   mergeShoppingSuggestions,
   SHOPPING_ITEM_CATEGORIES,
-  SHOPPING_ITEM_PRIORITIES,
   toManualShoppingItemInput,
   validateShoppingListItemInput,
   type HueForgeMissingRequirement,
   type ShoppingItemCategory,
-  type ShoppingItemPriority,
   type ShoppingListItemInput,
   type ShoppingListItemRecord,
   type ShoppingSuggestion,
@@ -36,50 +36,46 @@ interface ShoppingFormState {
   readonly category: ShoppingItemCategory;
   readonly itemName: string;
   readonly notes: string;
-  readonly priority: ShoppingItemPriority;
-  readonly quantityNeeded: string;
+  readonly productId: string;
   readonly sourceNote: string;
-  readonly unit: string;
 }
 
 const emptyForm: ShoppingFormState = {
   category: "Hardware",
   itemName: "",
   notes: "",
-  priority: "normal",
-  quantityNeeded: "1",
+  productId: "",
   sourceNote: "Manual entry",
-  unit: "pcs",
 };
 
 export function ShoppingListPage() {
   const [addOns, setAddOns] = useState<AddOnRecord[]>([]);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<ShoppingFormState>(emptyForm);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [items, setItems] = useState<ShoppingListItemRecord[]>([]);
   const [missingRequirements, setMissingRequirements] = useState<HueForgeMissingRequirement[]>([]);
+  const [products, setProducts] = useState<ProductRecord[]>([]);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
   async function loadShoppingData(): Promise<void> {
-    setIsLoading(true);
     setError(null);
 
     try {
-      const [loadedItems, loadedAddOns, loadedRequirements] = await Promise.all([
+      const [loadedItems, loadedAddOns, loadedRequirements, loadedProducts] = await Promise.all([
         shoppingListRepository.list(),
         addOnsRepository.list(),
         hueForgeRepository.listMissingRequirements(),
+        productsRepository.list(),
       ]);
 
       setItems(loadedItems);
       setAddOns(loadedAddOns);
       setMissingRequirements(loadedRequirements);
+      setProducts(loadedProducts);
     } catch (loadError) {
       setError(formatRepositoryError(loadError));
-    } finally {
-      setIsLoading(false);
     }
   }
 
@@ -89,6 +85,10 @@ export function ShoppingListPage() {
 
   const input = useMemo(() => toShoppingListItemInput(form), [form]);
   const validation = validateShoppingListItemInput(input);
+  const productNames = useMemo(
+    () => new Map(products.map((product) => [product.id, product.designName] as const)),
+    [products],
+  );
   const suggestions = useMemo(
     () =>
       mergeShoppingSuggestions([
@@ -97,9 +97,6 @@ export function ShoppingListPage() {
       ]),
     [addOns, missingRequirements],
   );
-  const openItems = items.filter((item) => item.status === "open");
-  const highPriority = openItems.filter((item) => item.priority === "high");
-  const generatedCount = suggestions.length;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -110,7 +107,12 @@ export function ShoppingListPage() {
       return;
     }
 
-    await saveShoppingItem(input, "Shopping item saved.");
+    if (editingId == null) {
+      await saveShoppingItem(input, "Shopping item saved.");
+      return;
+    }
+
+    await updateShoppingItem(editingId, input);
   }
 
   async function handleAddSuggestion(suggestion: ShoppingSuggestion): Promise<void> {
@@ -126,7 +128,24 @@ export function ShoppingListPage() {
       await shoppingListRepository.create(item);
       await loadShoppingData();
       setValidationMessage(successMessage);
-      setForm(emptyForm);
+      resetForm();
+    } catch (saveError) {
+      setError(formatRepositoryError(saveError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function updateShoppingItem(itemId: number, item: ShoppingListItemInput): Promise<void> {
+    setIsSaving(true);
+    setError(null);
+    setValidationMessage(null);
+
+    try {
+      await shoppingListRepository.update(itemId, item);
+      await loadShoppingData();
+      setValidationMessage("Shopping item updated.");
+      resetForm();
     } catch (saveError) {
       setError(formatRepositoryError(saveError));
     } finally {
@@ -148,18 +167,28 @@ export function ShoppingListPage() {
     }
   }
 
+  function startEdit(item: ShoppingListItemRecord): void {
+    setEditingId(item.id);
+    setValidationMessage(null);
+    setForm(toFormState(item));
+  }
+
+  function resetForm(): void {
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
   return (
     <Page
       actions={
         <>
           <ToolbarButton onClick={() => void loadShoppingData()}>Refresh</ToolbarButton>
           <ToolbarButton disabled={isSaving} form="shopping-list-form" tone="primary" type="submit">
-            Add Item
+            {editingId == null ? "Add Item" : "Update Item"}
           </ToolbarButton>
         </>
       }
-      description="Plan manual purchases and review generated, explainable suggestions from low-stock add-ons and missing HueForge filament requirements."
-      meta={["Manual purchasing", "Generated suggestions", "No ordering APIs"]}
+      meta={[]}
       title="Shopping List"
     >
       {error ? (
@@ -177,33 +206,46 @@ export function ShoppingListPage() {
         </div>
       ) : null}
 
-      <div className="metric-grid">
-        <MetricPanel detail="status open" label="Open Items" value={isLoading ? "..." : String(openItems.length)} />
-        <MetricPanel detail="manual list" label="High Priority" tone={highPriority.length > 0 ? "warning" : "success"} value={String(highPriority.length)} />
-        <MetricPanel detail="not auto-added" label="Suggestions" value={String(generatedCount)} />
-        <MetricPanel detail="external APIs" label="Ordering" tone="success" value="Manual" />
-      </div>
-
       <div className="content-grid content-grid--costing">
         <div className="side-stack">
           <Panel title="Manual Shopping List" actions={<Badge>{items.length} items</Badge>}>
             <DataTable
-              columns={["Item", "Category", "Qty", "Priority", "Status", "Actions"]}
-              columnsTemplate="minmax(170px, 1.3fr) 0.7fr 0.62fr 0.55fr 0.58fr 0.9fr"
+              columns={["Item", "Product / Design", "Category", "Status", "Actions"]}
+              columnsTemplate="minmax(170px, 1.25fr) minmax(150px, 1fr) 0.7fr 0.55fr 0.9fr"
               density="dense"
               footer={items.length === 0 ? "No manual shopping list items saved yet." : "Shopping list items are local planning records only."}
+              onRowClick={(rowIndex) => {
+                const item = items[rowIndex];
+
+                if (item) {
+                  startEdit(item);
+                }
+              }}
               rows={items.map((item) => [
                 item.itemName,
+                item.productId ? productNames.get(item.productId) ?? `Product ${item.productId}` : "--",
                 <Badge>{item.category}</Badge>,
-                formatQuantity(item.quantityNeeded, item.unit),
-                <Badge tone={item.priority === "high" ? "warning" : "neutral"}>{item.priority}</Badge>,
                 <Badge tone={item.status === "open" ? "success" : "neutral"}>{item.status}</Badge>,
                 item.status === "open" ? (
                   <span className="table-actions">
-                    <button disabled={isSaving} onClick={() => void updateStatus(item.id, "purchased")} type="button">
+                    <button
+                      disabled={isSaving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void updateStatus(item.id, "purchased");
+                      }}
+                      type="button"
+                    >
                       Bought
                     </button>
-                    <button disabled={isSaving} onClick={() => void updateStatus(item.id, "ignored")} type="button">
+                    <button
+                      disabled={isSaving}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void updateStatus(item.id, "ignored");
+                      }}
+                      type="button"
+                    >
                       Ignore
                     </button>
                   </span>
@@ -211,6 +253,7 @@ export function ShoppingListPage() {
                   "--"
                 ),
               ])}
+              selectedRowIndex={items.findIndex((item) => item.id === editingId)}
             />
           </Panel>
 
@@ -222,15 +265,15 @@ export function ShoppingListPage() {
             ) : (
               <div className="suggestion-list">
                 {suggestions.map((suggestion, index) => (
-                  <div className="suggestion-list__item" key={`${suggestion.sourceType}-${suggestion.itemName}-${index}`}>
+                  <div className="suggestion-list__item" key={`${suggestion.sourceType}-${suggestion.productId ?? "none"}-${suggestion.itemName}-${index}`}>
                     <div>
-                      <Badge tone={suggestion.priority === "high" ? "warning" : "neutral"}>
-                        {suggestion.priority}
-                      </Badge>
                       <strong>{suggestion.itemName}</strong>
                       <span>{formatQuantity(suggestion.quantityNeeded, suggestion.unit)}</span>
                     </div>
                     <p>{suggestion.reason}</p>
+                    {suggestion.productId ? (
+                      <small>{productNames.get(suggestion.productId) ?? `Product ${suggestion.productId}`}</small>
+                    ) : null}
                     <small>{suggestion.sourceNote}</small>
                     <ToolbarButton disabled={isSaving} onClick={() => void handleAddSuggestion(suggestion)}>
                       Add
@@ -247,10 +290,18 @@ export function ShoppingListPage() {
         </div>
 
         <div className="side-stack">
-          <Panel title="Add Manual Item">
+          <Panel title={editingId == null ? "Add Manual Item" : "Update Shopping Item"}>
             <form className="inventory-form" id="shopping-list-form" onSubmit={(event) => void handleSubmit(event)}>
               <FormField label="Item Name" wide>
                 <input onChange={(event) => setFormValue("itemName", event.target.value, setForm)} value={form.itemName} />
+              </FormField>
+              <FormField label="Product / Design" wide>
+                <ProductDesignCombobox
+                  fallbackLabel={form.productId ? productNames.get(Number(form.productId)) ?? "" : ""}
+                  onSelect={(product) => setFormValue("productId", product ? String(product.id) : "", setForm)}
+                  products={products}
+                  selectedProductId={form.productId}
+                />
               </FormField>
               <FormField label="Category">
                 <select onChange={(event) => setFormValue("category", event.target.value as ShoppingItemCategory, setForm)} value={form.category}>
@@ -261,21 +312,6 @@ export function ShoppingListPage() {
                   ))}
                 </select>
               </FormField>
-              <FormField label="Priority">
-                <select onChange={(event) => setFormValue("priority", event.target.value as ShoppingItemPriority, setForm)} value={form.priority}>
-                  {SHOPPING_ITEM_PRIORITIES.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Quantity">
-                <input inputMode="decimal" onChange={(event) => setFormValue("quantityNeeded", event.target.value, setForm)} value={form.quantityNeeded} />
-              </FormField>
-              <FormField label="Unit">
-                <input onChange={(event) => setFormValue("unit", event.target.value, setForm)} value={form.unit} />
-              </FormField>
               <FormField label="Source Note" wide>
                 <input onChange={(event) => setFormValue("sourceNote", event.target.value, setForm)} value={form.sourceNote} />
               </FormField>
@@ -283,8 +319,13 @@ export function ShoppingListPage() {
                 <textarea onChange={(event) => setFormValue("notes", event.target.value, setForm)} value={form.notes} />
               </FormField>
               <div className="form-actions">
+                {editingId == null ? null : (
+                  <ToolbarButton disabled={isSaving} onClick={resetForm} tone="ghost" type="button">
+                    Cancel
+                  </ToolbarButton>
+                )}
                 <ToolbarButton disabled={isSaving} tone="primary" type="submit">
-                  Save Shopping Item
+                  {editingId == null ? "Save Shopping Item" : "Update Shopping Item"}
                 </ToolbarButton>
               </div>
             </form>
@@ -325,12 +366,23 @@ function toShoppingListItemInput(form: ShoppingFormState): ShoppingListItemInput
     category: form.category,
     itemName: form.itemName,
     notes: form.notes,
-    priority: form.priority,
-    quantityNeeded: Number(form.quantityNeeded.trim() || "0"),
+    priority: "normal",
+    productId: form.productId ? Number(form.productId) : null,
+    quantityNeeded: 1,
     sourceNote: form.sourceNote,
     sourceType: "manual",
     status: "open",
-    unit: form.unit,
+    unit: "pcs",
+  };
+}
+
+function toFormState(item: ShoppingListItemRecord): ShoppingFormState {
+  return {
+    category: item.category,
+    itemName: item.itemName,
+    notes: item.notes,
+    productId: item.productId ? String(item.productId) : "",
+    sourceNote: item.sourceNote,
   };
 }
 

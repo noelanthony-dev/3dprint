@@ -6,6 +6,7 @@ interface DataTableProps {
   readonly density?: "default" | "dense";
   readonly emptyMessage?: string;
   readonly footer?: string;
+  readonly onRowClick?: (rowIndex: number) => void;
   readonly rows: readonly (readonly ReactNode[])[];
   readonly selectedRowIndex?: number | null;
 }
@@ -16,6 +17,7 @@ export function DataTable({
   density = "default",
   emptyMessage = "No records to display.",
   footer,
+  onRowClick,
   rows,
   selectedRowIndex = null,
 }: DataTableProps) {
@@ -44,9 +46,24 @@ export function DataTable({
             <div
               aria-selected={selectedRowIndex === rowIndex}
               className="data-table__row"
+              data-clickable={onRowClick ? "true" : "false"}
               data-selected={selectedRowIndex === rowIndex ? "true" : "false"}
               key={rowIndex}
+              onClick={onRowClick ? () => onRowClick(rowIndex) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      onRowClick(rowIndex);
+                    }
+                  : undefined
+              }
               role="row"
+              tabIndex={onRowClick ? 0 : undefined}
             >
               {row.map((cell, cellIndex) => (
                 <span key={cellIndex} role="cell">

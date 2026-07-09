@@ -5,10 +5,17 @@ import type { HueForgeRequirementMatch } from "@/domain/hueforge";
 
 import { createHueForgeRepository } from "./hueForgeRepository";
 
+interface FakeDatabaseOptions {
+  readonly analysisColumns?: readonly string[];
+  readonly requirementColumns?: readonly string[];
+}
+
 class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
+  private readonly analysisColumns: readonly string[];
+  private readonly requirementColumns: readonly string[];
   private missingRequirementRow = {
     brand: "Bambu",
     color_name: "Jade White",
@@ -22,6 +29,39 @@ class FakeDatabase implements SqlDatabase {
     warning: "No usable PLA match for Jade White.",
   };
 
+  constructor(options: FakeDatabaseOptions = {}) {
+    this.analysisColumns = options.analysisColumns ?? [
+      "id",
+      "product_id",
+      "feasibility_status",
+      "feasibility_notes",
+      "missing_warnings",
+      "created_at",
+      "updated_at",
+    ];
+    this.requirementColumns = options.requirementColumns ?? [
+      "id",
+      "product_id",
+      "role",
+      "brand",
+      "material_type",
+      "color_name",
+      "hex_color",
+      "transmission_distance",
+      "required_grams",
+      "layer_range",
+      "suggested_filament_id",
+      "suggested_filament_label",
+      "match_score",
+      "match_status",
+      "color_distance",
+      "td_delta",
+      "stock_signal",
+      "warning",
+      "created_at",
+    ];
+  }
+
   async execute(query: string, bindValues: readonly unknown[] = []): Promise<QueryResult> {
     this.executed.push({ query, values: bindValues });
 
@@ -30,6 +70,14 @@ class FakeDatabase implements SqlDatabase {
 
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
+
+    if (query.includes("PRAGMA table_info(hueforge_design_analyses)")) {
+      return this.analysisColumns.map((name) => ({ name })) as T;
+    }
+
+    if (query.includes("PRAGMA table_info(author_filament_requirements)")) {
+      return this.requirementColumns.map((name) => ({ name })) as T;
+    }
 
     if (query.includes("FROM author_filament_requirements")) {
       return [this.missingRequirementRow] as T;
@@ -95,8 +143,60 @@ describe("HueForge repository", () => {
     });
 
     expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS hueforge_design_analyses");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE TABLE IF NOT EXISTS author_filament_requirements");
-    expect(fakeDb.executed[2]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_author_filament_requirements_product");
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("CREATE TABLE IF NOT EXISTS author_filament_requirements"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("CREATE INDEX IF NOT EXISTS idx_author_filament_requirements_product"),
+    )).toBe(true);
+    expect(fakeDb.selected.some((statement) =>
+      statement.query.includes("PRAGMA table_info(hueforge_design_analyses)"),
+    )).toBe(true);
+    expect(fakeDb.selected.some((statement) =>
+      statement.query.includes("PRAGMA table_info(author_filament_requirements)"),
+    )).toBe(true);
+  });
+
+  it("adds missing analysis and requirement columns before saving", async () => {
+    const fakeDb = new FakeDatabase({
+      analysisColumns: ["id", "product_id", "feasibility_status"],
+      requirementColumns: ["id", "product_id", "role", "brand"],
+    });
+    const repository = createHueForgeRepository(async () => fakeDb);
+
+    await repository.saveAnalysis({
+      feasibilityNotes: "Ready.",
+      feasibilityStatus: "ready",
+      matches: [match],
+      missingWarnings: [],
+      productId: 3,
+    });
+
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE hueforge_design_analyses ADD COLUMN feasibility_notes"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE hueforge_design_analyses ADD COLUMN missing_warnings"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN required_grams"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN suggested_filament_label"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN td_delta"),
+    )).toBe(true);
+
+    const firstInsertIndex = fakeDb.executed.findIndex((statement) =>
+      statement.query.includes("INSERT INTO hueforge_design_analyses"),
+    );
+    const lastAlterIndex = fakeDb.executed.reduce(
+      (latest, statement, index) => statement.query.includes("ALTER TABLE") ? index : latest,
+      -1,
+    );
+
+    expect(lastAlterIndex).toBeLessThan(firstInsertIndex);
   });
 
   it("stores analysis and requirement matches with bind values", async () => {
@@ -132,8 +232,11 @@ describe("HueForge repository", () => {
     const repository = createHueForgeRepository(async () => fakeDb);
 
     const missing = await repository.listMissingRequirements();
+    const missingQuery = fakeDb.selected.find((statement) =>
+      statement.query.includes("FROM author_filament_requirements"),
+    );
 
-    expect(fakeDb.selected[0]?.query).toContain("WHERE match_status = 'missing'");
+    expect(missingQuery?.query).toContain("WHERE match_status = 'missing'");
     expect(missing[0]).toMatchObject({
       brand: "Bambu",
       colorName: "Jade White",

@@ -152,6 +152,28 @@ async function ensureHueForgeSchema(db: SqlDatabase): Promise<void> {
     )
   `);
 
+  await addColumnIfMissing(db, "hueforge_design_analyses", "product_id", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(
+    db,
+    "hueforge_design_analyses",
+    "feasibility_status",
+    "TEXT NOT NULL DEFAULT 'missing' CHECK (feasibility_status IN ('ready', 'needs-test', 'missing'))",
+  );
+  await addColumnIfMissing(db, "hueforge_design_analyses", "feasibility_notes", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, "hueforge_design_analyses", "missing_warnings", "TEXT");
+  await addColumnIfMissing(
+    db,
+    "hueforge_design_analyses",
+    "created_at",
+    "TEXT",
+  );
+  await addColumnIfMissing(
+    db,
+    "hueforge_design_analyses",
+    "updated_at",
+    "TEXT",
+  );
+
   await db.execute(`
     CREATE TABLE IF NOT EXISTS author_filament_requirements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -180,10 +202,72 @@ async function ensureHueForgeSchema(db: SqlDatabase): Promise<void> {
     )
   `);
 
+  await addColumnIfMissing(db, "author_filament_requirements", "product_id", "INTEGER NOT NULL DEFAULT 0");
+  await addColumnIfMissing(db, "author_filament_requirements", "role", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, "author_filament_requirements", "brand", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, "author_filament_requirements", "material_type", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, "author_filament_requirements", "color_name", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(db, "author_filament_requirements", "hex_color", "TEXT NOT NULL DEFAULT ''");
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "transmission_distance",
+    "REAL NOT NULL DEFAULT 0",
+  );
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "required_grams",
+    "REAL NOT NULL DEFAULT 0 CHECK (required_grams >= 0)",
+  );
+  await addColumnIfMissing(db, "author_filament_requirements", "layer_range", "TEXT");
+  await addColumnIfMissing(db, "author_filament_requirements", "suggested_filament_id", "INTEGER");
+  await addColumnIfMissing(db, "author_filament_requirements", "suggested_filament_label", "TEXT");
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "match_score",
+    "INTEGER NOT NULL DEFAULT 0",
+  );
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "match_status",
+    "TEXT NOT NULL DEFAULT 'missing' CHECK (match_status IN ('excellent', 'good', 'test', 'missing'))",
+  );
+  await addColumnIfMissing(db, "author_filament_requirements", "color_distance", "REAL");
+  await addColumnIfMissing(db, "author_filament_requirements", "td_delta", "REAL");
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "stock_signal",
+    "TEXT NOT NULL DEFAULT 'missing'",
+  );
+  await addColumnIfMissing(db, "author_filament_requirements", "warning", "TEXT");
+  await addColumnIfMissing(
+    db,
+    "author_filament_requirements",
+    "created_at",
+    "TEXT",
+  );
+
   await db.execute(`
     CREATE INDEX IF NOT EXISTS idx_author_filament_requirements_product
     ON author_filament_requirements (product_id, role)
   `);
+}
+
+async function addColumnIfMissing(
+  db: SqlDatabase,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): Promise<void> {
+  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
+
+  if (!columns.some((column) => column.name === columnName)) {
+    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
 }
 
 function toRequirementValues(

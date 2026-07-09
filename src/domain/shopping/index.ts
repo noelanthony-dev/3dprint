@@ -30,6 +30,7 @@ export interface ShoppingListItemInput {
   readonly itemName: string;
   readonly notes: string;
   readonly priority: ShoppingItemPriority;
+  readonly productId: number | null;
   readonly quantityNeeded: number;
   readonly sourceNote: string;
   readonly sourceType: ShoppingSourceType;
@@ -65,6 +66,7 @@ export interface ShoppingSuggestion {
   readonly category: ShoppingItemCategory;
   readonly itemName: string;
   readonly priority: ShoppingItemPriority;
+  readonly productId: number | null;
   readonly quantityNeeded: number;
   readonly reason: string;
   readonly sourceNote: string;
@@ -95,6 +97,10 @@ export function validateShoppingListItemInput(
 
   if (!SHOPPING_SOURCE_TYPES.includes(input.sourceType)) {
     errors.sourceType = "Choose a valid source.";
+  }
+
+  if (input.productId !== null && (!Number.isInteger(input.productId) || input.productId <= 0)) {
+    errors.productId = "Choose a valid product/design.";
   }
 
   if (!Number.isFinite(input.quantityNeeded) || input.quantityNeeded <= 0) {
@@ -131,6 +137,7 @@ export function buildLowStockAddOnSuggestions(
         category: mapAddOnCategory(item.category),
         itemName: item.itemName,
         priority: stockSignal === "out" ? "high" : "normal",
+        productId: null,
         quantityNeeded,
         reason:
           stockSignal === "out"
@@ -150,6 +157,7 @@ export function buildMissingHueForgeFilamentSuggestions(
     category: "Filament",
     itemName: `${requirement.brand} ${requirement.colorName} ${requirement.materialType}`.trim(),
     priority: "high",
+    productId: requirement.productId,
     quantityNeeded: Math.max(1, roundShoppingQuantity(requirement.requiredGrams)),
     reason: requirement.warning || `Missing ${requirement.materialType} filament for ${requirement.colorName}.`,
     sourceNote: `Product ${requirement.productId}, ${requirement.role}, ${requirement.layerRange || "all layers"}, TD ${requirement.transmissionDistance}.`,
@@ -164,7 +172,7 @@ export function mergeShoppingSuggestions(
   const merged = new Map<string, ShoppingSuggestion>();
 
   for (const suggestion of suggestions) {
-    const key = `${suggestion.sourceType}:${suggestion.itemName.toLowerCase()}:${suggestion.unit}`;
+    const key = `${suggestion.sourceType}:${suggestion.productId ?? "none"}:${suggestion.itemName.toLowerCase()}:${suggestion.unit}`;
     const existing = merged.get(key);
 
     if (!existing) {
@@ -192,6 +200,7 @@ export function toManualShoppingItemInput(
     itemName: suggestion.itemName,
     notes: suggestion.reason,
     priority: suggestion.priority,
+    productId: suggestion.productId,
     quantityNeeded: suggestion.quantityNeeded,
     sourceNote: suggestion.sourceNote,
     sourceType: suggestion.sourceType,

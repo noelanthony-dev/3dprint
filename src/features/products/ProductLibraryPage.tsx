@@ -21,7 +21,7 @@ import {
   Swatch,
   ToolbarButton,
 } from "@/components/ui";
-import { filamentProfilesRepository, filamentRepository, productsRepository } from "@/data/repositories";
+import { filamentProfilesRepository, filamentRepository, productsRepository, shoppingListRepository } from "@/data/repositories";
 import {
   FILAMENT_MATERIALS,
   normalizeHexColor,
@@ -123,6 +123,7 @@ export function ProductLibraryPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isShoppingItemSaving, setIsShoppingItemSaving] = useState(false);
   const [filamentProfiles, setFilamentProfiles] = useState<FilamentProfileRecord[]>([]);
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -348,6 +349,32 @@ export function ProductLibraryPage() {
     }
   }
 
+  async function addFilamentToShoppingList(product: ProductRecord, filament: ProductHueForgeFilament): Promise<void> {
+    setIsShoppingItemSaving(true);
+
+    try {
+      const itemName = formatShoppingFilamentName(product, filament);
+      await shoppingListRepository.create({
+        category: "Filament",
+        itemName,
+        notes: `For ${product.designName}.`,
+        priority: "normal",
+        productId: product.id,
+        quantityNeeded: Math.max(1, filament.requiredGrams),
+        sourceNote: `${product.designName}${filament.role ? `, ${filament.role}` : ""}${filament.layerRange ? `, ${filament.layerRange}` : ""}.`,
+        sourceType: "manual",
+        status: "open",
+        unit: "grams",
+      });
+
+      showToast("success", "Shopping Item Added", `${itemName} was added for ${product.designName}.`);
+    } catch (shoppingError) {
+      showToast("danger", "Shopping Item Failed", formatRepositoryError(shoppingError));
+    } finally {
+      setIsShoppingItemSaving(false);
+    }
+  }
+
   return (
     <Page
       actions={
@@ -451,12 +478,14 @@ export function ProductLibraryPage() {
         <div className="side-stack">
           <Panel title="Product Detail">
             {selectedProduct ? (
-              <ProductDetail
-                filaments={filaments}
-                isDeleting={isDeleting}
-                onDelete={() => void deleteProduct(selectedProduct)}
-                onEdit={() => startEdit(selectedProduct)}
-                product={selectedProduct}
+                <ProductDetail
+                  filaments={filaments}
+                  isDeleting={isDeleting}
+                  isShoppingItemSaving={isShoppingItemSaving}
+                  onAddFilamentToShoppingList={(filament) => void addFilamentToShoppingList(selectedProduct, filament)}
+                  onDelete={() => void deleteProduct(selectedProduct)}
+                  onEdit={() => startEdit(selectedProduct)}
+                  product={selectedProduct}
               />
             ) : (
               <div className="empty-state">
@@ -528,12 +557,16 @@ export function ProductLibraryPage() {
 function ProductDetail({
   filaments,
   isDeleting,
+  isShoppingItemSaving,
+  onAddFilamentToShoppingList,
   onDelete,
   product,
   onEdit,
 }: {
   readonly filaments: readonly FilamentRecord[];
   readonly isDeleting: boolean;
+  readonly isShoppingItemSaving: boolean;
+  readonly onAddFilamentToShoppingList: (filament: ProductHueForgeFilament) => void;
   readonly onDelete: () => void;
   readonly product: ProductRecord;
   readonly onEdit: () => void;
@@ -593,7 +626,9 @@ function ProductDetail({
       <ProductHueForgeFilamentList
         filaments={product.hueForgeFilaments}
         inventoryFilaments={filaments}
+        isShoppingItemSaving={isShoppingItemSaving}
         mode={product.filamentMode}
+        onAddToShoppingList={onAddFilamentToShoppingList}
       />
       <div className="callout">
         <Badge>Notes</Badge>
@@ -619,11 +654,15 @@ function ProductDetail({
 function ProductHueForgeFilamentList({
   filaments,
   inventoryFilaments,
+  isShoppingItemSaving,
   mode,
+  onAddToShoppingList,
 }: {
   readonly filaments: readonly ProductHueForgeFilament[];
   readonly inventoryFilaments: readonly FilamentRecord[];
+  readonly isShoppingItemSaving: boolean;
   readonly mode: ProductFilamentMode;
+  readonly onAddToShoppingList: (filament: ProductHueForgeFilament) => void;
 }) {
   if (filaments.length === 0) {
     return (
@@ -642,6 +681,13 @@ function ProductHueForgeFilamentList({
             <Badge>Filament</Badge>
             <strong>Filament {index + 1}</strong>
             <span>{filament.requiredGrams > 0 ? `${filament.requiredGrams}g` : "0g"}</span>
+            <ToolbarButton
+              disabled={isShoppingItemSaving}
+              onClick={() => onAddToShoppingList(filament)}
+              tone="primary"
+            >
+              Add to Shopping List
+            </ToolbarButton>
           </div>
         ))}
       </div>
@@ -675,6 +721,13 @@ function ProductHueForgeFilamentList({
             {alternativeLabels.length > 0 ? (
               <small>Alternatives: {alternativeLabels.join(", ")}</small>
             ) : null}
+            <ToolbarButton
+              disabled={isShoppingItemSaving}
+              onClick={() => onAddToShoppingList(filament)}
+              tone="primary"
+            >
+              Add to Shopping List
+            </ToolbarButton>
           </div>
         );
       })}
@@ -1229,6 +1282,19 @@ function formatAlternativeFilamentLabels(
   filaments: readonly FilamentRecord[],
 ): readonly string[] {
   return filamentIds.map((filamentId) => formatAlternativeFilamentLabel(filamentId, filaments));
+}
+
+function formatShoppingFilamentName(
+  product: ProductRecord,
+  filament: ProductHueForgeFilament,
+): string {
+  const namedFilament = [
+    filament.brand,
+    filament.colorName,
+    filament.materialType,
+  ].filter((part) => part.trim().length > 0).join(" ");
+
+  return namedFilament || `Filament for ${product.designName}`;
 }
 
 function removeHueForgeFilament(

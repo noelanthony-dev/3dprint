@@ -366,6 +366,7 @@ Implemented fields:
 
 - `id`
 - `item_name`
+- `product_id`
 - `category`
 - `quantity_needed`
 - `unit`

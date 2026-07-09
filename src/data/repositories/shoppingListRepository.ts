@@ -13,6 +13,7 @@ export interface ShoppingListRepository {
   create(input: ShoppingListItemInput): Promise<ShoppingListItemRecord>;
   get(id: number): Promise<ShoppingListItemRecord | null>;
   list(): Promise<ShoppingListItemRecord[]>;
+  update(id: number, input: ShoppingListItemInput): Promise<ShoppingListItemRecord>;
   updateStatus(id: number, status: ShoppingItemStatus): Promise<ShoppingListItemRecord>;
 }
 
@@ -23,6 +24,7 @@ interface ShoppingListItemRow {
   readonly item_name: string;
   readonly notes: string | null;
   readonly priority: string;
+  readonly product_id: number | null;
   readonly quantity_needed: number;
   readonly source_note: string | null;
   readonly source_type: string;
@@ -36,6 +38,7 @@ type DatabaseFactory = () => Promise<SqlDatabase>;
 const SHOPPING_LIST_COLUMNS = `
   id,
   item_name,
+  product_id,
   category,
   quantity_needed,
   unit,
@@ -76,6 +79,7 @@ export function createShoppingListRepository(
       const result = await db.execute(
         `INSERT INTO shopping_list_items (
           item_name,
+          product_id,
           category,
           quantity_needed,
           unit,
@@ -84,9 +88,10 @@ export function createShoppingListRepository(
           source_type,
           source_note,
           notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           input.itemName.trim(),
+          input.productId,
           input.category,
           input.quantityNeeded,
           input.unit.trim(),
@@ -147,6 +152,57 @@ export function createShoppingListRepository(
       return rows.map(mapShoppingListItemRow);
     },
 
+    async update(id, input) {
+      const validation = validateShoppingListItemInput(input);
+
+      if (!validation.valid) {
+        throw new Error(Object.values(validation.errors)[0] ?? "Invalid shopping list item.");
+      }
+
+      const db = await database();
+      const result = await db.execute(
+        `UPDATE shopping_list_items
+         SET
+          item_name = $1,
+          product_id = $2,
+          category = $3,
+          quantity_needed = $4,
+          unit = $5,
+          priority = $6,
+          status = $7,
+          source_type = $8,
+          source_note = $9,
+          notes = $10,
+          updated_at = datetime('now')
+         WHERE id = $11`,
+        [
+          input.itemName.trim(),
+          input.productId,
+          input.category,
+          input.quantityNeeded,
+          input.unit.trim(),
+          input.priority,
+          input.status,
+          input.sourceType,
+          input.sourceNote.trim(),
+          input.notes.trim(),
+          id,
+        ],
+      );
+
+      if (result.rowsAffected === 0) {
+        throw new Error(`Shopping list item ${id} does not exist.`);
+      }
+
+      const updated = await this.get(id);
+
+      if (!updated) {
+        throw new Error("Updated shopping item could not be loaded.");
+      }
+
+      return updated;
+    },
+
     async updateStatus(id, status) {
       const db = await database();
       const result = await db.execute(
@@ -178,6 +234,7 @@ async function ensureShoppingListSchema(db: SqlDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS shopping_list_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       item_name TEXT NOT NULL,
+      product_id INTEGER REFERENCES products(id) ON DELETE SET NULL,
       category TEXT NOT NULL CHECK (
         category IN ('Filament', 'Hardware', 'Packaging', 'Tooling', 'License', 'Other')
       ),
@@ -195,9 +252,16 @@ async function ensureShoppingListSchema(db: SqlDatabase): Promise<void> {
     )
   `);
 
+  await addColumnIfMissing(db, "shopping_list_items", "product_id", "INTEGER");
+
   await db.execute(`
     CREATE INDEX IF NOT EXISTS idx_shopping_list_status_priority
     ON shopping_list_items (status, priority, created_at DESC)
+  `);
+
+  await db.execute(`
+    CREATE INDEX IF NOT EXISTS idx_shopping_list_product_status
+    ON shopping_list_items (product_id, status, created_at DESC)
   `);
 }
 
@@ -209,6 +273,7 @@ function mapShoppingListItemRow(row: ShoppingListItemRow): ShoppingListItemRecor
     itemName: row.item_name,
     notes: row.notes ?? "",
     priority: row.priority as ShoppingItemPriority,
+    productId: row.product_id ?? null,
     quantityNeeded: row.quantity_needed,
     sourceNote: row.source_note ?? "",
     sourceType: row.source_type as ShoppingSourceType,
@@ -216,6 +281,21 @@ function mapShoppingListItemRow(row: ShoppingListItemRow): ShoppingListItemRecor
     unit: row.unit,
     updatedAt: row.updated_at,
   };
+}
+
+async function addColumnIfMissing(
+  db: SqlDatabase,
+  tableName: string,
+  columnName: string,
+  definition: string,
+): Promise<void> {
+  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
+
+  if (columns.some((column) => column.name === columnName)) {
+    return;
+  }
+
+  await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
 }
 
 export const shoppingListRepository = createShoppingListRepository();

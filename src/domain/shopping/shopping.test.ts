@@ -45,6 +45,7 @@ const manualItem: ShoppingListItemInput = {
   itemName: "6x2mm magnets",
   notes: "",
   priority: "normal",
+  productId: null,
   quantityNeeded: 175,
   sourceNote: "Current 25 pcs; threshold 100 pcs.",
   sourceType: "manual",
@@ -73,6 +74,18 @@ describe("shopping list validation", () => {
     expect(validation.errors.quantityNeeded).toBe("Quantity needed must be greater than zero.");
     expect(validation.errors.unit).toBe("Unit is required.");
   });
+
+  it("accepts optional product links and rejects invalid product ids", () => {
+    expect(validateShoppingListItemInput({ ...manualItem, productId: 7 })).toEqual({
+      errors: {},
+      valid: true,
+    });
+
+    const validation = validateShoppingListItemInput({ ...manualItem, productId: 0 });
+
+    expect(validation.valid).toBe(false);
+    expect(validation.errors.productId).toBe("Choose a valid product/design.");
+  });
 });
 
 describe("generated shopping suggestions", () => {
@@ -84,6 +97,7 @@ describe("generated shopping suggestions", () => {
       category: "Hardware",
       itemName: "6x2mm magnets",
       priority: "normal",
+      productId: null,
       quantityNeeded: 175,
       sourceType: "low-stock-addon",
       unit: "pcs",
@@ -99,6 +113,7 @@ describe("generated shopping suggestions", () => {
         category: "Filament",
         itemName: "Bambu Jade White PLA",
         priority: "high",
+        productId: 7,
         quantityNeeded: 35,
         reason: "No usable PLA match for Jade White.",
         sourceNote: "Product 7, Base, L0-L12, TD 2.1.",
@@ -124,6 +139,18 @@ describe("generated shopping suggestions", () => {
     expect(merged[0]?.priority).toBe("high");
   });
 
+  it("keeps generated suggestions separate by source product", () => {
+    const suggestions = buildMissingHueForgeFilamentSuggestions([
+      missingRequirement,
+      { ...missingRequirement, productId: 8 },
+    ]);
+
+    const merged = mergeShoppingSuggestions(suggestions);
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map((suggestion) => suggestion.productId).sort()).toEqual([7, 8]);
+  });
+
   it("turns a suggestion into an open shopping list item input", () => {
     const [suggestion] = buildLowStockAddOnSuggestions([addOn]);
 
@@ -135,6 +162,7 @@ describe("generated shopping suggestions", () => {
 
     expect(toManualShoppingItemInput(suggestion)).toMatchObject({
       itemName: "6x2mm magnets",
+      productId: null,
       sourceType: "low-stock-addon",
       status: "open",
     });

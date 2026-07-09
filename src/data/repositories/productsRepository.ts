@@ -115,6 +115,9 @@ export function createProductsRepository(
 
     async delete(id) {
       const db = await database();
+
+      await clearShoppingListProductLinksIfPresent(db, id);
+
       const result = await db.execute(
         `DELETE FROM products
          WHERE id = $1`,
@@ -399,6 +402,29 @@ async function addColumnIfMissing(
   if (!columns.some((column) => column.name === columnName)) {
     await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
+}
+
+async function clearShoppingListProductLinksIfPresent(db: SqlDatabase, productId: number): Promise<void> {
+  const tables = await db.select<Array<{ readonly name: string }>>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'shopping_list_items'",
+  );
+
+  if (tables.length === 0) {
+    return;
+  }
+
+  const columns = await db.select<Array<{ readonly name: string }>>("PRAGMA table_info(shopping_list_items)");
+
+  if (!columns.some((column) => column.name === "product_id")) {
+    return;
+  }
+
+  await db.execute(
+    `UPDATE shopping_list_items
+     SET product_id = NULL
+     WHERE product_id = $1`,
+    [productId],
+  );
 }
 
 export const productsRepository = createProductsRepository();

@@ -67,6 +67,14 @@ class FakeDatabase implements SqlDatabase {
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
 
+    if (query.includes("sqlite_master") && query.includes("shopping_list_items")) {
+      return [{ name: "shopping_list_items" }] as T;
+    }
+
+    if (query.includes("PRAGMA table_info(shopping_list_items)")) {
+      return [{ name: "product_id" }] as T;
+    }
+
     if (query.includes("PRAGMA table_info")) {
       return this.columns as T;
     }
@@ -247,10 +255,14 @@ describe("products repository", () => {
 
     await repository.delete(7);
 
+    const shoppingCleanup = fakeDb.executed.find((statement) =>
+      statement.query.includes("UPDATE shopping_list_items"),
+    );
     const deleteStatement = fakeDb.executed.find((statement) =>
       statement.query.includes("DELETE FROM products"),
     );
 
+    expect(shoppingCleanup?.values).toEqual([7]);
     expect(deleteStatement?.values).toEqual([7]);
   });
 
