@@ -14,6 +14,7 @@ import {
   DataTable,
   MetricPanel,
   Panel,
+  ProductDesignCombobox,
   ProgressBar,
   ToolbarButton,
 } from "@/components/ui";
@@ -308,14 +309,11 @@ export function CostingPage() {
           <Panel title="Batch Setup" actions={selectedProfile ? <Badge>CFG-{selectedProfile.id}</Badge> : <Badge>Draft</Badge>}>
             <form className="inventory-form" onSubmit={(event) => void handleSubmit(event)}>
               <FormField label="Product / Design" wide>
-                <select onChange={(event) => handleProductChange(event.target.value)} value={form.productId}>
-                  <option value="">Choose product...</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.designName}
-                    </option>
-                  ))}
-                </select>
+                <ProductDesignCombobox
+                  onSelect={(product) => handleProductChange(product ? String(product.id) : "")}
+                  products={products}
+                  selectedProductId={form.productId}
+                />
               </FormField>
               <FormField
                 label="Profile Name"

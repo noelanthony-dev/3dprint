@@ -83,7 +83,7 @@ const input: ProductInput = {
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
-      alternativeProfileIds: [2, 4],
+      alternativeFilamentIds: [2, 4],
       brand: " Jayo ",
       colorName: " Black ",
       hexColor: "#111111",
@@ -156,7 +156,7 @@ describe("products repository", () => {
     expect(insert?.values[8]).toBe("hueforge");
     expect(JSON.parse(String(insert?.values[9]))).toEqual([
       {
-        alternativeProfileIds: [2, 4],
+        alternativeFilamentIds: [2, 4],
         brand: "Jayo",
         colorName: "Black",
         hexColor: "#111111",
@@ -170,20 +170,34 @@ describe("products repository", () => {
     ]);
   });
 
+  it("reloads created products by the returned insert id", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createProductsRepository(async () => fakeDb);
+
+    await repository.create(input);
+
+    const reload = fakeDb.selected.find((statement) =>
+      statement.query.includes("FROM products") && statement.query.includes("WHERE id = $1"),
+    );
+
+    expect(reload?.query).not.toContain("last_insert_rowid()");
+    expect(reload?.values).toEqual([1]);
+  });
+
   it("loads older product filament JSON without alternatives", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createProductsRepository(async () => fakeDb);
 
     const products = await repository.list();
 
-    expect(products[0]?.hueForgeFilaments[0]?.alternativeProfileIds).toEqual([]);
+    expect(products[0]?.hueForgeFilaments[0]?.alternativeFilamentIds).toEqual([]);
   });
 
-  it("ignores malformed alternative profile ids when loading products", async () => {
+  it("ignores malformed alternative filament ids when loading products", async () => {
     const fakeDb = new FakeDatabase(undefined, {
       hueforge_filaments: JSON.stringify([
         {
-          alternativeProfileIds: [2, "bad", 0, 2, 4.5, 7],
+          alternativeFilamentIds: [2, "bad", 0, 2, 4.5, 7],
           brand: "Jayo",
           colorName: "Black",
           hexColor: "#111111",
@@ -200,7 +214,31 @@ describe("products repository", () => {
 
     const products = await repository.list();
 
-    expect(products[0]?.hueForgeFilaments[0]?.alternativeProfileIds).toEqual([2, 7]);
+    expect(products[0]?.hueForgeFilaments[0]?.alternativeFilamentIds).toEqual([2, 7]);
+  });
+
+  it("loads temporary profile-id alternatives as filament alternatives", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      hueforge_filaments: JSON.stringify([
+        {
+          alternativeProfileIds: [3, 5],
+          brand: "Jayo",
+          colorName: "Black",
+          hexColor: "#111111",
+          layerRange: "L0-L8",
+          materialType: "PLA",
+          purchaseSource: "https://example.com/jayo-black",
+          requiredGrams: 12,
+          role: "Shadow",
+          transmissionDistance: 0.3,
+        },
+      ]),
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.hueForgeFilaments[0]?.alternativeFilamentIds).toEqual([3, 5]);
   });
 
   it("deletes a product by id", async () => {
@@ -225,7 +263,7 @@ describe("products repository", () => {
       filamentMode: "basic",
       hueForgeFilaments: [
         {
-          alternativeProfileIds: [],
+          alternativeFilamentIds: [],
           brand: "",
           colorName: "",
           hexColor: "",
@@ -246,7 +284,7 @@ describe("products repository", () => {
     expect(insert?.values[8]).toBe("basic");
     expect(JSON.parse(String(insert?.values[9]))).toEqual([
       {
-        alternativeProfileIds: [],
+        alternativeFilamentIds: [],
         brand: "",
         colorName: "",
         hexColor: "",

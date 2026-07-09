@@ -14,6 +14,7 @@ import {
   DataTable,
   MetricPanel,
   Panel,
+  ProductDesignCombobox,
   ProgressBar,
   SearchField,
   SegmentedFilter,
@@ -481,20 +482,12 @@ export function FinishedGoodsInventoryPage() {
             </header>
             <form className="inventory-form modal__body" onSubmit={(event) => void handleSubmit(event)}>
               <FormField label="Product / Design" wide>
-                <select
-                  onChange={(event) =>
-                    handleProductSelectionChange(event.target.value, products, setForm)
-                  }
-                  value={getProductSelectionValue(form.productReference, products)}
-                >
-                  <option value="">Choose product...</option>
-                  {getCurrentReferenceOption(form.productReference, products)}
-                  {products.map((product) => (
-                    <option key={product.id} value={String(product.id)}>
-                      {product.designName}
-                    </option>
-                  ))}
-                </select>
+                <ProductDesignCombobox
+                  fallbackLabel={form.productReference}
+                  onSelect={(product) => handleProductSelectionChange(product, setForm)}
+                  products={products}
+                  selectedProductId={getProductSelectionValue(form.productReference, products)}
+                />
               </FormField>
               <FormField label="Sale Unit">
                 <select
@@ -683,12 +676,9 @@ function setAdjustmentValue<K extends keyof AdjustmentFormState>(
 }
 
 function handleProductSelectionChange(
-  selectedValue: string,
-  products: readonly ProductRecord[],
+  product: ProductRecord | null,
   setForm: Dispatch<SetStateAction<FinishedGoodFormState>>,
 ): void {
-  const product = products.find((item) => String(item.id) === selectedValue);
-
   setForm((current) => ({
     ...current,
     productReference: product?.designName ?? "",
@@ -707,23 +697,6 @@ function getProductSelectionValue(
   }
 
   return productReference.trim() ? "current-reference" : "";
-}
-
-function getCurrentReferenceOption(
-  productReference: string,
-  products: readonly ProductRecord[],
-): ReactNode {
-  const hasMatchingProduct = products.some((product) => product.designName === productReference);
-
-  if (!productReference.trim() || hasMatchingProduct) {
-    return null;
-  }
-
-  return (
-    <option value="current-reference">
-      {productReference} (saved reference)
-    </option>
-  );
 }
 
 function toFinishedGoodInput(form: FinishedGoodFormState): FinishedGoodInput {

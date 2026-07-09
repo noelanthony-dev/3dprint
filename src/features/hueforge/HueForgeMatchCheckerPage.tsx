@@ -17,7 +17,7 @@ import {
   Swatch,
   ToolbarButton,
 } from "@/components/ui";
-import { filamentRepository, hueForgeRepository, productsRepository } from "@/data/repositories";
+import { filamentRepository, hueForgeRepository, productsRepository, shoppingListRepository } from "@/data/repositories";
 import {
   FILAMENT_MATERIALS,
   formatGramsLeft,
@@ -27,12 +27,14 @@ import {
 } from "@/domain/inventory";
 import {
   analyzeHueForgeMatches,
+  formatHueForgeColorFamily,
   validateHueForgeRequirement,
   type HueForgeFeasibilityStatus,
   type HueForgeMatchStatus,
   type HueForgeRequirementInput,
 } from "@/domain/hueforge";
 import type { ProductCategory } from "@/domain/products";
+import type { ShoppingListItemInput } from "@/domain/shopping";
 
 interface DesignFormState {
   readonly authorName: string;
@@ -48,10 +50,8 @@ interface RequirementFormState {
   readonly brand: string;
   readonly colorName: string;
   readonly hexColor: string;
-  readonly layerRange: string;
   readonly materialType: FilamentMaterial;
   readonly requiredGrams: string;
-  readonly role: string;
   readonly transmissionDistance: string;
 }
 
@@ -59,10 +59,8 @@ const emptyRequirement: RequirementFormState = {
   brand: "",
   colorName: "",
   hexColor: "#ffffff",
-  layerRange: "",
   materialType: "PLA",
   requiredGrams: "0",
-  role: "",
   transmissionDistance: "0",
 };
 
@@ -71,7 +69,7 @@ const initialDesignForm: DesignFormState = {
   category: "Bookmarks",
   designName: "Cyberpunk Cityscape",
   imageReference: "",
-  notes: "Requires author filament matching review. RGB color distance is a temporary heuristic; test-print before production if TD or color warnings appear.",
+  notes: "Requires author filament matching review. Test-print before production if shade or light pass-through warnings appear.",
   saleUnit: "piece",
   sourceLink: "https://example.com/hueforge/cyberpunk-cityscape",
 };
@@ -81,40 +79,32 @@ const initialRequirements: RequirementFormState[] = [
     brand: "Bambu PLA Basic",
     colorName: "Black",
     hexColor: "#1a1a1a",
-    layerRange: "L0-L12",
     materialType: "PLA",
     requiredGrams: "15.2",
-    role: "Base / Shadow",
     transmissionDistance: "0.6",
   },
   {
     brand: "Polymaker PolyLite",
     colorName: "Purple",
     hexColor: "#8a2be2",
-    layerRange: "L13-L18",
     materialType: "PLA",
     requiredGrams: "8.5",
-    role: "Midtone 1",
     transmissionDistance: "2.4",
   },
   {
     brand: "eSun PLA+",
     colorName: "Magenta",
     hexColor: "#ff1493",
-    layerRange: "L19-L24",
     materialType: "PLA+",
     requiredGrams: "4.2",
-    role: "Midtone 2",
     transmissionDistance: "4.1",
   },
   {
     brand: "Sunlu PLA",
     colorName: "Cyan",
     hexColor: "#00ffff",
-    layerRange: "L25-L30",
     materialType: "PLA",
     requiredGrams: "2.1",
-    role: "Highlight",
     transmissionDistance: "6.8",
   },
 ];
@@ -132,6 +122,16 @@ const feasibilityTone: Record<HueForgeFeasibilityStatus, "success" | "warning" |
   ready: "success",
 };
 
+const hexColorPattern = /^#[0-9a-f]{6}$/i;
+type HueForgeMatchView = ReturnType<typeof analyzeHueForgeMatches>["matches"][number];
+
+interface MatchMetric {
+  readonly detail?: string;
+  readonly label: string;
+  readonly tone: "neutral" | "warning" | "danger";
+  readonly value: string;
+}
+
 export function HueForgeMatchCheckerPage() {
   const [designForm, setDesignForm] = useState<DesignFormState>(initialDesignForm);
   const [error, setError] = useState<string | null>(null);
@@ -139,6 +139,7 @@ export function HueForgeMatchCheckerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [requirements, setRequirements] = useState<RequirementFormState[]>(initialRequirements);
+  const [shoppingListKeys, setShoppingListKeys] = useState<ReadonlySet<string>>(new Set());
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
@@ -185,7 +186,7 @@ export function HueForgeMatchCheckerPage() {
       const validation = validateHueForgeRequirement(requirement);
 
       if (!validation.valid) {
-        setValidationMessage(Object.values(validation.errors)[0] ?? "Check the requirement fields.");
+        setValidationMessage(formatPlainHueForgeCopy(Object.values(validation.errors)[0] ?? "Check the requirement fields."));
         return;
       }
     }
@@ -206,7 +207,7 @@ export function HueForgeMatchCheckerPage() {
         designName: designForm.designName,
         filamentMode: "hueforge",
         hueForgeFilaments: parsedRequirements.map((requirement) => ({
-          alternativeProfileIds: [],
+          alternativeFilamentIds: [],
           brand: requirement.brand,
           colorName: requirement.colorName,
           hexColor: requirement.hexColor,
@@ -241,6 +242,26 @@ export function HueForgeMatchCheckerPage() {
     }
   }
 
+  async function handleAddToShoppingList(match: HueForgeMatchView): Promise<void> {
+    const shoppingKey = getShoppingListKey(match);
+
+    setSaveMessage(null);
+    setValidationMessage(null);
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const item = await shoppingListRepository.create(toShoppingListItem(match, designForm));
+
+      setShoppingListKeys((current) => new Set(current).add(shoppingKey));
+      setSaveMessage(`Added ${item.itemName} to the Shopping List.`);
+    } catch (shoppingError) {
+      setError(formatRepositoryError(shoppingError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <Page
       actions={
@@ -251,8 +272,8 @@ export function HueForgeMatchCheckerPage() {
           </ToolbarButton>
         </>
       }
-      description="Compare author HueForge requirements against owned filament by material, RGB color distance, TD closeness, and stock availability."
-      meta={["RGB distance heuristic", "No inventory deduction", "No Culori dependency"]}
+      description="Compare author HueForge requirements against owned filament by color family, shade closeness, light pass-through, material, and stock availability."
+      meta={["Color-safe matching", "Shade scoring", "No inventory deduction"]}
       title="HueForge Match Checker"
     >
       {error ? (
@@ -339,17 +360,11 @@ export function HueForgeMatchCheckerPage() {
           title="Required Filaments"
         >
           <DataTable
-            columns={["Role", "Brand / Color", "Mat", "TD", "g", "Layers", ""]}
-            columnsTemplate="minmax(92px, 0.8fr) minmax(160px, 1.4fr) 0.45fr 0.42fr 0.42fr 0.62fr 34px"
+            columns={["Brand / Color", "Mat", "Light", "g", ""]}
+            columnsTemplate="minmax(190px, 1.6fr) 0.48fr 0.42fr 0.42fr 34px"
             density="dense"
-            footer={`${requirements.length} author requirements. RGB distance is temporary until Delta E matching is approved.`}
+            footer={`${requirements.length} author requirements. Wrong color families are rejected before light pass-through ranking.`}
             rows={requirements.map((requirement, index) => [
-              <input
-                aria-label={`Role ${index + 1}`}
-                className="table-input"
-                onChange={(event) => setRequirementValue(index, "role", event.target.value, setRequirements)}
-                value={requirement.role}
-              />,
               <span className="table-field-stack">
                 <input
                   aria-label={`Brand ${index + 1}`}
@@ -359,7 +374,7 @@ export function HueForgeMatchCheckerPage() {
                   }
                   value={requirement.brand}
                 />
-                <span>
+                <span className="required-color-row">
                   <input
                     aria-label={`Color ${index + 1}`}
                     className="table-input"
@@ -384,6 +399,14 @@ export function HueForgeMatchCheckerPage() {
                     }
                     value={requirement.hexColor}
                   />
+                  <span
+                    aria-label={`Hex preview ${index + 1}: ${normalizeHexColor(requirement.hexColor)}`}
+                    className="required-hex-preview"
+                    data-valid={isValidHexColor(requirement.hexColor) ? "true" : "false"}
+                    role="img"
+                    style={{ backgroundColor: getPreviewHexColor(requirement.hexColor) }}
+                    title={normalizeHexColor(requirement.hexColor)}
+                  />
                 </span>
               </span>,
               <select
@@ -406,7 +429,7 @@ export function HueForgeMatchCheckerPage() {
                 ))}
               </select>,
               <input
-                aria-label={`TD ${index + 1}`}
+                aria-label={`Light pass-through ${index + 1}`}
                 className="table-input"
                 inputMode="decimal"
                 onChange={(event) =>
@@ -423,14 +446,6 @@ export function HueForgeMatchCheckerPage() {
                 }
                 value={requirement.requiredGrams}
               />,
-              <input
-                aria-label={`Layer range ${index + 1}`}
-                className="table-input"
-                onChange={(event) =>
-                  setRequirementValue(index, "layerRange", event.target.value, setRequirements)
-                }
-                value={requirement.layerRange}
-              />,
               <button className="table-link" onClick={() => removeRequirement(index)} type="button">
                 x
               </button>,
@@ -440,23 +455,78 @@ export function HueForgeMatchCheckerPage() {
 
         <Panel title="Inventory Matches" actions={<Badge tone={feasibilityTone[analysis.feasibilityStatus]}>{analysis.feasibilityStatus}</Badge>}>
           <div className="match-list">
-            {analysis.matches.map((match, index) => (
-              <div className="match-card" key={`${match.requirement.role}-${index}`}>
-                <span className="match-card__arrow">-&gt;</span>
-                {match.matchedFilament ? (
-                  <Swatch
-                    color={match.matchedFilament.hexColor}
-                    label={`${match.matchedFilament.brand} ${match.matchedFilament.name}`}
-                  />
-                ) : (
-                  <Swatch color={match.requirement.hexColor} label="Missing owned filament" />
-                )}
-                <Badge tone={matchTone[match.status]}>{match.status}</Badge>
-                <span className="match-card__copy">
-                  {formatMatchCopy(match)}
-                </span>
-              </div>
-            ))}
+            {analysis.matches.map((match, index) => {
+              const warningCopy = getMatchWarningCopy(match);
+              const shoppingKey = getShoppingListKey(match);
+              const canAddShoppingItem = shouldShowShoppingListAction(match);
+              const wasAddedToShoppingList = shoppingListKeys.has(shoppingKey);
+
+              return (
+                <div className="match-card" data-status={match.status} key={`${match.requirement.colorName}-${index}`}>
+                  <div className="match-card__header">
+                    <Swatch
+                      color={getPreviewHexColor(match.requirement.hexColor)}
+                      label={`${match.requirement.colorName} (${formatHueForgeColorFamily(match.requiredColorFamily)})`}
+                    />
+                    <Badge tone={matchTone[match.status]}>{formatMatchStatusLabel(match)}</Badge>
+                  </div>
+
+                  <div className="match-card__flow">
+                    <span className="match-card__arrow">-&gt;</span>
+                    {match.matchedFilament ? (
+                      <Swatch
+                        color={match.matchedFilament.hexColor}
+                        label={`${match.matchedFilament.brand} ${match.matchedFilament.name} (${formatHueForgeColorFamily(match.matchedColorFamily ?? "unknown")})`}
+                      />
+                    ) : (
+                      <span className="match-card__missing">Missing Close Color</span>
+                    )}
+                  </div>
+
+                  <div className="match-card__metrics">
+                    {getPrimaryMatchMetrics(match).map((metric) => (
+                      <span className="match-metric" data-tone={metric.tone} key={metric.label}>
+                        <span>{metric.label}</span>
+                        <strong>{metric.value}</strong>
+                        {metric.detail ? <small>{metric.detail}</small> : null}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="match-card__metric-section">
+                    <span className="match-card__metric-section-label">Light pass-through</span>
+                    <div className="match-card__metrics">
+                      {getLightMatchMetrics(match).map((metric) => (
+                        <span className="match-metric" data-tone={metric.tone} key={metric.label}>
+                          <span>{metric.label}</span>
+                          <strong>{metric.value}</strong>
+                          {metric.detail ? <small>{metric.detail}</small> : null}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {warningCopy ? (
+                    <p className="match-card__warning">
+                      {warningCopy}
+                    </p>
+                  ) : null}
+
+                  {canAddShoppingItem ? (
+                    <div className="match-card__actions">
+                      <button
+                        className="match-card__shopping-action"
+                        disabled={isSaving || wasAddedToShoppingList}
+                        onClick={() => void handleAddToShoppingList(match)}
+                        type="button"
+                      >
+                        {wasAddedToShoppingList ? "Added to Shopping List" : "Add required color to Shopping List"}
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </Panel>
       </div>
@@ -466,13 +536,13 @@ export function HueForgeMatchCheckerPage() {
           <Badge tone={feasibilityTone[analysis.feasibilityStatus]}>
             {analysis.feasibilityStatus}
           </Badge>
-          <p>{analysis.feasibilityNotes}</p>
+          <p>{formatPlainHueForgeCopy(analysis.feasibilityNotes)}</p>
         </div>
         {analysis.missingWarnings.length > 0 ? (
           <div className="status-grid hueforge-warning-grid">
             {analysis.missingWarnings.map((warning) => (
               <span key={warning}>
-                {warning}
+                {formatPlainHueForgeCopy(warning)}
                 <Badge tone="warning">review</Badge>
               </span>
             ))}
@@ -521,28 +591,241 @@ function setRequirementValue<K extends keyof RequirementFormState>(
   );
 }
 
-function toRequirementInput(form: RequirementFormState): HueForgeRequirementInput {
+function toRequirementInput(form: RequirementFormState, index: number): HueForgeRequirementInput {
   return {
     brand: form.brand,
     colorName: form.colorName,
     hexColor: normalizeHexColor(form.hexColor),
-    layerRange: form.layerRange,
+    layerRange: "",
     materialType: form.materialType,
     requiredGrams: Number(form.requiredGrams),
-    role: form.role,
-    transmissionDistance: Number(form.transmissionDistance),
+    role: `Color ${index + 1}`,
+    transmissionDistance: parseOptionalDecimal(form.transmissionDistance),
   };
 }
 
-function formatMatchCopy(match: ReturnType<typeof analyzeHueForgeMatches>["matches"][number]): string {
-  if (!match.matchedFilament) {
-    return match.warning;
+function getPreviewHexColor(value: string): string {
+  const normalized = normalizeHexColor(value);
+
+  return hexColorPattern.test(normalized) ? normalized : "transparent";
+}
+
+function isValidHexColor(value: string): boolean {
+  return hexColorPattern.test(normalizeHexColor(value));
+}
+
+function parseOptionalDecimal(value: string): number | null {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return null;
   }
 
-  const tdCopy = match.tdDelta == null ? "TD unknown" : `TD Δ ${match.tdDelta.toFixed(1)}`;
-  const colorCopy = match.colorDistance == null ? "color unknown" : `RGB dist ${match.colorDistance}`;
+  const parsed = Number(trimmed);
 
-  return `${tdCopy} / ${colorCopy} / ${formatGramsLeft(match.matchedFilament.estimatedGramsLeft)} in stock`;
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatMatchStatusLabel(match: HueForgeMatchView): string {
+  if (match.status === "missing" && match.rejectionReason.includes("Needs Hex Input")) {
+    return "needs hex";
+  }
+
+  return match.status;
+}
+
+function shouldShowShoppingListAction(match: HueForgeMatchView): boolean {
+  return match.deltaE != null && match.deltaE > 6;
+}
+
+function getShoppingListKey(match: HueForgeMatchView): string {
+  const requirement = match.requirement;
+
+  return [
+    requirement.brand.trim().toLowerCase(),
+    requirement.colorName.trim().toLowerCase(),
+    requirement.materialType.toLowerCase(),
+    normalizeHexColor(requirement.hexColor).toLowerCase(),
+  ].join(":");
+}
+
+function toShoppingListItem(
+  match: HueForgeMatchView,
+  designForm: DesignFormState,
+): ShoppingListItemInput {
+  const requirement = match.requirement;
+  const quantityNeeded = Number.isFinite(requirement.requiredGrams)
+    ? Math.max(1, requirement.requiredGrams)
+    : 1;
+  const colorScore = match.deltaE == null ? "unknown" : match.deltaE.toFixed(1);
+  const colorStatus = formatColorClosenessValue(match);
+  const designName = designForm.designName.trim() || "HueForge design";
+  const authorName = designForm.authorName.trim();
+
+  return {
+    category: "Filament",
+    itemName: `${requirement.brand} ${requirement.colorName} ${requirement.materialType}`.trim(),
+    notes: `Required color is ${colorStatus} against owned inventory. Color closeness score ${colorScore}.`,
+    priority: "high",
+    quantityNeeded,
+    sourceNote: `${designName}${authorName ? ` by ${authorName}` : ""}; required light pass-through ${formatLightValue(requirement.transmissionDistance, "not entered")}; ${normalizeHexColor(requirement.hexColor)}.`,
+    sourceType: "missing-hueforge-filament",
+    status: "open",
+    unit: "grams",
+  };
+}
+
+function getPrimaryMatchMetrics(match: HueForgeMatchView): MatchMetric[] {
+  return [
+    {
+      detail: formatColorClosenessDetail(match.deltaE),
+      label: "Color closeness",
+      tone: getDeltaMetricTone(match),
+      value: formatColorClosenessValue(match),
+    },
+    {
+      label: "Stock",
+      tone: getStockMetricTone(match),
+      value: formatStockValue(match),
+    },
+  ];
+}
+
+function getLightMatchMetrics(match: HueForgeMatchView): MatchMetric[] {
+  return [
+    {
+      label: "Design needs",
+      tone: match.requirement.transmissionDistance == null ? "warning" : "neutral",
+      value: formatLightValue(match.requirement.transmissionDistance, "add value"),
+    },
+    {
+      label: "Filament has",
+      tone: match.matchedFilament?.transmissionDistance == null ? "warning" : "neutral",
+      value: formatLightValue(match.matchedFilament?.transmissionDistance ?? null, "missing"),
+    },
+    {
+      detail: formatLightDifferenceDetail(match.tdDelta),
+      label: "Difference",
+      tone: getLightDifferenceMetricTone(match),
+      value: formatLightDifferenceValue(match),
+    },
+  ];
+}
+
+function getMatchWarningCopy(match: HueForgeMatchView): string {
+  return formatPlainHueForgeCopy(match.rejectionReason || match.warning);
+}
+
+function formatColorClosenessValue(match: HueForgeMatchView): string {
+  if (match.deltaE == null) {
+    return "unknown";
+  }
+
+  if (match.status === "missing" || match.deltaE > 10) {
+    return "too different";
+  }
+
+  if (match.deltaE > 6) {
+    return "test first";
+  }
+
+  if (match.deltaE > 3) {
+    return "good";
+  }
+
+  return "excellent";
+}
+
+function formatColorClosenessDetail(deltaE: number | null): string {
+  return deltaE == null ? "no color score" : `score ${deltaE.toFixed(1)}`;
+}
+
+function formatLightDifferenceValue(match: HueForgeMatchView): string {
+  if (match.tdDelta == null) {
+    return match.requirement.transmissionDistance == null || match.matchedFilament?.transmissionDistance == null
+      ? "unknown"
+      : "not needed";
+  }
+
+  if (match.tdDelta > 1.5) {
+    return "far off";
+  }
+
+  if (match.tdDelta > 1) {
+    return "usable";
+  }
+
+  return "close";
+}
+
+function formatLightDifferenceDetail(tdDelta: number | null): string {
+  return tdDelta == null ? "no comparison" : `by ${tdDelta.toFixed(1)}`;
+}
+
+function formatLightValue(value: number | null, emptyLabel: string): string {
+  return value == null ? emptyLabel : value.toFixed(1);
+}
+
+function formatStockValue(match: HueForgeMatchView): string {
+  return match.matchedFilament ? formatGramsLeft(match.matchedFilament.estimatedGramsLeft) : "none";
+}
+
+function getDeltaMetricTone(match: HueForgeMatchView): MatchMetric["tone"] {
+  if (match.deltaE == null) {
+    return "warning";
+  }
+
+  if (match.status === "missing" || match.deltaE > 10) {
+    return "danger";
+  }
+
+  if (match.deltaE > 6) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function getLightDifferenceMetricTone(match: HueForgeMatchView): MatchMetric["tone"] {
+  if (match.tdDelta == null) {
+    return match.requirement.transmissionDistance == null || match.matchedFilament?.transmissionDistance == null
+      ? "warning"
+      : "neutral";
+  }
+
+  return match.tdDelta > 1.5 ? "warning" : "neutral";
+}
+
+function getStockMetricTone(match: HueForgeMatchView): MatchMetric["tone"] {
+  if (!match.matchedFilament) {
+    return "danger";
+  }
+
+  if (
+    match.stockSignal === "missing" ||
+    match.stockSignal === "empty" ||
+    match.stockSignal === "archived" ||
+    match.matchedFilament.estimatedGramsLeft < match.requirement.requiredGrams
+  ) {
+    return "danger";
+  }
+
+  return match.stockSignal === "low" ? "warning" : "neutral";
+}
+
+function formatPlainHueForgeCopy(copy: string): string {
+  return copy
+    .replace(/(.+?) TD variance is [\d.]+; test before production\./g, "$1 light pass-through is far from the design; test before production.")
+    .replace(/(.+?) Delta E is [\d.]+; test before production\./g, "$1 color is visibly different; test before production.")
+    .replaceAll("Needs TD Input", "Add light pass-through value")
+    .replaceAll("needs TD Input", "needs light pass-through value")
+    .replaceAll("TD variance", "Light pass-through difference")
+    .replaceAll("TD blockers", "light pass-through blockers")
+    .replaceAll("TD ranking", "light pass-through ranking")
+    .replaceAll("TD, material", "light pass-through, material")
+    .replaceAll("Delta E", "Color closeness")
+    .replaceAll("delta E", "color closeness")
+    .replaceAll("TD", "light pass-through");
 }
 
 function formatRepositoryError(error: unknown): string {

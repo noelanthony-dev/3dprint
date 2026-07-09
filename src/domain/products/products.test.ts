@@ -20,7 +20,7 @@ const validInput: ProductInput = {
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
-      alternativeProfileIds: [2, 4],
+      alternativeFilamentIds: [2, 4],
       brand: "Jayo",
       colorName: "Black",
       hexColor: "#111111",
@@ -125,13 +125,13 @@ describe("product design helpers", () => {
     expect(result.errors.hueForgeFilaments).toBeDefined();
   });
 
-  it("validates numeric filament alternative profile ids", () => {
+  it("validates numeric filament alternative inventory ids", () => {
     const validResult = validateProductInput({
       ...validInput,
       hueForgeFilaments: [
         {
           ...validInput.hueForgeFilaments[0]!,
-          alternativeProfileIds: [1, 3],
+          alternativeFilamentIds: [1, 3],
         },
       ],
     });
@@ -143,7 +143,7 @@ describe("product design helpers", () => {
       hueForgeFilaments: [
         {
           ...validInput.hueForgeFilaments[0]!,
-          alternativeProfileIds: [0, 2.5],
+          alternativeFilamentIds: [0, 2.5],
         },
       ],
     });
@@ -158,7 +158,7 @@ describe("product design helpers", () => {
       filamentMode: "basic",
       hueForgeFilaments: [
         {
-          alternativeProfileIds: [],
+          alternativeFilamentIds: [],
           brand: "",
           colorName: "",
           hexColor: "",
@@ -181,7 +181,7 @@ describe("product design helpers", () => {
       filamentMode: "basic",
       hueForgeFilaments: [
         {
-          alternativeProfileIds: [],
+          alternativeFilamentIds: [],
           brand: "",
           colorName: "",
           hexColor: "",

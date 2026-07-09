@@ -40,7 +40,10 @@ class FakeDatabase implements SqlDatabase {
 }
 
 const match: HueForgeRequirementMatch = {
+  closestRejectedFilament: null,
   colorDistance: 1,
+  deltaE: 1,
+  matchedColorFamily: "black",
   matchedFilament: {
     brand: "Sunlu",
     colorName: "Matte Black",
@@ -60,6 +63,7 @@ const match: HueForgeRequirementMatch = {
     updatedAt: "2026-07-01T00:00:00.000Z",
   },
   matchScore: 96,
+  rejectionReason: "",
   requirement: {
     brand: "Bambu",
     colorName: "Black",
@@ -70,6 +74,7 @@ const match: HueForgeRequirementMatch = {
     role: "Base",
     transmissionDistance: 0.6,
   },
+  requiredColorFamily: "black",
   status: "excellent",
   stockSignal: "ready",
   tdDelta: 0.1,

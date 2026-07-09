@@ -39,7 +39,7 @@ export type LicenseWarningTone = "success" | "warning" | "danger";
 export type ProductFilamentMode = "hueforge" | "basic";
 
 export interface ProductHueForgeFilament {
-  readonly alternativeProfileIds: readonly number[];
+  readonly alternativeFilamentIds: readonly number[];
   readonly brand: string;
   readonly materialType: FilamentMaterial;
   readonly colorName: string;
@@ -227,11 +227,11 @@ export function validateProductInput(input: ProductInput): ProductValidationResu
     const fieldPrefix = `Filament ${index + 1}`;
 
     if (
-      filament.alternativeProfileIds.some(
-        (profileId) => !Number.isInteger(profileId) || profileId <= 0,
+      filament.alternativeFilamentIds.some(
+        (filamentId) => !Number.isInteger(filamentId) || filamentId <= 0,
       )
     ) {
-      errors.hueForgeFilaments = `${fieldPrefix} alternatives must reference valid filament profiles.`;
+      errors.hueForgeFilaments = `${fieldPrefix} alternatives must reference valid filament inventory spools.`;
       return;
     }
 

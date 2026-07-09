@@ -9,7 +9,7 @@ import {
 } from "react";
 
 import { Page } from "@/components/layout/Page";
-import { Badge, DataTable, MetricPanel, Panel, ToolbarButton } from "@/components/ui";
+import { Badge, DataTable, MetricPanel, Panel, ProductDesignCombobox, ToolbarButton } from "@/components/ui";
 import { productionRunsService } from "@/data/services/productionRunsService";
 import {
   addOnsRepository,
@@ -382,14 +382,11 @@ export function ProductionRunsPage() {
                   </div>
                   <form className="inventory-form" id="production-run-form" onSubmit={(event) => void handleSubmit(event)}>
                     <FormField label="Product / Design" wide>
-                      <select onChange={(event) => handleProductChange(event.target.value)} value={form.productId}>
-                        <option value="">Choose product...</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.designName}
-                          </option>
-                        ))}
-                      </select>
+                      <ProductDesignCombobox
+                        onSelect={(product) => handleProductChange(product ? String(product.id) : "")}
+                        products={products}
+                        selectedProductId={form.productId}
+                      />
                     </FormField>
                     <FormField
                       label="Print Profile"

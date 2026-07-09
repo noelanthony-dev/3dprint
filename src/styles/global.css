@@ -1116,6 +1116,41 @@ textarea {
   gap: var(--space-1);
 }
 
+.table-field-stack > .required-color-row {
+  grid-template-columns: minmax(0, 1fr) 88px 28px;
+  align-items: center;
+}
+
+.required-hex-preview {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(45deg, var(--color-panel-high) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--color-panel-high) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--color-panel-high) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--color-panel-high) 75%),
+    var(--color-input);
+  background-position:
+    0 0,
+    0 7px,
+    7px -7px,
+    -7px 0;
+  background-size: 14px 14px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.required-hex-preview[data-valid="false"] {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.required-hex-preview[data-valid="true"] {
+  background-image: none;
+}
+
 .data-table__footer {
   border-top: 1px solid var(--color-border);
   color: var(--color-subtle);
@@ -1168,7 +1203,7 @@ textarea {
 
 .preview-card p,
 .callout p,
-.match-card__copy {
+.match-card__warning {
   margin: 0;
   color: var(--color-muted);
   min-width: 0;
@@ -1290,24 +1325,183 @@ textarea {
 
 .match-card {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) max-content;
-  align-items: center;
+  gap: var(--space-3);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background: var(--color-card);
   padding: var(--space-3);
 }
 
-.match-card__arrow {
-  color: var(--color-border-strong);
-  font-family: var(--mono);
-  font-weight: 800;
+.match-card[data-status="excellent"],
+.match-card[data-status="good"] {
+  border-color: rgba(0, 200, 83, 0.32);
 }
 
-.match-card__copy {
-  grid-column: 2 / -1;
+.match-card[data-status="test"] {
+  border-color: rgba(253, 191, 2, 0.42);
+}
+
+.match-card[data-status="missing"] {
+  border-color: rgba(255, 105, 97, 0.42);
+}
+
+.match-card__header,
+.match-card__flow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.match-card__header .swatch,
+.match-card__flow .swatch {
+  align-items: flex-start;
+  color: var(--color-text);
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.match-card__header .swatch span:last-child,
+.match-card__flow .swatch span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-card__flow {
+  justify-content: flex-start;
+  padding-left: var(--space-2);
+}
+
+.match-card__arrow {
+  flex: 0 0 auto;
+  color: var(--color-border-strong);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.match-card__missing {
+  border: 1px dashed var(--color-danger);
+  border-radius: var(--radius-sm);
+  color: var(--color-danger);
   font-family: var(--mono);
   font-size: 0.7rem;
+  font-weight: 800;
+  padding: var(--space-1) var(--space-2);
+  text-transform: uppercase;
+}
+
+.match-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(82px, 1fr));
+  gap: var(--space-2);
+}
+
+.match-card__metric-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.match-card__metric-section-label {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.match-metric {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-panel);
+  padding: var(--space-2);
+}
+
+.match-metric span {
+  color: var(--color-subtle);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.match-metric strong {
+  color: var(--color-text);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-metric small {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.match-metric[data-tone="warning"] {
+  border-color: rgba(253, 191, 2, 0.42);
+  background: var(--color-warning-dim);
+}
+
+.match-metric[data-tone="warning"] strong {
+  color: var(--color-warning);
+}
+
+.match-metric[data-tone="danger"] {
+  border-color: rgba(255, 105, 97, 0.42);
+  background: var(--color-danger-dim);
+}
+
+.match-metric[data-tone="danger"] strong {
+  color: var(--color-danger);
+}
+
+.match-card__warning {
+  border-left: 2px solid var(--color-warning);
+  color: var(--color-warning);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding-left: var(--space-2);
+}
+
+.match-card__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.match-card__shopping-action {
+  min-height: 34px;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-dim);
+  color: var(--color-primary-bright);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: var(--space-2) var(--space-3);
+}
+
+.match-card__shopping-action:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-bg);
+}
+
+.match-card__shopping-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .callout {
@@ -2184,6 +2378,115 @@ textarea {
 }
 
 .finished-good-combobox__empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  padding: var(--space-3);
+}
+
+.product-design-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.product-design-combobox input {
+  width: 100%;
+}
+
+.product-design-combobox__menu {
+  position: absolute;
+  z-index: 140;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  display: grid;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-panel-high);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+}
+
+.product-design-combobox__option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 52px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+
+.product-design-combobox__label {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.product-design-combobox__label strong,
+.product-design-combobox__label span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.product-design-combobox__label strong {
+  color: var(--color-text);
+  font-size: 0.88rem;
+}
+
+.product-design-combobox__label span {
+  color: var(--color-muted);
+  font-size: 0.72rem;
+}
+
+.product-design-combobox__meta {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--color-primary-bright);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.product-design-combobox__meta small {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  color: var(--color-muted);
+  font-size: 0.64rem;
+  padding: 1px var(--space-2);
+  text-transform: none;
+}
+
+.product-design-combobox__option[data-active="true"] {
+  border-color: rgba(0, 200, 83, 0.5);
+  background: var(--color-primary-dim);
+}
+
+.product-design-combobox__option[data-selected="true"] .product-design-combobox__label strong,
+.product-design-combobox__option[data-active="true"] .product-design-combobox__label strong {
+  color: var(--color-primary-bright);
+}
+
+.product-design-combobox__option[data-selected="true"] .product-design-combobox__meta small,
+.product-design-combobox__option[data-active="true"] .product-design-combobox__meta small {
+  border-color: rgba(0, 200, 83, 0.45);
+  color: var(--color-text);
+}
+
+.product-design-combobox__empty {
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-muted);

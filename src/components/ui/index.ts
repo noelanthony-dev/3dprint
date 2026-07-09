@@ -3,6 +3,7 @@ export { DataTable } from "./DataTable";
 export { LoadingSpinner } from "./LoadingSpinner";
 export { MetricPanel } from "./MetricPanel";
 export { Panel } from "./Panel";
+export { ProductDesignCombobox } from "./ProductDesignCombobox";
 export { ProgressBar } from "./ProgressBar";
 export { SearchField } from "./SearchField";
 export { SegmentedFilter } from "./SegmentedFilter";

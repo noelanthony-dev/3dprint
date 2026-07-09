@@ -104,7 +104,7 @@ export function createProductsRepository(
         throw new Error("SQLite did not return the inserted product id.");
       }
 
-      const created = await getLastInsertedProduct(db);
+      const created = await getProductById(db, result.lastInsertId);
 
       if (!created) {
         throw new Error("Inserted product could not be loaded.");
@@ -128,15 +128,7 @@ export function createProductsRepository(
 
     async get(id) {
       const db = await database();
-      const rows = await db.select<ProductRow[]>(
-        `SELECT ${PRODUCT_COLUMNS}
-         FROM products
-         WHERE id = $1
-         LIMIT 1`,
-        [id],
-      );
-
-      return rows[0] ? mapProductRow(rows[0]) : null;
+      return getProductById(db, id);
     },
 
     async list() {
@@ -254,12 +246,13 @@ async function ensureProductsSchema(db: SqlDatabase): Promise<void> {
   `);
 }
 
-async function getLastInsertedProduct(db: SqlDatabase): Promise<ProductRecord | null> {
+async function getProductById(db: SqlDatabase, id: number): Promise<ProductRecord | null> {
   const rows = await db.select<ProductRow[]>(
     `SELECT ${PRODUCT_COLUMNS}
      FROM products
-     WHERE id = last_insert_rowid()
+     WHERE id = $1
      LIMIT 1`,
+    [id],
   );
 
   return rows[0] ? mapProductRow(rows[0]) : null;
@@ -306,7 +299,7 @@ function toPersistedHueForgeFilament(
   filament: ProductInput["hueForgeFilaments"][number],
 ): ProductInput["hueForgeFilaments"][number] {
   return {
-    alternativeProfileIds: normalizeAlternativeProfileIds(filament.alternativeProfileIds),
+    alternativeFilamentIds: normalizeAlternativeFilamentIds(filament.alternativeFilamentIds),
     brand: filament.brand.trim(),
     colorName: filament.colorName.trim(),
     hexColor: filament.hexColor.trim().toLowerCase(),
@@ -356,7 +349,9 @@ function mapParsedHueForgeFilament(
   }
 
   return {
-    alternativeProfileIds: readAlternativeProfileIds(record.alternativeProfileIds),
+    alternativeFilamentIds: readAlternativeFilamentIds(
+      record.alternativeFilamentIds ?? record.alternativeProfileIds,
+    ),
     brand: readString(record.brand),
     colorName: readString(record.colorName),
     hexColor: readString(record.hexColor),
@@ -377,19 +372,19 @@ function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function readAlternativeProfileIds(value: unknown): readonly number[] {
+function readAlternativeFilamentIds(value: unknown): readonly number[] {
   if (!Array.isArray(value)) {
     return [];
   }
 
-  return normalizeAlternativeProfileIds(
-    value.filter((profileId): profileId is number => typeof profileId === "number"),
+  return normalizeAlternativeFilamentIds(
+    value.filter((filamentId): filamentId is number => typeof filamentId === "number"),
   );
 }
 
-function normalizeAlternativeProfileIds(profileIds: readonly number[]): readonly number[] {
+function normalizeAlternativeFilamentIds(filamentIds: readonly number[]): readonly number[] {
   return [...new Set(
-    profileIds.filter((profileId) => Number.isInteger(profileId) && profileId > 0),
+    filamentIds.filter((filamentId) => Number.isInteger(filamentId) && filamentId > 0),
   )];
 }
 
