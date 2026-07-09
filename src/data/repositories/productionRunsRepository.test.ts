@@ -8,7 +8,13 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
-  constructor(private readonly productionRunColumns = currentProductionRunColumns) {}
+  constructor(
+    private readonly productionRunColumns = currentProductionRunColumns,
+    private readonly options: {
+      readonly failFilamentInsert?: boolean;
+      readonly failInactiveRollback?: boolean;
+    } = {},
+  ) {}
 
   private runRow = {
     addon_id: 3,
@@ -52,8 +58,16 @@ class FakeDatabase implements SqlDatabase {
   async execute(query: string, bindValues: readonly unknown[] = []): Promise<QueryResult> {
     this.executed.push({ query, values: bindValues });
 
+    if (query === "ROLLBACK" && this.options.failInactiveRollback) {
+      throw new Error("error returned from database: (code: 1) cannot rollback - no transaction is active");
+    }
+
     if (query.includes("INSERT INTO production_runs")) {
       return { lastInsertId: 1, rowsAffected: 1 };
+    }
+
+    if (query.includes("INSERT INTO production_run_filaments") && this.options.failFilamentInsert) {
+      throw new Error("real filament insert failure");
     }
 
     return { rowsAffected: 1 };
@@ -110,14 +124,17 @@ const input: ProductionRunCreateInput = {
   expectedPieces: 10,
   failedPieces: 1,
   failureReason: " Layer shift ",
-  filamentDeduction: {
-    filamentId: 8,
-    gramsAfter: 340,
-    gramsBefore: 840,
-    gramsDeducted: 500,
-  },
+  filamentDeductions: [
+    {
+      filamentId: 8,
+      gramsAfter: 340,
+      gramsBefore: 840,
+      gramsDeducted: 500,
+    },
+  ],
   filamentGramsDeducted: 500,
   filamentId: 8,
+  filamentSelections: [],
   finishedGoodId: 4,
   goodPieces: 9,
   notes: " Nozzle cleaned after run ",
@@ -203,5 +220,38 @@ describe("production runs repository", () => {
     expect(runInsert?.values[9]).toBe("Nozzle cleaned after run");
     expect(filamentInsert?.values).toEqual([1, 8, 500, 840, 340]);
     expect(addOnInsert?.values).toEqual([1, 3, 12, 100, 88]);
+  });
+
+  it("persists each filament deduction row for multi-color production runs", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createProductionRunsRepository(async () => fakeDb);
+
+    await repository.create({
+      ...input,
+      filamentDeductions: [
+        { filamentId: 8, gramsAfter: 91, gramsBefore: 100, gramsDeducted: 9 },
+        { filamentId: 9, gramsAfter: 47, gramsBefore: 50, gramsDeducted: 3 },
+      ],
+      filamentGramsDeducted: 12,
+    });
+
+    const filamentInserts = fakeDb.executed.filter((statement) =>
+      statement.query.includes("INSERT INTO production_run_filaments"),
+    );
+
+    expect(filamentInserts).toHaveLength(2);
+    expect(filamentInserts[0]?.values).toEqual([1, 8, 9, 100, 91]);
+    expect(filamentInserts[1]?.values).toEqual([1, 9, 3, 50, 47]);
+  });
+
+  it("does not hide the original insert error when rollback is already inactive", async () => {
+    const fakeDb = new FakeDatabase(currentProductionRunColumns, {
+      failFilamentInsert: true,
+      failInactiveRollback: true,
+    });
+    const repository = createProductionRunsRepository(async () => fakeDb);
+
+    await expect(repository.create(input)).rejects.toThrow("real filament insert failure");
+    expect(fakeDb.executed.some((statement) => statement.query === "ROLLBACK")).toBe(true);
   });
 });

@@ -306,6 +306,7 @@ function toPersistedHueForgeFilament(
   filament: ProductInput["hueForgeFilaments"][number],
 ): ProductInput["hueForgeFilaments"][number] {
   return {
+    alternativeProfileIds: normalizeAlternativeProfileIds(filament.alternativeProfileIds),
     brand: filament.brand.trim(),
     colorName: filament.colorName.trim(),
     hexColor: filament.hexColor.trim().toLowerCase(),
@@ -355,6 +356,7 @@ function mapParsedHueForgeFilament(
   }
 
   return {
+    alternativeProfileIds: readAlternativeProfileIds(record.alternativeProfileIds),
     brand: readString(record.brand),
     colorName: readString(record.colorName),
     hexColor: readString(record.hexColor),
@@ -373,6 +375,22 @@ function readString(value: unknown): string {
 
 function readNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function readAlternativeProfileIds(value: unknown): readonly number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return normalizeAlternativeProfileIds(
+    value.filter((profileId): profileId is number => typeof profileId === "number"),
+  );
+}
+
+function normalizeAlternativeProfileIds(profileIds: readonly number[]): readonly number[] {
+  return [...new Set(
+    profileIds.filter((profileId) => Number.isInteger(profileId) && profileId > 0),
+  )];
 }
 
 async function addColumnIfMissing(

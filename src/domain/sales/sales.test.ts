@@ -9,7 +9,7 @@ import {
 } from "./index";
 
 const saleInput: SaleInput = {
-  channel: "Local",
+  channel: "Direct",
   discountsFees: 2.5,
   finishedGoodId: 4,
   grossRevenue: 45,

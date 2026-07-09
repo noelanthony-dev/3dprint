@@ -65,6 +65,7 @@ interface ProductFormState {
 }
 
 interface ProductHueForgeFilamentForm {
+  readonly alternativeProfileIds: readonly number[];
   readonly brand: string;
   readonly colorName: string;
   readonly hexColor: string;
@@ -92,6 +93,7 @@ const emptyForm: ProductFormState = {
 };
 
 const emptyHueForgeFilament: ProductHueForgeFilamentForm = {
+  alternativeProfileIds: [],
   brand: "",
   colorName: "",
   hexColor: "",
@@ -446,6 +448,7 @@ export function ProductLibraryPage() {
           <Panel title="Product Detail">
             {selectedProduct ? (
               <ProductDetail
+                filamentProfiles={filamentProfiles}
                 isDeleting={isDeleting}
                 onDelete={() => void deleteProduct(selectedProduct)}
                 onEdit={() => startEdit(selectedProduct)}
@@ -518,11 +521,13 @@ export function ProductLibraryPage() {
 }
 
 function ProductDetail({
+  filamentProfiles,
   isDeleting,
   onDelete,
   product,
   onEdit,
 }: {
+  readonly filamentProfiles: readonly FilamentProfileRecord[];
   readonly isDeleting: boolean;
   readonly onDelete: () => void;
   readonly product: ProductRecord;
@@ -582,6 +587,7 @@ function ProductDetail({
       </div>
       <ProductHueForgeFilamentList
         filaments={product.hueForgeFilaments}
+        filamentProfiles={filamentProfiles}
         mode={product.filamentMode}
       />
       <div className="callout">
@@ -607,9 +613,11 @@ function ProductDetail({
 
 function ProductHueForgeFilamentList({
   filaments,
+  filamentProfiles,
   mode,
 }: {
   readonly filaments: readonly ProductHueForgeFilament[];
+  readonly filamentProfiles: readonly FilamentProfileRecord[];
   readonly mode: ProductFilamentMode;
 }) {
   if (filaments.length === 0) {
@@ -637,24 +645,34 @@ function ProductHueForgeFilamentList({
 
   return (
     <div className="product-filament-list">
-      {filaments.map((filament, index) => (
-        <div className="product-filament-list__item" key={`${filament.brand}-${filament.colorName}-${index}`}>
-          {isHexColor(filament.hexColor) ? (
-            <Swatch color={normalizeHexColor(filament.hexColor)} label={filament.colorName} />
-          ) : (
-            <Badge>{filament.colorName}</Badge>
-          )}
-          <strong>
-            {filament.materialType} {filament.brand}
-          </strong>
-          <span>
-            {filament.transmissionDistance == null
-              ? "TD --"
-              : `TD ${filament.transmissionDistance.toFixed(1)}`}
-            {filament.requiredGrams > 0 ? ` / ${filament.requiredGrams}g` : ""}
-          </span>
-        </div>
-      ))}
+      {filaments.map((filament, index) => {
+        const alternativeLabels = formatAlternativeProfileLabels(
+          filament.alternativeProfileIds,
+          filamentProfiles,
+        );
+
+        return (
+          <div className="product-filament-list__item" key={`${filament.brand}-${filament.colorName}-${index}`}>
+            {isHexColor(filament.hexColor) ? (
+              <Swatch color={normalizeHexColor(filament.hexColor)} label={filament.colorName} />
+            ) : (
+              <Badge>{filament.colorName}</Badge>
+            )}
+            <strong>
+              {filament.materialType} {filament.brand}
+            </strong>
+            <span>
+              {filament.transmissionDistance == null
+                ? "TD --"
+                : `TD ${filament.transmissionDistance.toFixed(1)}`}
+              {filament.requiredGrams > 0 ? ` / ${filament.requiredGrams}g` : ""}
+            </span>
+            {alternativeLabels.length > 0 ? (
+              <small>Alternatives: {alternativeLabels.join(", ")}</small>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -968,6 +986,42 @@ function ProductFormFields({
                       value={filament.requiredGrams}
                     />
                   </FormField>
+                  <div className="filament-editor__alternatives">
+                    <span>Alternatives</span>
+                    <select
+                      aria-label={`Filament alternatives ${index + 1}`}
+                      onChange={(event) => {
+                        if (event.target.value) {
+                          addAlternativeProfile(index, Number(event.target.value), setForm);
+                          event.target.value = "";
+                        }
+                      }}
+                      value=""
+                    >
+                      <option value="">Add alternative profile...</option>
+                      {getAvailableAlternativeProfiles(filament, filamentProfiles).map((profile) => (
+                        <option key={profile.id} value={profile.id}>
+                          {formatFilamentProfileLabel(profile)}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="filament-editor__alternative-list">
+                      {filament.alternativeProfileIds.length === 0 ? (
+                        <small>No alternatives saved.</small>
+                      ) : (
+                        filament.alternativeProfileIds.map((profileId) => (
+                          <button
+                            key={profileId}
+                            onClick={() => removeAlternativeProfile(index, profileId, setForm)}
+                            type="button"
+                          >
+                            {formatAlternativeProfileLabel(profileId, filamentProfiles)}
+                            <span aria-hidden="true">x</span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
                   <button
                     className="filament-editor__remove"
                     onClick={() => removeHueForgeFilament(index, setForm)}
@@ -1054,12 +1108,65 @@ function applyFilamentProfile(
             colorName: profile.colorName,
             hexColor: profile.hexColor,
             materialType: profile.materialType,
+            alternativeProfileIds: filament.alternativeProfileIds.filter((id) => id !== profile.id),
             transmissionDistance:
               profile.transmissionDistance == null ? "" : String(profile.transmissionDistance),
           }
         : filament,
     ),
   }));
+}
+
+function addAlternativeProfile(
+  index: number,
+  profileId: number,
+  setForm: Dispatch<SetStateAction<ProductFormState>>,
+): void {
+  setForm((current) => ({
+    ...current,
+    hueForgeFilaments: current.hueForgeFilaments.map((filament, currentIndex) => {
+      if (currentIndex !== index || filament.alternativeProfileIds.includes(profileId)) {
+        return filament;
+      }
+
+      return {
+        ...filament,
+        alternativeProfileIds: [...filament.alternativeProfileIds, profileId],
+      };
+    }),
+  }));
+}
+
+function removeAlternativeProfile(
+  index: number,
+  profileId: number,
+  setForm: Dispatch<SetStateAction<ProductFormState>>,
+): void {
+  setForm((current) => ({
+    ...current,
+    hueForgeFilaments: current.hueForgeFilaments.map((filament, currentIndex) =>
+      currentIndex === index
+        ? {
+            ...filament,
+            alternativeProfileIds: filament.alternativeProfileIds.filter((id) => id !== profileId),
+          }
+        : filament,
+    ),
+  }));
+}
+
+function getAvailableAlternativeProfiles(
+  filament: ProductHueForgeFilamentForm,
+  profiles: readonly FilamentProfileRecord[],
+): readonly FilamentProfileRecord[] {
+  const selectedProfileIds = new Set(filament.alternativeProfileIds);
+  const sourceProfileId = getSelectedProfileId(filament, profiles);
+
+  if (sourceProfileId) {
+    selectedProfileIds.add(Number(sourceProfileId));
+  }
+
+  return profiles.filter((profile) => !selectedProfileIds.has(profile.id));
 }
 
 function getSelectedProfileId(
@@ -1095,6 +1202,22 @@ function formatFilamentProfileLabel(profile: FilamentProfileRecord): string {
     profile.transmissionDistance == null ? "TD --" : `TD ${profile.transmissionDistance}`;
 
   return `${profile.brand} ${profile.materialType} ${profile.colorName} / ${tdLabel}`;
+}
+
+function formatAlternativeProfileLabel(
+  profileId: number,
+  profiles: readonly FilamentProfileRecord[],
+): string {
+  const profile = profiles.find((item) => item.id === profileId);
+
+  return profile ? formatFilamentProfileLabel(profile) : `Profile ${profileId}`;
+}
+
+function formatAlternativeProfileLabels(
+  profileIds: readonly number[],
+  profiles: readonly FilamentProfileRecord[],
+): readonly string[] {
+  return profileIds.map((profileId) => formatAlternativeProfileLabel(profileId, profiles));
 }
 
 function removeHueForgeFilament(
@@ -1149,6 +1272,7 @@ function toBasicFilamentInput(
   form: ProductHueForgeFilamentForm,
 ): ProductHueForgeFilament {
   return {
+    alternativeProfileIds: [],
     brand: "",
     colorName: "",
     hexColor: "",
@@ -1165,6 +1289,7 @@ function toHueForgeFilamentInput(
   form: ProductHueForgeFilamentForm,
 ): ProductHueForgeFilament {
   return {
+    alternativeProfileIds: form.alternativeProfileIds,
     brand: form.brand,
     colorName: form.colorName,
     hexColor: form.hexColor.trim() ? normalizeHexColor(form.hexColor) : "",
@@ -1183,6 +1308,7 @@ function toHueForgeFilamentForm(
   filament: ProductHueForgeFilament,
 ): ProductHueForgeFilamentForm {
   return {
+    alternativeProfileIds: filament.alternativeProfileIds,
     brand: filament.brand,
     colorName: filament.colorName,
     hexColor: filament.hexColor,

@@ -12,7 +12,7 @@ import {
 } from "./index";
 
 const sale: SaleRecord = {
-  channel: "Local",
+  channel: "Direct",
   createdAt: "2026-07-02T00:00:00.000Z",
   discountsFees: 5,
   finishedGoodId: 1,
@@ -116,13 +116,13 @@ describe("monthly reports", () => {
       productionRuns: [productionRun],
       sales: [
         sale,
-        { ...sale, channel: "Etsy", id: 2, netRevenue: 105, productReference: "Planter" },
+        { ...sale, channel: "Flora", id: 2, netRevenue: 105, productReference: "Planter" },
       ],
     });
 
     expect(report.channelBreakdown).toEqual([
-      { label: "Etsy", percent: 52.5, value: 105 },
-      { label: "Local", percent: 47.5, value: 95 },
+      { label: "Flora", percent: 52.5, value: 105 },
+      { label: "Direct", percent: 47.5, value: 95 },
     ]);
     expect(report.productBreakdown[0]).toEqual({ label: "Planter", percent: 52.5, value: 105 });
     expect(report.expenseSummary.categoryBreakdown).toContainEqual({

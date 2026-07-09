@@ -61,7 +61,7 @@ describe("sales service", () => {
 
     const service = createSalesService({ finishedGoods, sales });
     const result = await service.recordSale({
-      channel: "Local",
+      channel: "Direct",
       discountsFees: 2.5,
       finishedGoodId: finishedGood.id,
       grossRevenue: 45,
@@ -86,7 +86,7 @@ describe("sales service", () => {
 });
 
 const saleRecord: SaleRecord = {
-  channel: "Local",
+  channel: "Direct",
   createdAt: "2026-07-02T00:00:00.000Z",
   discountsFees: 2.5,
   finishedGoodId: 4,

@@ -13,6 +13,7 @@ const baseRun: ProductionRunInput = {
   failedPieces: 1,
   failureReason: "Layer shift",
   filamentId: 9,
+  filamentSelections: [],
   goodPieces: 9,
   notes: "",
   printProfileId: 4,
@@ -63,6 +64,14 @@ describe("production deduction plan", () => {
 
     expect(plan.attemptedPieces).toBe(10);
     expect(plan.filamentGramsToDeduct).toBe(500);
+    expect(plan.filamentDeductions).toEqual([
+      {
+        filamentId: 9,
+        gramsToDeduct: 500,
+        requiredGrams: 500,
+        requirementLabel: "Filament",
+      },
+    ]);
     expect(plan.finishedGoodsQuantityToAdd).toBe(9);
     expect(plan.failureRate).toBe(0.1);
   });
@@ -87,5 +96,34 @@ describe("production deduction plan", () => {
     });
 
     expect(plan.warnings).toContain("Failures were logged without a failure reason.");
+  });
+
+  it("deducts each selected filament requirement independently", () => {
+    const plan = calculateProductionDeductionPlan(
+      {
+        expectedFailedUnits: 0,
+        expectedGoodUnits: 2,
+        filamentGrams: 26,
+        supportGrams: 0,
+      },
+      {
+        ...baseRun,
+        expectedPieces: 1,
+        failedPieces: 0,
+        filamentSelections: [
+          { filamentId: 2, requiredGrams: 9, requirementLabel: "Black PLA" },
+          { filamentId: 3, requiredGrams: 3, requirementLabel: "White PLA" },
+          { filamentId: 4, requiredGrams: 1, requirementLabel: "Red PLA" },
+        ],
+        goodPieces: 1,
+      },
+    );
+
+    expect(plan.filamentGramsToDeduct).toBe(13);
+    expect(plan.filamentDeductions).toEqual([
+      { filamentId: 2, gramsToDeduct: 9, requiredGrams: 9, requirementLabel: "Black PLA" },
+      { filamentId: 3, gramsToDeduct: 3, requiredGrams: 3, requirementLabel: "White PLA" },
+      { filamentId: 4, gramsToDeduct: 1, requiredGrams: 1, requirementLabel: "Red PLA" },
+    ]);
   });
 });

@@ -5,7 +5,7 @@ import {
 } from "@/domain/inventory";
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
-export const SALES_CHANNELS = ["Etsy", "Shopify", "Local", "Direct", "Other"] as const;
+export const SALES_CHANNELS = ["Direct", "Sincerely", "Dear Reader", "Flora"] as const;
 
 export type SalesChannel = (typeof SALES_CHANNELS)[number];
 export type SaleStockStatus = "available" | "insufficient" | "out";

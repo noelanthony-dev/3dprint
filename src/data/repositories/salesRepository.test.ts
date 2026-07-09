@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
 
@@ -8,10 +8,14 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
-  constructor(private readonly failSaleInsert = false) {}
+  constructor(
+    private readonly failSaleInsert = false,
+    private readonly failInactiveRollback = false,
+    private readonly salesTableSql: string | null = null,
+  ) {}
 
   private saleRow = {
-    channel: "Local",
+    channel: "Direct",
     created_at: "2026-07-02T00:00:00.000Z",
     discounts_fees: 2.5,
     finished_good_id: 4,
@@ -41,6 +45,10 @@ class FakeDatabase implements SqlDatabase {
   async execute(query: string, bindValues: readonly unknown[] = []): Promise<QueryResult> {
     this.executed.push({ query, values: bindValues });
 
+    if (query === "ROLLBACK" && this.failInactiveRollback) {
+      throw new Error("error returned from database: (code: 1) cannot rollback - no transaction is active");
+    }
+
     if (query.includes("INSERT INTO sales")) {
       if (this.failSaleInsert) {
         throw new Error("insert failed");
@@ -55,6 +63,10 @@ class FakeDatabase implements SqlDatabase {
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
 
+    if (query.includes("FROM sqlite_master")) {
+      return (this.salesTableSql ? [{ sql: this.salesTableSql }] : []) as T;
+    }
+
     if (query.includes("FROM sale_stock_movements")) {
       return [this.movementRow] as T;
     }
@@ -64,7 +76,7 @@ class FakeDatabase implements SqlDatabase {
 }
 
 const input: SaleCreateInput = {
-  channel: "Local",
+  channel: "Direct",
   discountsFees: 2.5,
   finishedGoodId: 4,
   grossRevenue: 45,
@@ -88,7 +100,25 @@ describe("sales repository", () => {
     expect(fakeDb.executed.some((statement) =>
       statement.query.includes("CREATE TABLE IF NOT EXISTS sale_stock_movements"),
     )).toBe(true);
-    expect(fakeDb.selected[0]?.query).toContain("FROM sales");
+    expect(fakeDb.selected.some((statement) => statement.query.includes("FROM sales"))).toBe(true);
+  });
+
+  it("migrates the old sales channel check constraint", async () => {
+    const fakeDb = new FakeDatabase(
+      false,
+      false,
+      "CREATE TABLE sales (channel TEXT NOT NULL CHECK (channel IN ('Etsy', 'Shopify', 'Local', 'Direct', 'Other')))",
+    );
+    const repository = createSalesRepository(async () => fakeDb);
+
+    await repository.list();
+
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("CREATE TABLE sales_channel_migration"),
+    )).toBe(true);
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE sales_channel_migration RENAME TO sales"),
+    )).toBe(true);
   });
 
   it("binds sale and stock movement values instead of interpolating notes", async () => {
@@ -115,59 +145,53 @@ describe("sales repository", () => {
     expect(movementInsert?.values).toEqual([1, 4, -3, 10, 7]);
   });
 
-  it("records sales, finished goods adjustments, and sale movements in one transaction", async () => {
+  it("records sales with stock movement through the native transaction command", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createSalesRepository(async () => fakeDb);
+    const nativeSaleRecorder = vi.fn(async () => 1);
+    const repository = createSalesRepository(async () => fakeDb, nativeSaleRecorder);
 
-    await repository.recordSaleWithStockMovement(input);
+    const sale = await repository.recordSaleWithStockMovement(input);
 
-    const stockUpdateIndex = fakeDb.executed.findIndex((statement) =>
+    expect(sale.id).toBe(1);
+    expect(nativeSaleRecorder).toHaveBeenCalledWith(
+      input,
+      expect.objectContaining({
+        discountsFees: 2.5,
+        grossRevenue: 45,
+        netRevenue: 42.5,
+      }),
+    );
+    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(false);
+    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(false);
+    expect(fakeDb.executed.some((statement) =>
       statement.query.includes("UPDATE finished_goods"),
-    );
-    const finishedGoodsAdjustmentIndex = fakeDb.executed.findIndex((statement) =>
+    )).toBe(false);
+    expect(fakeDb.executed.some((statement) =>
       statement.query.includes("INSERT INTO finished_good_stock_adjustments"),
-    );
-    const saleInsertIndex = fakeDb.executed.findIndex((statement) =>
-      statement.query.includes("INSERT INTO sales"),
-    );
-    const saleMovementIndex = fakeDb.executed.findIndex((statement) =>
-      statement.query.includes("INSERT INTO sale_stock_movements"),
-    );
-
-    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(true);
-    expect(stockUpdateIndex).toBeGreaterThan(-1);
-    expect(finishedGoodsAdjustmentIndex).toBeGreaterThan(stockUpdateIndex);
-    expect(saleInsertIndex).toBeGreaterThan(finishedGoodsAdjustmentIndex);
-    expect(saleMovementIndex).toBeGreaterThan(saleInsertIndex);
-    expect(fakeDb.executed[stockUpdateIndex]?.values).toEqual([7, 4, 10]);
-    expect(fakeDb.executed[finishedGoodsAdjustmentIndex]?.values).toEqual([
-      4,
-      -3,
-      7,
-      "sale",
-      "Sale 2026-07-02: 3 piece via Local. Cash sale",
-    ]);
+    )).toBe(false);
+    expect(fakeDb.selected.some((statement) => statement.query.includes("WHERE id = $1"))).toBe(true);
   });
 
-  it("rolls back the stock update when sale insertion fails", async () => {
-    const fakeDb = new FakeDatabase(true);
+  it("surfaces native stock movement errors without issuing JS transaction statements", async () => {
+    const fakeDb = new FakeDatabase();
+    const nativeSaleRecorder = vi.fn(async () => {
+      throw new Error("native sale failure");
+    });
+    const repository = createSalesRepository(async () => fakeDb, nativeSaleRecorder);
+
+    await expect(repository.recordSaleWithStockMovement(input)).rejects.toThrow("native sale failure");
+
+    expect(nativeSaleRecorder).toHaveBeenCalledOnce();
+    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(false);
+    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(false);
+    expect(fakeDb.executed.some((statement) => statement.query === "ROLLBACK")).toBe(false);
+  });
+
+  it("does not hide the original create error when rollback is already inactive", async () => {
+    const fakeDb = new FakeDatabase(true, true);
     const repository = createSalesRepository(async () => fakeDb);
 
-    await expect(repository.recordSaleWithStockMovement(input)).rejects.toThrow("insert failed");
-
-    const stockUpdateIndex = fakeDb.executed.findIndex((statement) =>
-      statement.query.includes("UPDATE finished_goods"),
-    );
-    const saleInsertIndex = fakeDb.executed.findIndex((statement) =>
-      statement.query.includes("INSERT INTO sales"),
-    );
-    const rollbackIndex = fakeDb.executed.findIndex((statement) => statement.query === "ROLLBACK");
-
-    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(false);
-    expect(stockUpdateIndex).toBeGreaterThan(-1);
-    expect(saleInsertIndex).toBeGreaterThan(stockUpdateIndex);
-    expect(rollbackIndex).toBeGreaterThan(saleInsertIndex);
+    await expect(repository.create(input)).rejects.toThrow("insert failed");
+    expect(fakeDb.executed.some((statement) => statement.query === "ROLLBACK")).toBe(true);
   });
 });

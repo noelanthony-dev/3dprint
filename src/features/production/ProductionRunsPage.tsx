@@ -42,6 +42,7 @@ interface RunFormState {
   readonly failedPieces: string;
   readonly failureReason: string;
   readonly filamentId: string;
+  readonly filamentSelections: Record<string, string>;
   readonly goodPieces: string;
   readonly notes: string;
   readonly printProfileId: string;
@@ -56,6 +57,7 @@ const emptyForm: RunFormState = {
   failedPieces: "0",
   failureReason: "",
   filamentId: "",
+  filamentSelections: {},
   goodPieces: "10",
   notes: "",
   printProfileId: "",
@@ -68,6 +70,7 @@ const emptyPlan: ProductionDeductionPlan = {
   attemptedPieces: 0,
   expectedPieces: 0,
   failedPieces: 0,
+  filamentDeductions: [],
   failureRate: 0,
   filamentGramsToDeduct: 0,
   finishedGoodsQuantityToAdd: 0,
@@ -83,6 +86,7 @@ export function ProductionRunsPage() {
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
   const [form, setForm] = useState<RunFormState>(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [profiles, setProfiles] = useState<PrintProfileRecord[]>([]);
@@ -154,16 +158,19 @@ export function ProductionRunsPage() {
   const selectedFilament =
     filaments.find((filament) => String(filament.id) === form.filamentId) ?? null;
   const selectedAddOn = addOns.find((addOn) => String(addOn.id) === form.addOnId) ?? null;
-  const input = useMemo(() => toProductionRunInput(form), [form]);
-  const validation = validateProductionRunInput(input);
-  const deductionPlan = selectedProfile
-    ? calculateProductionDeductionPlan(selectedProfile, input)
-    : emptyPlan;
   const productFilamentRequirements = selectedProduct
     ? getProductFilamentRequirements(selectedProduct)
     : [];
   const selectableFilamentsForRun = filaments.filter(isUsableProductionFilament);
-  const suggestedFilaments = selectedProduct
+  const input = useMemo(
+    () => toProductionRunInput(form, productFilamentRequirements),
+    [form, productFilamentRequirements],
+  );
+  const validation = validateProductionRunInput(input);
+  const deductionPlan = selectedProfile
+    ? calculateProductionDeductionPlan(selectedProfile, input)
+    : emptyPlan;
+  const suggestedFilaments = selectedProduct && productFilamentRequirements.length === 0
     ? getSuggestedInventoryFilaments(
         selectedProduct,
         selectableFilamentsForRun,
@@ -194,6 +201,11 @@ export function ProductionRunsPage() {
       ...nextProfileDefaults,
       printProfileId: nextProfile ? String(nextProfile.id) : "",
       productId,
+      filamentSelections: chooseRecommendedFilamentSelections(
+        nextProduct ?? null,
+        filaments,
+        nextProfile ? nextProfile.expectedGoodUnits + nextProfile.expectedFailedUnits : 1,
+      ),
       filamentId: chooseRecommendedFilamentId(
         nextProduct ?? null,
         filaments,
@@ -209,8 +221,43 @@ export function ProductionRunsPage() {
     setForm((current) => ({
       ...current,
       ...nextProfileDefaults,
+      filamentSelections: chooseRecommendedFilamentSelections(
+        selectedProduct,
+        filaments,
+        nextProfile ? nextProfile.expectedGoodUnits + nextProfile.expectedFailedUnits : 1,
+      ),
       printProfileId,
     }));
+  }
+
+  function handleRequirementFilamentChange(index: number, filamentId: string): void {
+    setForm((current) => {
+      const nextSelections = {
+        ...current.filamentSelections,
+        [String(index)]: filamentId,
+      };
+      const firstSelection = Object.keys(nextSelections)
+        .sort((left, right) => Number(left) - Number(right))
+        .map((key) => nextSelections[key])
+        .find(Boolean);
+
+      return {
+        ...current,
+        filamentId: firstSelection ?? current.filamentId,
+        filamentSelections: nextSelections,
+      };
+    });
+  }
+
+  function handleOpenRunModal(): void {
+    setValidationMessage(null);
+    setIsRunModalOpen(true);
+  }
+
+  function handleCloseRunModal(): void {
+    if (!isSaving) {
+      setIsRunModalOpen(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -229,6 +276,7 @@ export function ProductionRunsPage() {
       await productionRunsService.logProductionRun(input);
       await loadProductionData();
       setValidationMessage("Production run logged. Estimated inventory and finished goods were updated.");
+      setIsRunModalOpen(false);
       setForm((current) => ({
         ...current,
         failureReason: "",
@@ -247,8 +295,13 @@ export function ProductionRunsPage() {
       actions={
         <>
           <ToolbarButton onClick={() => void loadProductionData()}>Refresh</ToolbarButton>
-          <ToolbarButton disabled={isSaving || products.length === 0 || selectedProfile == null} form="production-run-form" tone="primary" type="submit">
-            Log Run
+          <ToolbarButton
+            disabled={products.length === 0 || profiles.length === 0 || filaments.length === 0}
+            onClick={handleOpenRunModal}
+            tone="primary"
+            type="button"
+          >
+            Record Production
           </ToolbarButton>
         </>
       }
@@ -284,146 +337,183 @@ export function ProductionRunsPage() {
         <MetricPanel detail="estimated usage" label="Filament Used" value={formatGramsLeft(totalFilamentDeducted)} />
       </div>
 
-      <div className="content-grid content-grid--costing">
-        <div className="side-stack">
-          <Panel title="Production History" actions={<Badge>{runs.length} runs</Badge>}>
-            <DataTable
-              columns={["Date", "Product", "Profile", "Yield", "Filament", "Add-on"]}
-              columnsTemplate="0.72fr minmax(145px, 1.25fr) minmax(120px, 1fr) 0.5fr 0.55fr 0.72fr"
-              density="dense"
-              footer={runs.length === 0 ? "No production runs logged yet." : `Showing ${runs.length} production runs.`}
-              rows={runs.map((run) => [
-                run.runDate,
-                productNames.get(run.productId) ?? `Product ${run.productId}`,
-                profileNames.get(run.printProfileId) ?? `Profile ${run.printProfileId}`,
-                <span className="numeric-readout">
-                  <strong>{run.goodPieces}</strong> / {run.failedPieces}
-                </span>,
-                formatGramsLeft(run.filamentGramsDeducted),
-                run.addOnId
-                  ? `${formatQuantity(run.addOnQuantityDeducted, "")} ${addOnNames.get(run.addOnId) ?? "add-on"}`
-                  : "--",
-              ])}
-            />
-          </Panel>
-        </div>
+      <div className="side-stack">
+        <Panel title="Production History" actions={<Badge>{runs.length} runs</Badge>}>
+          <DataTable
+            columns={["Date", "Product", "Profile", "Yield", "Filament", "Add-on"]}
+            columnsTemplate="0.72fr minmax(145px, 1.25fr) minmax(120px, 1fr) 0.5fr 0.55fr 0.72fr"
+            density="dense"
+            footer={runs.length === 0 ? "No production runs logged yet." : `Showing ${runs.length} production runs.`}
+            rows={runs.map((run) => [
+              run.runDate,
+              productNames.get(run.productId) ?? `Product ${run.productId}`,
+              profileNames.get(run.printProfileId) ?? `Profile ${run.printProfileId}`,
+              <span className="numeric-readout">
+                <strong>{run.goodPieces}</strong> / {run.failedPieces}
+              </span>,
+              formatGramsLeft(run.filamentGramsDeducted),
+              run.addOnId
+                ? `${formatQuantity(run.addOnQuantityDeducted, "")} ${addOnNames.get(run.addOnId) ?? "add-on"}`
+                : "--",
+            ])}
+          />
+        </Panel>
+      </div>
 
-        <div className="side-stack">
-          <Panel title="Log Production Run" actions={selectedProfile ? <Badge>CFG-{selectedProfile.id}</Badge> : <Badge>Draft</Badge>}>
-            <div className="callout callout--warning">
-              <Badge tone="warning">Inventory Impact</Badge>
-              <p>Saving a run deducts estimated filament and optional add-ons, then adds good pieces to home stock.</p>
+      {isRunModalOpen ? (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            handleCloseRunModal();
+          }
+        }} role="presentation">
+          <div aria-labelledby="production-run-modal-title" aria-modal="true" className="modal production-run-modal" role="dialog">
+            <div className="modal__header">
+              <h2 id="production-run-modal-title">Record Production Run</h2>
+              <button aria-label="Close production run form" disabled={isSaving} onClick={handleCloseRunModal} type="button">
+                x
+              </button>
             </div>
-            <form className="inventory-form" id="production-run-form" onSubmit={(event) => void handleSubmit(event)}>
-              <FormField label="Product / Design" wide>
-                <select onChange={(event) => handleProductChange(event.target.value)} value={form.productId}>
-                  <option value="">Choose product...</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.designName}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField
-                label="Print Profile"
-                tooltip="A saved production preset from Print Profiles & Costing. It supplies grams, expected yield, and add-on defaults for this run."
-              >
-                <select onChange={(event) => handleProfileChange(event.target.value)} value={form.printProfileId}>
-                  <option value="">Choose profile...</option>
-                  {selectableProfiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.profileName}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              {selectedProduct && selectableProfiles.length === 0 ? (
-                <div className="callout callout--warning" data-wide="true">
-                  <Badge tone="warning">Profile Required</Badge>
-                  <p>Create a print profile for this product in Print Profiles & Costing before logging production.</p>
-                </div>
-              ) : null}
-              <FormField label="Run Date">
-                <input onChange={(event) => setFormValue("runDate", event.target.value, setForm)} type="date" value={form.runDate} />
-              </FormField>
-              {productFilamentRequirements.length > 0 ? (
-                <div className="form-section production-requirements">
-                  <div className="form-section__header">
-                    <span>Product Filament Requirements</span>
-                    <Badge>{productFilamentRequirements.length} rows</Badge>
+            <div className="modal__body">
+              <div className="production-run-modal__grid">
+                <div className="side-stack">
+                  <div className="callout callout--warning">
+                    <Badge tone="warning">Inventory Impact</Badge>
+                    <p>Saving a run deducts estimated filament and optional add-ons, then adds good pieces to home stock.</p>
                   </div>
-                  <div className="production-requirements__list">
-                    {productFilamentRequirements.map((requirement, index) => (
-                      <span key={`${requirement.brand}-${requirement.colorName}-${index}`}>
-                        {formatProductFilamentRequirement(requirement)}
-                      </span>
-                    ))}
-                  </div>
+                  <form className="inventory-form" id="production-run-form" onSubmit={(event) => void handleSubmit(event)}>
+                    <FormField label="Product / Design" wide>
+                      <select onChange={(event) => handleProductChange(event.target.value)} value={form.productId}>
+                        <option value="">Choose product...</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.designName}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField
+                      label="Print Profile"
+                      tooltip="A saved production preset from Print Profiles & Costing. It supplies grams, expected yield, and add-on defaults for this run."
+                    >
+                      <select onChange={(event) => handleProfileChange(event.target.value)} value={form.printProfileId}>
+                        <option value="">Choose profile...</option>
+                        {selectableProfiles.map((profile) => (
+                          <option key={profile.id} value={profile.id}>
+                            {profile.profileName}
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    {selectedProduct && selectableProfiles.length === 0 ? (
+                      <div className="callout callout--warning" data-wide="true">
+                        <Badge tone="warning">Profile Required</Badge>
+                        <p>Create a print profile for this product in Print Profiles & Costing before logging production.</p>
+                      </div>
+                    ) : null}
+                    <FormField label="Run Date">
+                      <input onChange={(event) => setFormValue("runDate", event.target.value, setForm)} type="date" value={form.runDate} />
+                    </FormField>
+                    {productFilamentRequirements.length > 0 ? (
+                      <div className="form-section production-requirements">
+                        <div className="form-section__header">
+                          <span>Filament Deductions</span>
+                          <Badge>{productFilamentRequirements.length} rows</Badge>
+                        </div>
+                        <div className="production-deduction-list">
+                          {productFilamentRequirements.map((requirement, index) => (
+                            <div className="production-deduction-list__item" key={`${requirement.brand}-${requirement.colorName}-${index}`}>
+                              <span>{formatProductFilamentRequirement(requirement)}</span>
+                              <select
+                                aria-label={`Inventory stock for ${formatProductFilamentRequirement(requirement)}`}
+                                onChange={(event) => handleRequirementFilamentChange(index, event.target.value)}
+                                value={form.filamentSelections[String(index)] ?? ""}
+                              >
+                                <option value="">Choose inventory stock...</option>
+                                {getSuggestedInventoryFilamentsForRequirement(
+                                  requirement,
+                                  selectableFilamentsForRun,
+                                  getScaledRequirementGrams(requirement, deductionPlan.attemptedPieces),
+                                ).map((filament) => (
+                                  <option key={filament.id} value={filament.id}>
+                                    {filamentNames.get(filament.id)}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <FormField
+                        label="Deduct From Inventory"
+                        tooltip="The print profile decides how many grams to deduct. This selects which local stock record loses those grams."
+                        wide
+                      >
+                        <select onChange={(event) => setFormValue("filamentId", event.target.value, setForm)} value={form.filamentId}>
+                          <option value="">Choose inventory stock...</option>
+                          {suggestedFilaments.length > 0 ? (
+                            <optgroup label="Suggested for selected product">
+                              {suggestedFilaments.map((filament) => (
+                                <option key={filament.id} value={filament.id}>
+                                  {filamentNames.get(filament.id)}
+                                </option>
+                              ))}
+                            </optgroup>
+                          ) : null}
+                          <optgroup label={suggestedFilaments.length > 0 ? "Other stock" : "Available stock"}>
+                            {otherFilaments.map((filament) => (
+                              <option key={filament.id} value={filament.id}>
+                                {filamentNames.get(filament.id)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </FormField>
+                    )}
+                    <FormField label="Expected Pieces">
+                      <input inputMode="numeric" onChange={(event) => setFormValue("expectedPieces", event.target.value, setForm)} value={form.expectedPieces} />
+                    </FormField>
+                    <FormField label="Good Pieces">
+                      <input inputMode="numeric" onChange={(event) => setFormValue("goodPieces", event.target.value, setForm)} value={form.goodPieces} />
+                    </FormField>
+                    <FormField label="Failed Pieces">
+                      <input inputMode="numeric" onChange={(event) => setFormValue("failedPieces", event.target.value, setForm)} value={form.failedPieces} />
+                    </FormField>
+                    <FormField label="Add-on Quantity">
+                      <input inputMode="decimal" onChange={(event) => setFormValue("addOnQuantity", event.target.value, setForm)} value={form.addOnQuantity} />
+                    </FormField>
+                    <FormField label="Add-on Item" wide>
+                      <select onChange={(event) => setFormValue("addOnId", event.target.value, setForm)} value={form.addOnId}>
+                        <option value="">No add-on deduction</option>
+                        {addOns.filter((addOn) => addOn.isActive).map((addOn) => (
+                          <option key={addOn.id} value={addOn.id}>
+                            {addOn.itemName} ({formatQuantity(addOn.quantityOnHand, addOn.unit)})
+                          </option>
+                        ))}
+                      </select>
+                    </FormField>
+                    <FormField label="Failure Reason" wide>
+                      <input onChange={(event) => setFormValue("failureReason", event.target.value, setForm)} value={form.failureReason} />
+                    </FormField>
+                    <FormField label="Notes" wide>
+                      <textarea onChange={(event) => setFormValue("notes", event.target.value, setForm)} value={form.notes} />
+                    </FormField>
+                    <div className="form-actions">
+                      <ToolbarButton
+                        disabled={products.length === 0 || selectedProfile == null || filaments.length === 0}
+                        isLoading={isSaving}
+                        loadingLabel="Saving"
+                        tone="primary"
+                        type="submit"
+                      >
+                        Save & Update Stock
+                      </ToolbarButton>
+                    </div>
+                  </form>
                 </div>
-              ) : null}
-              <FormField
-                label="Deduct From Inventory"
-                tooltip="The print profile decides how many grams to deduct. This selects which local stock record loses those grams."
-                wide
-              >
-                <select onChange={(event) => setFormValue("filamentId", event.target.value, setForm)} value={form.filamentId}>
-                  <option value="">Choose inventory stock...</option>
-                  {suggestedFilaments.length > 0 ? (
-                    <optgroup label="Suggested for selected product">
-                      {suggestedFilaments.map((filament) => (
-                        <option key={filament.id} value={filament.id}>
-                          {filamentNames.get(filament.id)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  <optgroup label={suggestedFilaments.length > 0 ? "Other stock" : "Available stock"}>
-                    {otherFilaments.map((filament) => (
-                      <option key={filament.id} value={filament.id}>
-                        {filamentNames.get(filament.id)}
-                      </option>
-                    ))}
-                  </optgroup>
-                </select>
-              </FormField>
-              <FormField label="Expected Pieces">
-                <input inputMode="numeric" onChange={(event) => setFormValue("expectedPieces", event.target.value, setForm)} value={form.expectedPieces} />
-              </FormField>
-              <FormField label="Good Pieces">
-                <input inputMode="numeric" onChange={(event) => setFormValue("goodPieces", event.target.value, setForm)} value={form.goodPieces} />
-              </FormField>
-              <FormField label="Failed Pieces">
-                <input inputMode="numeric" onChange={(event) => setFormValue("failedPieces", event.target.value, setForm)} value={form.failedPieces} />
-              </FormField>
-              <FormField label="Add-on Quantity">
-                <input inputMode="decimal" onChange={(event) => setFormValue("addOnQuantity", event.target.value, setForm)} value={form.addOnQuantity} />
-              </FormField>
-              <FormField label="Add-on Item" wide>
-                <select onChange={(event) => setFormValue("addOnId", event.target.value, setForm)} value={form.addOnId}>
-                  <option value="">No add-on deduction</option>
-                  {addOns.filter((addOn) => addOn.isActive).map((addOn) => (
-                    <option key={addOn.id} value={addOn.id}>
-                      {addOn.itemName} ({formatQuantity(addOn.quantityOnHand, addOn.unit)})
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Failure Reason" wide>
-                <input onChange={(event) => setFormValue("failureReason", event.target.value, setForm)} value={form.failureReason} />
-              </FormField>
-              <FormField label="Notes" wide>
-                <textarea onChange={(event) => setFormValue("notes", event.target.value, setForm)} value={form.notes} />
-              </FormField>
-              <div className="form-actions">
-                <ToolbarButton disabled={isSaving || products.length === 0 || selectedProfile == null || filaments.length === 0} tone="primary" type="submit">
-                  Save & Update Stock
-                </ToolbarButton>
-              </div>
-            </form>
-          </Panel>
 
-          <Panel title="Deduction Preview">
+                <div className="side-stack">
+                  <Panel title="Deduction Preview" actions={selectedProfile ? <Badge>CFG-{selectedProfile.id}</Badge> : <Badge>Draft</Badge>}>
             <div className="key-value-list">
               <span>Attempted Pieces</span>
               <strong>{deductionPlan.attemptedPieces}</strong>
@@ -433,22 +523,36 @@ export function ProductionRunsPage() {
               <strong>{formatGramsLeft(deductionPlan.filamentGramsToDeduct)}</strong>
               <span>Failure Rate</span>
               <strong>{(deductionPlan.failureRate * 100).toFixed(1)}%</strong>
-              <span>Deducting From</span>
+              <span>Filament Sources</span>
               <strong>{selectedFilament ? formatGramsLeft(selectedFilament.estimatedGramsLeft) : "--"}</strong>
               <span>Product Filaments</span>
               <strong>{productFilamentRequirements.length > 0 ? productFilamentRequirements.length : "--"}</strong>
               <span>Add-on Deduction</span>
               <strong>{selectedAddOn ? formatQuantity(deductionPlan.addOnQuantityToDeduct, selectedAddOn.unit) : "--"}</strong>
             </div>
+            {deductionPlan.filamentDeductions.length > 1 ? (
+              <div className="production-deduction-preview">
+                {deductionPlan.filamentDeductions.map((deduction, index) => (
+                  <div key={`${deduction.requirementLabel}-${index}`}>
+                    <span>{deduction.requirementLabel}</span>
+                    <strong>{formatGramsLeft(deduction.gramsToDeduct)}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : null}
             {deductionPlan.warnings.length > 0 ? (
               <div className="callout callout--warning">
                 <Badge tone="warning">Warnings</Badge>
                 <p>{deductionPlan.warnings.join(" ")}</p>
               </div>
             ) : null}
-          </Panel>
+                  </Panel>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : null}
     </Page>
   );
 }
@@ -498,6 +602,11 @@ function hydrateEmptySelections(
   return {
     ...current,
     ...profileDefaults,
+    filamentSelections: chooseRecommendedFilamentSelections(
+      product ?? null,
+      filaments,
+      profile ? profile.expectedGoodUnits + profile.expectedFailedUnits : 1,
+    ),
     filamentId: chooseRecommendedFilamentId(
       product ?? null,
       filaments,
@@ -571,6 +680,58 @@ function getSuggestedInventoryFilaments(
   }
 
   return sortFilamentsForProduction(openEnoughFilaments);
+}
+
+function getSuggestedInventoryFilamentsForRequirement(
+  requirement: ProductHueForgeFilament,
+  filaments: readonly FilamentRecord[],
+  requiredGrams: number,
+): readonly FilamentRecord[] {
+  const openEnoughFilaments = filaments.filter(
+    (filament) => isUsableProductionFilament(filament) && filament.estimatedGramsLeft >= requiredGrams,
+  );
+  const exactMatches = openEnoughFilaments.filter((filament) =>
+    doesFilamentMatchRequirement(filament, requirement),
+  );
+  const materialMatches = openEnoughFilaments.filter(
+    (filament) =>
+      filament.materialType === requirement.materialType &&
+      !exactMatches.some((match) => match.id === filament.id),
+  );
+  const otherMatches = openEnoughFilaments.filter(
+    (filament) =>
+      !exactMatches.some((match) => match.id === filament.id) &&
+      !materialMatches.some((match) => match.id === filament.id),
+  );
+
+  return [
+    ...sortFilamentsForProduction(exactMatches),
+    ...sortFilamentsForProduction(materialMatches),
+    ...sortFilamentsForProduction(otherMatches),
+  ];
+}
+
+function chooseRecommendedFilamentSelections(
+  product: ProductRecord | null,
+  filaments: readonly FilamentRecord[],
+  attemptedPieces: number,
+): Record<string, string> {
+  if (!product) {
+    return {};
+  }
+
+  const requirements = getProductFilamentRequirements(product);
+  return Object.fromEntries(
+    requirements.map((requirement, index) => {
+      const suggested = getSuggestedInventoryFilamentsForRequirement(
+        requirement,
+        filaments,
+        getScaledRequirementGrams(requirement, attemptedPieces),
+      );
+
+      return [String(index), suggested[0] ? String(suggested[0].id) : ""];
+    }),
+  );
 }
 
 function chooseRecommendedFilamentId(
@@ -654,6 +815,13 @@ function formatProductFilamentRequirement(requirement: ProductHueForgeFilament):
   return `${grams}${name || "Basic filament"}`;
 }
 
+function getScaledRequirementGrams(
+  requirement: ProductHueForgeFilament,
+  attemptedPieces: number,
+): number {
+  return Math.max(0, requirement.requiredGrams) * Math.max(0, attemptedPieces || 1);
+}
+
 function setFormValue<K extends keyof RunFormState>(
   key: K,
   value: RunFormState[K],
@@ -662,14 +830,27 @@ function setFormValue<K extends keyof RunFormState>(
   setForm((current) => ({ ...current, [key]: value }));
 }
 
-function toProductionRunInput(form: RunFormState): ProductionRunInput {
+function toProductionRunInput(
+  form: RunFormState,
+  requirements: readonly ProductHueForgeFilament[],
+): ProductionRunInput {
+  const filamentSelections = requirements.map((requirement, index) => ({
+    filamentId: Number(form.filamentSelections[String(index)] ?? "0"),
+    requiredGrams: Math.max(0, requirement.requiredGrams),
+    requirementLabel: formatProductFilamentRequirement(requirement),
+  }));
+  const primaryFilamentId =
+    filamentSelections.find((selection) => selection.filamentId > 0)?.filamentId ??
+    Number(form.filamentId);
+
   return {
     addOnId: form.addOnId ? Number(form.addOnId) : null,
     addOnQuantity: toNumber(form.addOnQuantity),
     expectedPieces: toInteger(form.expectedPieces),
     failedPieces: toInteger(form.failedPieces),
     failureReason: form.failureReason,
-    filamentId: Number(form.filamentId),
+    filamentId: primaryFilamentId,
+    filamentSelections,
     goodPieces: toInteger(form.goodPieces),
     notes: form.notes,
     printProfileId: Number(form.printProfileId),

@@ -19,7 +19,7 @@ import {
   type ProductionRunInput,
   type ProductionRunRecord,
 } from "@/domain/production";
-import { isFinishedGoodSaleUnit } from "@/domain/inventory";
+import { isFinishedGoodSaleUnit, type FilamentRecord } from "@/domain/inventory";
 
 export interface LoggedProductionRun {
   readonly deductionPlan: ProductionDeductionPlan;
@@ -59,10 +59,9 @@ export function createProductionRunsService(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid production run.");
       }
 
-      const [product, profile, filament] = await Promise.all([
+      const [product, profile] = await Promise.all([
         dependencies.products.get(input.productId),
         dependencies.printProfiles.get(input.printProfileId),
-        dependencies.filaments.get(input.filamentId),
       ]);
 
       if (!product) {
@@ -77,25 +76,12 @@ export function createProductionRunsService(
         throw new Error("Selected print profile does not belong to the selected product.");
       }
 
-      if (!filament) {
-        throw new Error(`Filament ${input.filamentId} does not exist.`);
-      }
-
       const deductionPlan = calculateProductionDeductionPlan(profile, input);
-      const filamentBefore = filament.estimatedGramsLeft;
-
-      if (deductionPlan.filamentGramsToDeduct > filamentBefore) {
-        throw new Error("Selected filament does not have enough estimated grams for this run.");
-      }
-
-      const updatedFilament =
-        deductionPlan.filamentGramsToDeduct > 0
-          ? await dependencies.filaments.adjustStock(input.filamentId, {
-              gramsDelta: -deductionPlan.filamentGramsToDeduct,
-              notes: productionAdjustmentNote(input),
-              reason: "production run deduction",
-            })
-          : filament;
+      const filamentDeductions = await applyFilamentDeductions(
+        dependencies,
+        deductionPlan,
+        input,
+      );
 
       let addOnBefore = 0;
       let addOnAfter = 0;
@@ -141,12 +127,7 @@ export function createProductionRunsService(
               }
             : null,
         addOnQuantityDeducted: deductionPlan.addOnQuantityToDeduct,
-        filamentDeduction: {
-          filamentId: input.filamentId,
-          gramsAfter: updatedFilament.estimatedGramsLeft,
-          gramsBefore: filamentBefore,
-          gramsDeducted: deductionPlan.filamentGramsToDeduct,
-        },
+        filamentDeductions,
         filamentGramsDeducted: deductionPlan.filamentGramsToDeduct,
         finishedGoodId,
       });
@@ -157,6 +138,91 @@ export function createProductionRunsService(
       };
     },
   };
+}
+
+async function applyFilamentDeductions(
+  dependencies: ProductionRunsServiceDependencies,
+  deductionPlan: ProductionDeductionPlan,
+  input: ProductionRunInput,
+) {
+  const positiveDeductions = deductionPlan.filamentDeductions.filter(
+    (deduction) => deduction.gramsToDeduct > 0,
+  );
+  const uniqueFilamentIds = [...new Set(positiveDeductions.map((deduction) => deduction.filamentId))];
+  const filaments = new Map<number, FilamentRecord>();
+
+  await Promise.all(
+    uniqueFilamentIds.map(async (filamentId) => {
+      const filament = await dependencies.filaments.get(filamentId);
+
+      if (!filament) {
+        throw new Error(`Filament ${filamentId} does not exist.`);
+      }
+
+      filaments.set(filamentId, filament);
+    }),
+  );
+
+  const totalByFilament = new Map<number, number>();
+
+  positiveDeductions.forEach((deduction) => {
+    totalByFilament.set(
+      deduction.filamentId,
+      (totalByFilament.get(deduction.filamentId) ?? 0) + deduction.gramsToDeduct,
+    );
+  });
+
+  totalByFilament.forEach((gramsToDeduct, filamentId) => {
+    const filament = filaments.get(filamentId);
+
+    if (!filament || gramsToDeduct > filament.estimatedGramsLeft) {
+      throw new Error("Selected filament does not have enough estimated grams for this run.");
+    }
+  });
+
+  const runningGramsByFilament = new Map(
+    [...filaments.entries()].map(([filamentId, filament]) => [
+      filamentId,
+      filament.estimatedGramsLeft,
+    ] as const),
+  );
+  const persistedDeductions = [];
+
+  for (const deduction of positiveDeductions) {
+    const gramsBefore = runningGramsByFilament.get(deduction.filamentId) ?? 0;
+    const updatedFilament = await dependencies.filaments.adjustStock(deduction.filamentId, {
+      gramsDelta: -deduction.gramsToDeduct,
+      notes: `${productionAdjustmentNote(input)} ${deduction.requirementLabel}`.trim(),
+      reason: "production run deduction",
+    });
+
+    runningGramsByFilament.set(deduction.filamentId, updatedFilament.estimatedGramsLeft);
+    persistedDeductions.push({
+      filamentId: deduction.filamentId,
+      gramsAfter: updatedFilament.estimatedGramsLeft,
+      gramsBefore,
+      gramsDeducted: deduction.gramsToDeduct,
+    });
+  }
+
+  if (persistedDeductions.length > 0) {
+    return persistedDeductions;
+  }
+
+  const fallbackFilament = await dependencies.filaments.get(input.filamentId);
+
+  if (!fallbackFilament) {
+    throw new Error(`Filament ${input.filamentId} does not exist.`);
+  }
+
+  return [
+    {
+      filamentId: input.filamentId,
+      gramsAfter: fallbackFilament.estimatedGramsLeft,
+      gramsBefore: fallbackFilament.estimatedGramsLeft,
+      gramsDeducted: 0,
+    },
+  ];
 }
 
 async function addGoodPiecesToFinishedGoods(

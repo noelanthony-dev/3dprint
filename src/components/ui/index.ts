@@ -1,5 +1,6 @@
 export { Badge } from "./Badge";
 export { DataTable } from "./DataTable";
+export { LoadingSpinner } from "./LoadingSpinner";
 export { MetricPanel } from "./MetricPanel";
 export { Panel } from "./Panel";
 export { ProgressBar } from "./ProgressBar";

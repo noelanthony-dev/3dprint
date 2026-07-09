@@ -10,43 +10,48 @@ class FakeDatabase implements SqlDatabase {
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
   readonly columns: readonly { readonly name: string }[];
 
-  private row = {
-    author_name: "Studio_3D",
-    category: "Bookmarks",
-    commercial_license_status: "commercial-ok",
-    created_at: "2026-07-01T00:00:00.000Z",
-    design_name: "Red Blossom Bookmark",
-    filament_mode: "hueforge",
-    hueforge_filaments: JSON.stringify([
-      {
-        brand: "Jayo",
-        colorName: "Black",
-        hexColor: "#111111",
-        layerRange: "L0-L8",
-        materialType: "PLA",
-        purchaseSource: "https://example.com/jayo-black",
-        requiredGrams: 12,
-        role: "Shadow",
-        transmissionDistance: 0.3,
-      },
-    ]),
-    id: 1,
-    image_reference: "red-blossom-bookmark.png",
-    license_billing_interval: "monthly",
-    license_cost_amount: 350,
-    notes: "",
-    sale_unit: "piece",
-    source_link: "https://printables.com/model/red-blossom-bookmark",
-    updated_at: "2026-07-01T00:00:00.000Z",
-  };
+  private readonly row: Record<string, unknown>;
 
-  constructor(columns: readonly { readonly name: string }[] = [
-    { name: "license_cost_amount" },
-    { name: "license_billing_interval" },
-    { name: "hueforge_filaments" },
-    { name: "filament_mode" },
-  ]) {
+  constructor(
+    columns: readonly { readonly name: string }[] = [
+      { name: "license_cost_amount" },
+      { name: "license_billing_interval" },
+      { name: "hueforge_filaments" },
+      { name: "filament_mode" },
+    ],
+    rowOverrides: Record<string, unknown> = {},
+  ) {
     this.columns = columns;
+    this.row = {
+      author_name: "Studio_3D",
+      category: "Bookmarks",
+      commercial_license_status: "commercial-ok",
+      created_at: "2026-07-01T00:00:00.000Z",
+      design_name: "Red Blossom Bookmark",
+      filament_mode: "hueforge",
+      hueforge_filaments: JSON.stringify([
+        {
+          brand: "Jayo",
+          colorName: "Black",
+          hexColor: "#111111",
+          layerRange: "L0-L8",
+          materialType: "PLA",
+          purchaseSource: "https://example.com/jayo-black",
+          requiredGrams: 12,
+          role: "Shadow",
+          transmissionDistance: 0.3,
+        },
+      ]),
+      id: 1,
+      image_reference: "red-blossom-bookmark.png",
+      license_billing_interval: "monthly",
+      license_cost_amount: 350,
+      notes: "",
+      sale_unit: "piece",
+      source_link: "https://printables.com/model/red-blossom-bookmark",
+      updated_at: "2026-07-01T00:00:00.000Z",
+      ...rowOverrides,
+    };
   }
 
   async execute(query: string, bindValues: readonly unknown[] = []): Promise<QueryResult> {
@@ -78,6 +83,7 @@ const input: ProductInput = {
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
+      alternativeProfileIds: [2, 4],
       brand: " Jayo ",
       colorName: " Black ",
       hexColor: "#111111",
@@ -150,6 +156,7 @@ describe("products repository", () => {
     expect(insert?.values[8]).toBe("hueforge");
     expect(JSON.parse(String(insert?.values[9]))).toEqual([
       {
+        alternativeProfileIds: [2, 4],
         brand: "Jayo",
         colorName: "Black",
         hexColor: "#111111",
@@ -161,6 +168,39 @@ describe("products repository", () => {
         transmissionDistance: 0.3,
       },
     ]);
+  });
+
+  it("loads older product filament JSON without alternatives", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.hueForgeFilaments[0]?.alternativeProfileIds).toEqual([]);
+  });
+
+  it("ignores malformed alternative profile ids when loading products", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      hueforge_filaments: JSON.stringify([
+        {
+          alternativeProfileIds: [2, "bad", 0, 2, 4.5, 7],
+          brand: "Jayo",
+          colorName: "Black",
+          hexColor: "#111111",
+          layerRange: "L0-L8",
+          materialType: "PLA",
+          purchaseSource: "https://example.com/jayo-black",
+          requiredGrams: 12,
+          role: "Shadow",
+          transmissionDistance: 0.3,
+        },
+      ]),
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.hueForgeFilaments[0]?.alternativeProfileIds).toEqual([2, 7]);
   });
 
   it("deletes a product by id", async () => {
@@ -185,6 +225,7 @@ describe("products repository", () => {
       filamentMode: "basic",
       hueForgeFilaments: [
         {
+          alternativeProfileIds: [],
           brand: "",
           colorName: "",
           hexColor: "",
@@ -205,6 +246,7 @@ describe("products repository", () => {
     expect(insert?.values[8]).toBe("basic");
     expect(JSON.parse(String(insert?.values[9]))).toEqual([
       {
+        alternativeProfileIds: [],
         brand: "",
         colorName: "",
         hexColor: "",

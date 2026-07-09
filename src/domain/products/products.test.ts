@@ -20,6 +20,7 @@ const validInput: ProductInput = {
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
+      alternativeProfileIds: [2, 4],
       brand: "Jayo",
       colorName: "Black",
       hexColor: "#111111",
@@ -124,12 +125,40 @@ describe("product design helpers", () => {
     expect(result.errors.hueForgeFilaments).toBeDefined();
   });
 
+  it("validates numeric filament alternative profile ids", () => {
+    const validResult = validateProductInput({
+      ...validInput,
+      hueForgeFilaments: [
+        {
+          ...validInput.hueForgeFilaments[0]!,
+          alternativeProfileIds: [1, 3],
+        },
+      ],
+    });
+
+    expect(validResult.valid).toBe(true);
+
+    const invalidResult = validateProductInput({
+      ...validInput,
+      hueForgeFilaments: [
+        {
+          ...validInput.hueForgeFilaments[0]!,
+          alternativeProfileIds: [0, 2.5],
+        },
+      ],
+    });
+
+    expect(invalidResult.valid).toBe(false);
+    expect(invalidResult.errors.hueForgeFilaments).toBeDefined();
+  });
+
   it("validates only grams for basic filament mode", () => {
     const result = validateProductInput({
       ...validInput,
       filamentMode: "basic",
       hueForgeFilaments: [
         {
+          alternativeProfileIds: [],
           brand: "",
           colorName: "",
           hexColor: "",
@@ -152,6 +181,7 @@ describe("product design helpers", () => {
       filamentMode: "basic",
       hueForgeFilaments: [
         {
+          alternativeProfileIds: [],
           brand: "",
           colorName: "",
           hexColor: "",

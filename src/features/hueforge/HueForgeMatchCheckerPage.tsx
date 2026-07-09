@@ -206,6 +206,7 @@ export function HueForgeMatchCheckerPage() {
         designName: designForm.designName,
         filamentMode: "hueforge",
         hueForgeFilaments: parsedRequirements.map((requirement) => ({
+          alternativeProfileIds: [],
           brand: requirement.brand,
           colorName: requirement.colorName,
           hexColor: requirement.hexColor,

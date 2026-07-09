@@ -1,9 +1,12 @@
+import { invoke } from "@tauri-apps/api/core";
+
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
   calculateSaleTotals,
   validateSaleInput,
   type SaleInput,
   type SaleRecord,
+  type SaleTotals,
   type SalesChannel,
   type SaleStockMovementRecord,
 } from "@/domain/sales";
@@ -50,7 +53,16 @@ interface SaleStockMovementRow {
   readonly sale_id: number;
 }
 
+interface SqliteMasterRow {
+  readonly sql: string | null;
+}
+
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type NativeSaleRecorder = (input: SaleCreateInput, totals: SaleTotals) => Promise<number>;
+
+interface NativeRecordSaleResult {
+  readonly saleId: number;
+}
 
 const SALE_COLUMNS = `
   id,
@@ -82,6 +94,7 @@ const SALE_STOCK_MOVEMENT_COLUMNS = `
 
 export function createSalesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  nativeSaleRecorder: NativeSaleRecorder = recordSaleWithStockMovementNative,
 ): SalesRepository {
   let schemaReady = false;
 
@@ -167,7 +180,7 @@ export function createSalesRepository(
 
         await db.execute("COMMIT");
       } catch (error) {
-        await db.execute("ROLLBACK");
+        await rollbackIfActive(db);
         throw error;
       }
 
@@ -237,55 +250,8 @@ export function createSalesRepository(
       }
 
       const totals = calculateSaleTotals(input);
-      const db = await database();
-      let insertedId: number | null = null;
-
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        const stockResult = await db.execute(
-          `UPDATE finished_goods
-           SET
-            quantity_ready = $1,
-            updated_at = datetime('now')
-           WHERE id = $2
-            AND quantity_ready = $3
-            AND quantity_reserved <= $1`,
-          [input.stockQuantityAfter, input.finishedGoodId, input.stockQuantityBefore],
-        );
-
-        if (stockResult.rowsAffected === 0) {
-          throw new Error("Finished goods stock changed before the sale could be recorded.");
-        }
-
-        await db.execute(
-          `INSERT INTO finished_good_stock_adjustments (
-            finished_good_id,
-            quantity_delta,
-            quantity_after,
-            reason,
-            notes
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            input.finishedGoodId,
-            -input.quantity,
-            input.stockQuantityAfter,
-            "sale",
-            saleAdjustmentNote(input),
-          ],
-        );
-
-        insertedId = await insertSaleRows(db, input, totals);
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await db.execute("ROLLBACK");
-        throw error;
-      }
-
-      if (insertedId == null) {
-        throw new Error("Inserted sale id was not captured.");
-      }
+      await database();
+      const insertedId = await nativeSaleRecorder(input, totals);
 
       const created = await this.get(insertedId);
 
@@ -296,6 +262,30 @@ export function createSalesRepository(
       return created;
     },
   };
+}
+
+async function recordSaleWithStockMovementNative(
+  input: SaleCreateInput,
+  totals: SaleTotals,
+): Promise<number> {
+  const result = await invoke<NativeRecordSaleResult>("record_sale_with_stock_movement", {
+    input: {
+      channel: input.channel,
+      discountsFees: totals.discountsFees,
+      finishedGoodId: input.finishedGoodId,
+      grossRevenue: totals.grossRevenue,
+      netRevenue: totals.netRevenue,
+      notes: input.notes,
+      productReference: input.productReference,
+      quantity: input.quantity,
+      saleDate: input.saleDate,
+      saleUnit: input.saleUnit,
+      stockQuantityAfter: input.stockQuantityAfter,
+      stockQuantityBefore: input.stockQuantityBefore,
+    },
+  });
+
+  return result.saleId;
 }
 
 async function insertSaleRows(
@@ -359,26 +349,8 @@ async function insertSaleRows(
 }
 
 async function ensureSalesSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS sales (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      finished_good_id INTEGER NOT NULL,
-      product_reference TEXT NOT NULL,
-      sale_date TEXT NOT NULL,
-      quantity INTEGER NOT NULL CHECK (quantity > 0),
-      sale_unit TEXT NOT NULL,
-      channel TEXT NOT NULL CHECK (channel IN ('Etsy', 'Shopify', 'Local', 'Direct', 'Other')),
-      gross_revenue REAL NOT NULL DEFAULT 0 CHECK (gross_revenue >= 0),
-      discounts_fees REAL NOT NULL DEFAULT 0 CHECK (discounts_fees >= 0),
-      net_revenue REAL NOT NULL DEFAULT 0 CHECK (net_revenue >= 0),
-      notes TEXT,
-      stock_quantity_before INTEGER NOT NULL CHECK (stock_quantity_before >= 0),
-      stock_quantity_after INTEGER NOT NULL CHECK (stock_quantity_after >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE RESTRICT
-    )
-  `);
+  await db.execute(createSalesTableStatement("sales", true));
+  await migrateSalesChannelConstraint(db);
 
   await db.execute(`
     CREATE INDEX IF NOT EXISTS idx_sales_date
@@ -408,6 +380,62 @@ async function ensureSalesSchema(db: SqlDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sale_stock_movements_sale
     ON sale_stock_movements (sale_id)
   `);
+}
+
+function createSalesTableStatement(tableName: string, ifNotExists: boolean): string {
+  return `
+    CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      finished_good_id INTEGER NOT NULL,
+      product_reference TEXT NOT NULL,
+      sale_date TEXT NOT NULL,
+      quantity INTEGER NOT NULL CHECK (quantity > 0),
+      sale_unit TEXT NOT NULL,
+      channel TEXT NOT NULL,
+      gross_revenue REAL NOT NULL DEFAULT 0 CHECK (gross_revenue >= 0),
+      discounts_fees REAL NOT NULL DEFAULT 0 CHECK (discounts_fees >= 0),
+      net_revenue REAL NOT NULL DEFAULT 0 CHECK (net_revenue >= 0),
+      notes TEXT,
+      stock_quantity_before INTEGER NOT NULL CHECK (stock_quantity_before >= 0),
+      stock_quantity_after INTEGER NOT NULL CHECK (stock_quantity_after >= 0),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE RESTRICT
+    )
+  `;
+}
+
+async function migrateSalesChannelConstraint(db: SqlDatabase): Promise<void> {
+  const rows = await db.select<SqliteMasterRow[]>(
+    `SELECT sql
+     FROM sqlite_master
+     WHERE type = 'table'
+      AND name = 'sales'
+     LIMIT 1`,
+  );
+  const createSql = rows[0]?.sql ?? "";
+
+  if (!createSql.includes("channel TEXT NOT NULL CHECK")) {
+    return;
+  }
+
+  await db.execute("BEGIN IMMEDIATE");
+
+  try {
+    await db.execute("DROP TABLE IF EXISTS sales_channel_migration");
+    await db.execute(createSalesTableStatement("sales_channel_migration", false));
+    await db.execute(`
+      INSERT INTO sales_channel_migration (${SALE_COLUMNS})
+      SELECT ${SALE_COLUMNS}
+      FROM sales
+    `);
+    await db.execute("DROP TABLE sales");
+    await db.execute("ALTER TABLE sales_channel_migration RENAME TO sales");
+    await db.execute("COMMIT");
+  } catch (error) {
+    await rollbackIfActive(db);
+    throw error;
+  }
 }
 
 function mapSaleRow(row: SaleRow): SaleRecord {
@@ -442,8 +470,16 @@ function mapSaleStockMovementRow(row: SaleStockMovementRow): SaleStockMovementRe
   };
 }
 
-function saleAdjustmentNote(input: SaleCreateInput): string {
-  return `Sale ${input.saleDate.trim()}: ${input.quantity} ${input.saleUnit} via ${input.channel}. ${input.notes.trim()}`.trim();
+async function rollbackIfActive(db: SqlDatabase): Promise<void> {
+  try {
+    await db.execute("ROLLBACK");
+  } catch (rollbackError) {
+    const message = String(rollbackError);
+
+    if (!message.includes("no transaction is active")) {
+      throw rollbackError;
+    }
+  }
 }
 
 export const salesRepository = createSalesRepository();

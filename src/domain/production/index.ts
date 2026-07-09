@@ -1,6 +1,12 @@
 import type { PrintProfileRecord } from "@/domain/costing";
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
+export interface ProductionFilamentSelectionInput {
+  readonly filamentId: number;
+  readonly requirementLabel: string;
+  readonly requiredGrams: number;
+}
+
 export interface ProductionRunInput {
   readonly addOnId: number | null;
   readonly addOnQuantity: number;
@@ -8,6 +14,7 @@ export interface ProductionRunInput {
   readonly failedPieces: number;
   readonly failureReason: string;
   readonly filamentId: number;
+  readonly filamentSelections: readonly ProductionFilamentSelectionInput[];
   readonly goodPieces: number;
   readonly notes: string;
   readonly printProfileId: number;
@@ -64,6 +71,7 @@ export interface ProductionDeductionPlan {
   readonly attemptedPieces: number;
   readonly expectedPieces: number;
   readonly failedPieces: number;
+  readonly filamentDeductions: readonly ProductionFilamentDeductionPlan[];
   readonly failureRate: number;
   readonly filamentGramsToDeduct: number;
   readonly finishedGoodsQuantityToAdd: number;
@@ -71,6 +79,13 @@ export interface ProductionDeductionPlan {
   readonly profileAttemptedPieces: number;
   readonly scaleFactor: number;
   readonly warnings: readonly string[];
+}
+
+export interface ProductionFilamentDeductionPlan {
+  readonly filamentId: number;
+  readonly gramsToDeduct: number;
+  readonly requiredGrams: number;
+  readonly requirementLabel: string;
 }
 
 export function validateProductionRunInput(
@@ -86,6 +101,17 @@ export function validateProductionRunInput(
     "Choose a print profile.",
   );
   validatePositiveInteger(input.filamentId, errors, "filamentId", "Choose a filament spool.");
+
+  input.filamentSelections.forEach((selection, index) => {
+    if (!Number.isInteger(selection.filamentId) || selection.filamentId <= 0) {
+      errors.filamentId = `Choose inventory stock for filament requirement ${index + 1}.`;
+      return;
+    }
+
+    if (!Number.isFinite(selection.requiredGrams) || selection.requiredGrams < 0) {
+      errors.filamentId = `Filament requirement ${index + 1} grams cannot be negative.`;
+    }
+  });
 
   if (input.addOnId != null && (!Number.isInteger(input.addOnId) || input.addOnId <= 0)) {
     errors.addOnId = "Choose a valid add-on item.";
@@ -139,14 +165,38 @@ export function calculateProductionDeductionPlan(
   >,
   input: Pick<
     ProductionRunInput,
-    "addOnQuantity" | "expectedPieces" | "failedPieces" | "failureReason" | "goodPieces"
+    | "addOnQuantity"
+    | "expectedPieces"
+    | "failedPieces"
+    | "filamentId"
+    | "filamentSelections"
+    | "failureReason"
+    | "goodPieces"
   >,
 ): ProductionDeductionPlan {
   const attemptedPieces = Math.max(0, input.goodPieces + input.failedPieces);
   const profileAttemptedPieces = Math.max(1, profile.expectedGoodUnits + profile.expectedFailedUnits);
   const scaleFactor = attemptedPieces > 0 ? attemptedPieces / profileAttemptedPieces : 0;
   const totalProfileFilamentGrams = Math.max(0, profile.filamentGrams + profile.supportGrams);
-  const filamentGramsToDeduct = roundProductionQuantity(totalProfileFilamentGrams * scaleFactor);
+  const filamentDeductions =
+    input.filamentSelections.length > 0
+      ? input.filamentSelections.map((selection) => ({
+          filamentId: selection.filamentId,
+          gramsToDeduct: roundProductionQuantity(Math.max(0, selection.requiredGrams) * attemptedPieces),
+          requiredGrams: roundProductionQuantity(Math.max(0, selection.requiredGrams)),
+          requirementLabel: selection.requirementLabel.trim() || "Filament",
+        }))
+      : [
+          {
+            filamentId: input.filamentId,
+            gramsToDeduct: roundProductionQuantity(totalProfileFilamentGrams * scaleFactor),
+            requiredGrams: roundProductionQuantity(totalProfileFilamentGrams),
+            requirementLabel: "Filament",
+          },
+        ];
+  const filamentGramsToDeduct = roundProductionQuantity(
+    filamentDeductions.reduce((sum, deduction) => sum + deduction.gramsToDeduct, 0),
+  );
   const warnings: string[] = [];
 
   if (attemptedPieces > input.expectedPieces) {
@@ -162,6 +212,7 @@ export function calculateProductionDeductionPlan(
     attemptedPieces,
     expectedPieces: input.expectedPieces,
     failedPieces: input.failedPieces,
+    filamentDeductions,
     failureRate: attemptedPieces > 0 ? input.failedPieces / attemptedPieces : 0,
     filamentGramsToDeduct,
     finishedGoodsQuantityToAdd: Math.max(0, input.goodPieces),

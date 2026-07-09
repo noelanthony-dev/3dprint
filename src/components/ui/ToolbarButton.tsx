@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { LoadingSpinner } from "./LoadingSpinner";
+
 type ToolbarButtonTone = "danger" | "primary" | "secondary" | "ghost";
 
 interface ToolbarButtonProps {
@@ -34,7 +36,7 @@ export function ToolbarButton({
     >
       {isLoading ? (
         <>
-          <span className="spinner" aria-hidden="true" />
+          <LoadingSpinner label={loadingLabel} />
           <span>{loadingLabel}</span>
         </>
       ) : (

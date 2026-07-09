@@ -10,7 +10,7 @@ import {
 export interface ProductionRunCreateInput extends ProductionRunInput {
   readonly addOnDeduction: ProductionAddOnDeductionInput | null;
   readonly addOnQuantityDeducted: number;
-  readonly filamentDeduction: ProductionFilamentDeductionInput;
+  readonly filamentDeductions: readonly ProductionFilamentDeductionInput[];
   readonly filamentGramsDeducted: number;
   readonly finishedGoodId: number | null;
 }
@@ -186,22 +186,24 @@ export function createProductionRunsRepository(
 
         insertedId = result.lastInsertId;
 
-        await db.execute(
-          `INSERT INTO production_run_filaments (
-            production_run_id,
-            filament_id,
-            grams_deducted,
-            grams_before,
-            grams_after
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            insertedId,
-            input.filamentDeduction.filamentId,
-            input.filamentDeduction.gramsDeducted,
-            input.filamentDeduction.gramsBefore,
-            input.filamentDeduction.gramsAfter,
-          ],
-        );
+        for (const filamentDeduction of input.filamentDeductions) {
+          await db.execute(
+            `INSERT INTO production_run_filaments (
+              production_run_id,
+              filament_id,
+              grams_deducted,
+              grams_before,
+              grams_after
+            ) VALUES ($1, $2, $3, $4, $5)`,
+            [
+              insertedId,
+              filamentDeduction.filamentId,
+              filamentDeduction.gramsDeducted,
+              filamentDeduction.gramsBefore,
+              filamentDeduction.gramsAfter,
+            ],
+          );
+        }
 
         if (input.addOnDeduction) {
           await db.execute(
@@ -224,7 +226,7 @@ export function createProductionRunsRepository(
 
         await db.execute("COMMIT");
       } catch (error) {
-        await db.execute("ROLLBACK");
+        await rollbackIfActive(db);
         throw error;
       }
 
@@ -409,6 +411,18 @@ async function addColumnIfMissing(
 
   if (!columns.some((column) => column.name === columnName)) {
     await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
+
+async function rollbackIfActive(db: SqlDatabase): Promise<void> {
+  try {
+    await db.execute("ROLLBACK");
+  } catch (rollbackError) {
+    const message = String(rollbackError);
+
+    if (!message.includes("no transaction is active")) {
+      throw rollbackError;
+    }
   }
 }
 
