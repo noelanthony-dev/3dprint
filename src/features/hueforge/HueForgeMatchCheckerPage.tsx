@@ -13,6 +13,7 @@ import {
   DataTable,
   MetricPanel,
   Panel,
+  ProductDesignCombobox,
   ProgressBar,
   Swatch,
   ToolbarButton,
@@ -33,7 +34,7 @@ import {
   type HueForgeMatchStatus,
   type HueForgeRequirementInput,
 } from "@/domain/hueforge";
-import type { ProductCategory } from "@/domain/products";
+import type { ProductCategory, ProductHueForgeFilament, ProductInput, ProductRecord, ProductSaleUnit } from "@/domain/products";
 import type { ShoppingListItemInput } from "@/domain/shopping";
 
 interface DesignFormState {
@@ -42,7 +43,7 @@ interface DesignFormState {
   readonly designName: string;
   readonly imageReference: string;
   readonly notes: string;
-  readonly saleUnit: "piece" | "pair" | "set" | "bundle" | "pack";
+  readonly saleUnit: ProductSaleUnit;
   readonly sourceLink: string;
 }
 
@@ -50,8 +51,10 @@ interface RequirementFormState {
   readonly brand: string;
   readonly colorName: string;
   readonly hexColor: string;
+  readonly layerRange: string;
   readonly materialType: FilamentMaterial;
   readonly requiredGrams: string;
+  readonly role: string;
   readonly transmissionDistance: string;
 }
 
@@ -59,8 +62,10 @@ const emptyRequirement: RequirementFormState = {
   brand: "",
   colorName: "",
   hexColor: "#ffffff",
+  layerRange: "",
   materialType: "PLA",
   requiredGrams: "0",
+  role: "",
   transmissionDistance: "0",
 };
 
@@ -79,32 +84,40 @@ const initialRequirements: RequirementFormState[] = [
     brand: "Bambu PLA Basic",
     colorName: "Black",
     hexColor: "#1a1a1a",
+    layerRange: "",
     materialType: "PLA",
     requiredGrams: "15.2",
+    role: "Color 1",
     transmissionDistance: "0.6",
   },
   {
     brand: "Polymaker PolyLite",
     colorName: "Purple",
     hexColor: "#8a2be2",
+    layerRange: "",
     materialType: "PLA",
     requiredGrams: "8.5",
+    role: "Color 2",
     transmissionDistance: "2.4",
   },
   {
     brand: "eSun PLA+",
     colorName: "Magenta",
     hexColor: "#ff1493",
+    layerRange: "",
     materialType: "PLA+",
     requiredGrams: "4.2",
+    role: "Color 3",
     transmissionDistance: "4.1",
   },
   {
     brand: "Sunlu PLA",
     colorName: "Cyan",
     hexColor: "#00ffff",
+    layerRange: "",
     materialType: "PLA",
     requiredGrams: "2.1",
+    role: "Color 4",
     transmissionDistance: "6.8",
   },
 ];
@@ -138,7 +151,9 @@ export function HueForgeMatchCheckerPage() {
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [products, setProducts] = useState<ProductRecord[]>([]);
   const [requirements, setRequirements] = useState<RequirementFormState[]>(initialRequirements);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const [shoppingListKeys, setShoppingListKeys] = useState<ReadonlySet<string>>(new Set());
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -148,8 +163,13 @@ export function HueForgeMatchCheckerPage() {
     setError(null);
 
     try {
-      const loaded = await filamentRepository.list();
-      setFilaments(loaded);
+      const [loadedFilaments, loadedProducts] = await Promise.all([
+        filamentRepository.list(),
+        productsRepository.list(),
+      ]);
+
+      setFilaments(loadedFilaments);
+      setProducts(loadedProducts);
     } catch (loadError) {
       setError(formatRepositoryError(loadError));
     } finally {
@@ -169,6 +189,7 @@ export function HueForgeMatchCheckerPage() {
     () => analyzeHueForgeMatches(parsedRequirements, filaments),
     [filaments, parsedRequirements],
   );
+  const selectedProduct = products.find((product) => String(product.id) === selectedProductId) ?? null;
 
   function addRequirement(): void {
     setRequirements((current) => [...current, emptyRequirement]);
@@ -176,6 +197,19 @@ export function HueForgeMatchCheckerPage() {
 
   function removeRequirement(index: number): void {
     setRequirements((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  }
+
+  function handleProductSelect(product: ProductRecord | null): void {
+    setSelectedProductId(product ? String(product.id) : "");
+    setSaveMessage(null);
+    setValidationMessage(null);
+
+    if (!product) {
+      return;
+    }
+
+    setDesignForm(toDesignFormState(product));
+    setRequirements(toRequirementFormStates(product));
   }
 
   async function handleSaveToDesignLibrary(): Promise<void> {
@@ -200,10 +234,10 @@ export function HueForgeMatchCheckerPage() {
     setError(null);
 
     try {
-      const product = await productsRepository.create({
+      const productInput: ProductInput = {
         authorName: designForm.authorName,
         category: designForm.category,
-        commercialLicenseStatus: "unknown",
+        commercialLicenseStatus: selectedProduct?.commercialLicenseStatus ?? "unknown",
         designName: designForm.designName,
         filamentMode: "hueforge",
         hueForgeFilaments: parsedRequirements.map((requirement) => ({
@@ -219,12 +253,17 @@ export function HueForgeMatchCheckerPage() {
           transmissionDistance: requirement.transmissionDistance,
         })),
         imageReference: designForm.imageReference,
-        licenseBillingInterval: "none",
-        licenseCostAmount: 0,
+        licenseBillingInterval: selectedProduct?.licenseBillingInterval ?? "none",
+        licenseCostAmount: selectedProduct?.licenseCostAmount ?? 0,
         notes: `${designForm.notes}\n\n${analysis.feasibilityNotes}`.trim(),
         saleUnit: designForm.saleUnit,
         sourceLink: designForm.sourceLink,
-      });
+      };
+      const product = selectedProduct
+        ? await productsRepository.update(selectedProduct.id, productInput)
+        : await productsRepository.create(productInput);
+      setProducts(await productsRepository.list());
+      setSelectedProductId(String(product.id));
 
       try {
         await hueForgeRepository.saveAnalysis({
@@ -235,7 +274,7 @@ export function HueForgeMatchCheckerPage() {
           productId: product.id,
         });
 
-        setSaveMessage(`Saved ${product.designName} to Design Library without deducting inventory.`);
+        setSaveMessage(`${selectedProduct ? "Updated" : "Saved"} ${product.designName} in Design Library without deducting inventory.`);
       } catch {
         setValidationMessage("Saved to Design Library, but the match review could not be stored. Product is still available in Products.");
       }
@@ -255,7 +294,9 @@ export function HueForgeMatchCheckerPage() {
     setError(null);
 
     try {
-      const item = await shoppingListRepository.create(toShoppingListItem(match, designForm));
+      const item = await shoppingListRepository.create(
+        toShoppingListItem(match, designForm, selectedProduct?.id ?? null),
+      );
 
       setShoppingListKeys((current) => new Set(current).add(shoppingKey));
       setSaveMessage(`Added ${item.itemName} to the Shopping List.`);
@@ -272,7 +313,7 @@ export function HueForgeMatchCheckerPage() {
         <>
           <ToolbarButton onClick={() => void loadFilaments()}>Refresh Inventory</ToolbarButton>
           <ToolbarButton disabled={isSaving} onClick={() => void handleSaveToDesignLibrary()} tone="primary">
-            Add to Design Library
+            {selectedProduct ? "Update Design Library" : "Add to Design Library"}
           </ToolbarButton>
         </>
       }
@@ -316,12 +357,13 @@ export function HueForgeMatchCheckerPage() {
       <div className="content-grid content-grid--hueforge">
         <Panel title="Design Input">
           <div className="inventory-form">
-            <FormField label="Design Name" wide>
-              <input
-                onChange={(event) =>
-                  setDesignValue("designName", event.target.value, setDesignForm)
-                }
-                value={designForm.designName}
+            <FormField label="Product / Design" wide>
+              <ProductDesignCombobox
+                fallbackLabel={designForm.designName}
+                onInputChange={(value) => setDesignValue("designName", value, setDesignForm)}
+                onSelect={handleProductSelect}
+                products={products}
+                selectedProductId={selectedProductId}
               />
             </FormField>
             <FormField label="Author" wide>
@@ -602,11 +644,44 @@ function toRequirementInput(form: RequirementFormState, index: number): HueForge
     brand: form.brand,
     colorName: form.colorName,
     hexColor: normalizeHexColor(form.hexColor),
-    layerRange: "",
+    layerRange: form.layerRange,
     materialType: form.materialType,
     requiredGrams: Number(form.requiredGrams),
-    role: `Color ${index + 1}`,
+    role: form.role.trim() || `Color ${index + 1}`,
     transmissionDistance: parseOptionalDecimal(form.transmissionDistance),
+  };
+}
+
+function toDesignFormState(product: ProductRecord): DesignFormState {
+  return {
+    authorName: product.authorName,
+    category: product.category,
+    designName: product.designName,
+    imageReference: product.imageReference,
+    notes: product.notes,
+    saleUnit: product.saleUnit,
+    sourceLink: product.sourceLink,
+  };
+}
+
+function toRequirementFormStates(product: ProductRecord): RequirementFormState[] {
+  if (product.hueForgeFilaments.length === 0) {
+    return [emptyRequirement];
+  }
+
+  return product.hueForgeFilaments.map(toRequirementFormState);
+}
+
+function toRequirementFormState(filament: ProductHueForgeFilament): RequirementFormState {
+  return {
+    brand: filament.brand,
+    colorName: filament.colorName,
+    hexColor: normalizeHexColor(filament.hexColor),
+    layerRange: filament.layerRange,
+    materialType: filament.materialType,
+    requiredGrams: String(filament.requiredGrams),
+    role: filament.role,
+    transmissionDistance: filament.transmissionDistance == null ? "" : String(filament.transmissionDistance),
   };
 }
 
@@ -658,6 +733,7 @@ function getShoppingListKey(match: HueForgeMatchView): string {
 function toShoppingListItem(
   match: HueForgeMatchView,
   designForm: DesignFormState,
+  productId: number | null,
 ): ShoppingListItemInput {
   const requirement = match.requirement;
   const quantityNeeded = Number.isFinite(requirement.requiredGrams)
@@ -673,8 +749,11 @@ function toShoppingListItem(
     itemName: `${requirement.brand} ${requirement.colorName} ${requirement.materialType}`.trim(),
     notes: `Required color is ${colorStatus} against owned inventory. Color closeness score ${colorScore}.`,
     priority: "high",
-    productId: null,
+    productId,
+    productIds: productId === null ? [] : [productId],
     quantityNeeded,
+    requiredTransmissionDistance: requirement.transmissionDistance,
+    shopeeListingName: "",
     sourceNote: `${designName}${authorName ? ` by ${authorName}` : ""}; required light pass-through ${formatLightValue(requirement.transmissionDistance, "not entered")}; ${normalizeHexColor(requirement.hexColor)}.`,
     sourceType: "missing-hueforge-filament",
     status: "open",

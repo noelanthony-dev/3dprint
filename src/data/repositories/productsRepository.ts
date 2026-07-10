@@ -425,6 +425,17 @@ async function clearShoppingListProductLinksIfPresent(db: SqlDatabase, productId
      WHERE product_id = $1`,
     [productId],
   );
+
+  const linkTables = await db.select<Array<{ readonly name: string }>>(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'shopping_list_item_products'",
+  );
+
+  if (linkTables.length > 0) {
+    await db.execute(
+      "DELETE FROM shopping_list_item_products WHERE product_id = $1",
+      [productId],
+    );
+  }
 }
 
 export const productsRepository = createProductsRepository();

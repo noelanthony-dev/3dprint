@@ -1087,6 +1087,103 @@ textarea {
   color: var(--color-primary-bright);
 }
 
+.shopping-item-name {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.shopping-item-name > span {
+  min-width: 0;
+  color: var(--color-text);
+}
+
+.shopping-item-name small {
+  color: var(--color-accent-bright);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.shopping-listing-name {
+  display: block;
+  min-width: 0;
+  color: var(--color-text-soft);
+  overflow-wrap: anywhere;
+}
+
+.shopping-product-links {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.shopping-product-links > span {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--color-text-soft);
+}
+
+.shopping-product-links small {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.selected-product-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.selected-product-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-soft-fill);
+  color: var(--color-text-soft);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: var(--space-1) var(--space-2);
+}
+
+.selected-product-chip button {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+  padding: 0;
+}
+
+.selected-product-chip button:hover {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.form-hint {
+  display: block;
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
 .numeric-readout {
   color: var(--color-muted);
   font-family: var(--mono);

@@ -11,6 +11,7 @@ import type { ProductRecord } from "@/domain/products";
 interface ProductDesignComboboxProps {
   readonly emptyLabel?: string;
   readonly fallbackLabel?: string;
+  readonly onInputChange?: (value: string) => void;
   readonly onSelect: (product: ProductRecord | null) => void;
   readonly placeholder?: string;
   readonly products: readonly ProductRecord[];
@@ -20,6 +21,7 @@ interface ProductDesignComboboxProps {
 export function ProductDesignCombobox({
   emptyLabel = "No products match this search.",
   fallbackLabel = "",
+  onInputChange,
   onSelect,
   placeholder = "Type product/design...",
   products,
@@ -58,8 +60,9 @@ export function ProductDesignCombobox({
     setQuery(value);
     setIsOpen(true);
     setActiveIndex(0);
+    onInputChange?.(value);
 
-    if (!value.trim() && selectedProductId) {
+    if (selectedProductId) {
       onSelect(null);
     }
   }

@@ -46,7 +46,10 @@ const manualItem: ShoppingListItemInput = {
   notes: "",
   priority: "normal",
   productId: null,
+  productIds: [],
   quantityNeeded: 175,
+  requiredTransmissionDistance: null,
+  shopeeListingName: "",
   sourceNote: "Current 25 pcs; threshold 100 pcs.",
   sourceType: "manual",
   status: "open",
@@ -66,25 +69,28 @@ describe("shopping list validation", () => {
       ...manualItem,
       itemName: "",
       quantityNeeded: 0,
+      requiredTransmissionDistance: -1,
       unit: "",
     });
 
     expect(validation.valid).toBe(false);
     expect(validation.errors.itemName).toBe("Item name is required.");
     expect(validation.errors.quantityNeeded).toBe("Quantity needed must be greater than zero.");
+    expect(validation.errors.requiredTransmissionDistance).toBe("TD must be zero or greater.");
     expect(validation.errors.unit).toBe("Unit is required.");
   });
 
   it("accepts optional product links and rejects invalid product ids", () => {
-    expect(validateShoppingListItemInput({ ...manualItem, productId: 7 })).toEqual({
+    expect(validateShoppingListItemInput({ ...manualItem, productId: 7, productIds: [7, 8] })).toEqual({
       errors: {},
       valid: true,
     });
 
-    const validation = validateShoppingListItemInput({ ...manualItem, productId: 0 });
+    const validation = validateShoppingListItemInput({ ...manualItem, productId: 0, productIds: [7, -1] });
 
     expect(validation.valid).toBe(false);
     expect(validation.errors.productId).toBe("Choose a valid product/design.");
+    expect(validation.errors.productIds).toBe("Choose valid product/design links.");
   });
 });
 
@@ -98,7 +104,10 @@ describe("generated shopping suggestions", () => {
       itemName: "6x2mm magnets",
       priority: "normal",
       productId: null,
+      productIds: [],
       quantityNeeded: 175,
+      requiredTransmissionDistance: null,
+      shopeeListingName: "",
       sourceType: "low-stock-addon",
       unit: "pcs",
     });
@@ -114,8 +123,11 @@ describe("generated shopping suggestions", () => {
         itemName: "Bambu Jade White PLA",
         priority: "high",
         productId: 7,
+        productIds: [7],
         quantityNeeded: 35,
         reason: "No usable PLA match for Jade White.",
+        requiredTransmissionDistance: 2.1,
+        shopeeListingName: "",
         sourceNote: "Product 7, Base, L0-L12, TD 2.1.",
         sourceType: "missing-hueforge-filament",
         unit: "grams",
@@ -139,7 +151,7 @@ describe("generated shopping suggestions", () => {
     expect(merged[0]?.priority).toBe("high");
   });
 
-  it("keeps generated suggestions separate by source product", () => {
+  it("merges matching generated suggestions across source products", () => {
     const suggestions = buildMissingHueForgeFilamentSuggestions([
       missingRequirement,
       { ...missingRequirement, productId: 8 },
@@ -147,8 +159,10 @@ describe("generated shopping suggestions", () => {
 
     const merged = mergeShoppingSuggestions(suggestions);
 
-    expect(merged).toHaveLength(2);
-    expect(merged.map((suggestion) => suggestion.productId).sort()).toEqual([7, 8]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.productId).toBe(7);
+    expect(merged[0]?.productIds).toEqual([7, 8]);
+    expect(merged[0]?.quantityNeeded).toBe(70);
   });
 
   it("turns a suggestion into an open shopping list item input", () => {
@@ -163,6 +177,9 @@ describe("generated shopping suggestions", () => {
     expect(toManualShoppingItemInput(suggestion)).toMatchObject({
       itemName: "6x2mm magnets",
       productId: null,
+      productIds: [],
+      requiredTransmissionDistance: null,
+      shopeeListingName: "",
       sourceType: "low-stock-addon",
       status: "open",
     });

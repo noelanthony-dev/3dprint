@@ -31,7 +31,10 @@ export interface ShoppingListItemInput {
   readonly notes: string;
   readonly priority: ShoppingItemPriority;
   readonly productId: number | null;
+  readonly productIds: readonly number[];
   readonly quantityNeeded: number;
+  readonly requiredTransmissionDistance: number | null;
+  readonly shopeeListingName: string;
   readonly sourceNote: string;
   readonly sourceType: ShoppingSourceType;
   readonly status: ShoppingItemStatus;
@@ -67,8 +70,11 @@ export interface ShoppingSuggestion {
   readonly itemName: string;
   readonly priority: ShoppingItemPriority;
   readonly productId: number | null;
+  readonly productIds: readonly number[];
   readonly quantityNeeded: number;
   readonly reason: string;
+  readonly requiredTransmissionDistance: number | null;
+  readonly shopeeListingName: string;
   readonly sourceNote: string;
   readonly sourceType: Exclude<ShoppingSourceType, "manual">;
   readonly unit: string;
@@ -103,8 +109,19 @@ export function validateShoppingListItemInput(
     errors.productId = "Choose a valid product/design.";
   }
 
+  if (input.productIds.some((productId) => !Number.isInteger(productId) || productId <= 0)) {
+    errors.productIds = "Choose valid product/design links.";
+  }
+
   if (!Number.isFinite(input.quantityNeeded) || input.quantityNeeded <= 0) {
     errors.quantityNeeded = "Quantity needed must be greater than zero.";
+  }
+
+  if (
+    input.requiredTransmissionDistance !== null &&
+    (!Number.isFinite(input.requiredTransmissionDistance) || input.requiredTransmissionDistance < 0)
+  ) {
+    errors.requiredTransmissionDistance = "TD must be zero or greater.";
   }
 
   if (!input.unit.trim()) {
@@ -138,11 +155,14 @@ export function buildLowStockAddOnSuggestions(
         itemName: item.itemName,
         priority: stockSignal === "out" ? "high" : "normal",
         productId: null,
+        productIds: [],
         quantityNeeded,
         reason:
           stockSignal === "out"
             ? `${item.itemName} is out of stock.`
             : `${item.itemName} is at or below the low-stock threshold.`,
+        requiredTransmissionDistance: null,
+        shopeeListingName: "",
         sourceNote: `Current ${currentStock}; threshold ${threshold}.`,
         sourceType: "low-stock-addon",
         unit: item.unit,
@@ -158,8 +178,11 @@ export function buildMissingHueForgeFilamentSuggestions(
     itemName: `${requirement.brand} ${requirement.colorName} ${requirement.materialType}`.trim(),
     priority: "high",
     productId: requirement.productId,
+    productIds: [requirement.productId],
     quantityNeeded: Math.max(1, roundShoppingQuantity(requirement.requiredGrams)),
     reason: requirement.warning || `Missing ${requirement.materialType} filament for ${requirement.colorName}.`,
+    requiredTransmissionDistance: requirement.transmissionDistance,
+    shopeeListingName: "",
     sourceNote: `Product ${requirement.productId}, ${requirement.role}, ${requirement.layerRange || "all layers"}, TD ${requirement.transmissionDistance}.`,
     sourceType: "missing-hueforge-filament",
     unit: "grams",
@@ -172,7 +195,7 @@ export function mergeShoppingSuggestions(
   const merged = new Map<string, ShoppingSuggestion>();
 
   for (const suggestion of suggestions) {
-    const key = `${suggestion.sourceType}:${suggestion.productId ?? "none"}:${suggestion.itemName.toLowerCase()}:${suggestion.unit}`;
+    const key = `${suggestion.sourceType}:${suggestion.itemName.toLowerCase()}:${suggestion.unit}`;
     const existing = merged.get(key);
 
     if (!existing) {
@@ -185,7 +208,15 @@ export function mergeShoppingSuggestions(
       priority: existing.priority === "high" || suggestion.priority === "high" ? "high" : existing.priority,
       quantityNeeded: roundShoppingQuantity(existing.quantityNeeded + suggestion.quantityNeeded),
       reason: `${existing.reason} ${suggestion.reason}`,
+      requiredTransmissionDistance: existing.requiredTransmissionDistance ?? suggestion.requiredTransmissionDistance,
       sourceNote: `${existing.sourceNote} ${suggestion.sourceNote}`,
+      productId: normalizeShoppingProductIds(existing.productIds, existing.productId)[0] ?? null,
+      productIds: normalizeShoppingProductIds(
+        [
+          ...normalizeShoppingProductIds(existing.productIds, existing.productId),
+          ...normalizeShoppingProductIds(suggestion.productIds, suggestion.productId),
+        ],
+      ),
     });
   }
 
@@ -201,12 +232,24 @@ export function toManualShoppingItemInput(
     notes: suggestion.reason,
     priority: suggestion.priority,
     productId: suggestion.productId,
+    productIds: suggestion.productIds,
     quantityNeeded: suggestion.quantityNeeded,
+    requiredTransmissionDistance: suggestion.requiredTransmissionDistance,
+    shopeeListingName: suggestion.shopeeListingName,
     sourceNote: suggestion.sourceNote,
     sourceType: suggestion.sourceType,
     status: "open",
     unit: suggestion.unit,
   };
+}
+
+export function normalizeShoppingProductIds(
+  productIds: readonly number[],
+  productId: number | null = null,
+): readonly number[] {
+  const candidates = productId === null ? productIds : [productId, ...productIds];
+
+  return [...new Set(candidates.filter((candidate) => Number.isInteger(candidate) && candidate > 0))];
 }
 
 export function roundShoppingQuantity(value: number): number {
