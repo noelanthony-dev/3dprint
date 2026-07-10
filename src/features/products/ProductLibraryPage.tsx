@@ -3,8 +3,10 @@ import {
   useEffect,
   useMemo,
   useState,
+  type CSSProperties,
   type Dispatch,
   type FormEvent,
+  type KeyboardEvent,
   type ReactNode,
   type SetStateAction,
 } from "react";
@@ -28,6 +30,7 @@ import {
   type FilamentProfileRecord,
   type FilamentRecord,
   type FilamentMaterial,
+  type SpoolStatus,
 } from "@/domain/inventory";
 import {
   COMMERCIAL_LICENSE_STATUSES,
@@ -119,6 +122,7 @@ export function ProductLibraryPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FilterValue>("all");
   const [form, setForm] = useState<ProductFormState>(emptyForm);
+  const [duplicateSourceName, setDuplicateSourceName] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -226,6 +230,7 @@ export function ProductLibraryPage() {
 
   function startCreate(): void {
     setEditingId(null);
+    setDuplicateSourceName(null);
     setForm(emptyForm);
     setValidationMessage(null);
     setIsFormOpen(true);
@@ -233,8 +238,21 @@ export function ProductLibraryPage() {
 
   function startEdit(product: ProductRecord): void {
     setEditingId(product.id);
+    setDuplicateSourceName(null);
     setSelectedId(product.id);
     setForm(toFormState(product));
+    setValidationMessage(null);
+    setIsFormOpen(true);
+  }
+
+  function startDuplicate(product: ProductRecord): void {
+    setEditingId(null);
+    setDuplicateSourceName(product.designName);
+    setSelectedId(product.id);
+    setForm({
+      ...toFormState(product),
+      designName: getDuplicateDesignName(product.designName, products),
+    });
     setValidationMessage(null);
     setIsFormOpen(true);
   }
@@ -245,6 +263,7 @@ export function ProductLibraryPage() {
     }
 
     setIsFormOpen(false);
+    setDuplicateSourceName(null);
     setValidationMessage(null);
   }
 
@@ -254,6 +273,7 @@ export function ProductLibraryPage() {
 
     const input = toProductInput(form);
     const validation = validateProductInput(input);
+    const isDuplicate = editingId == null && duplicateSourceName != null;
 
     if (!validation.valid) {
       const message = Object.values(validation.errors)[0] ?? "Check the product fields.";
@@ -292,13 +312,20 @@ export function ProductLibraryPage() {
       setProducts(loaded);
       setSelectedId(saved.id);
       setEditingId(saved.id);
+      setDuplicateSourceName(null);
       setForm(toFormState(saved));
       setIsFormOpen(false);
       if (profilesUpdated) {
         showToast(
           "success",
-          editingId == null ? "Product Saved" : "Product Updated",
-          `${saved.designName} was saved locally.`,
+          isDuplicate
+            ? "Product Duplicated"
+            : editingId == null
+              ? "Product Saved"
+              : "Product Updated",
+          isDuplicate
+            ? `${saved.designName} was created from ${duplicateSourceName}.`
+            : `${saved.designName} was saved locally.`,
         );
       }
     } catch (saveError) {
@@ -487,6 +514,7 @@ export function ProductLibraryPage() {
                   isShoppingItemSaving={isShoppingItemSaving}
                   onAddFilamentToShoppingList={(filament) => void addFilamentToShoppingList(selectedProduct, filament)}
                   onDelete={() => void deleteProduct(selectedProduct)}
+                  onDuplicate={() => startDuplicate(selectedProduct)}
                   onEdit={() => startEdit(selectedProduct)}
                   product={selectedProduct}
               />
@@ -510,7 +538,11 @@ export function ProductLibraryPage() {
           >
             <header className="modal__header">
               <h2 id="product-form-title">
-                {editingId == null ? "Add Product" : "Edit Product"}
+                {editingId == null
+                  ? duplicateSourceName
+                    ? "Duplicate Product"
+                    : "Add Product"
+                  : "Edit Product"}
               </h2>
               <button
                 aria-label="Close product form"
@@ -546,7 +578,11 @@ export function ProductLibraryPage() {
                   tone="primary"
                   type="submit"
                 >
-                  {editingId == null ? "Save Product" : "Update Product"}
+                  {editingId == null
+                    ? duplicateSourceName
+                      ? "Save Duplicate"
+                      : "Save Product"
+                    : "Update Product"}
                 </ToolbarButton>
               </div>
             </form>
@@ -563,6 +599,7 @@ function ProductDetail({
   isShoppingItemSaving,
   onAddFilamentToShoppingList,
   onDelete,
+  onDuplicate,
   product,
   onEdit,
 }: {
@@ -571,6 +608,7 @@ function ProductDetail({
   readonly isShoppingItemSaving: boolean;
   readonly onAddFilamentToShoppingList: (filament: ProductHueForgeFilament) => void;
   readonly onDelete: () => void;
+  readonly onDuplicate: () => void;
   readonly product: ProductRecord;
   readonly onEdit: () => void;
 }) {
@@ -645,6 +683,9 @@ function ProductDetail({
           tone="danger"
         >
           Delete Selected
+        </ToolbarButton>
+        <ToolbarButton onClick={onDuplicate}>
+          Duplicate Selected
         </ToolbarButton>
         <ToolbarButton onClick={onEdit} tone="primary">
           Edit Selected
@@ -925,33 +966,19 @@ function ProductFormFields({
                   </button>
                 </div>
               ) : (
-                <div className="filament-editor__row" key={index}>
+                <div
+                  className="filament-editor__row filament-editor__row--colorized"
+                  key={index}
+                  style={getFilamentRowColorStyle(filament.hexColor)}
+                >
                   <FormField className="form-field--profile" label="Profile">
-                    <select
-                      aria-label={`Filament profile ${index + 1}`}
-                      onChange={(event) => {
-                        const profile = filamentProfiles.find(
-                          (currentProfile) => String(currentProfile.id) === event.target.value,
-                        );
-
-                        if (profile) {
-                          applyFilamentProfile(index, profile, setForm);
-                        }
-                      }}
-                      value={getSelectedProfileId(filament, filamentProfiles)}
-                    >
-                      <option value="">Manual entry</option>
-                      {filamentProfiles.length === 0 ? (
-                        <option disabled value="__empty">
-                          No saved profiles yet
-                        </option>
-                      ) : null}
-                      {filamentProfiles.map((profile) => (
-                        <option key={profile.id} value={profile.id}>
-                          {formatFilamentProfileLabel(profile)}
-                        </option>
-                      ))}
-                    </select>
+                    <FilamentProfileCombobox
+                      filaments={filaments}
+                      label={`Filament profile ${index + 1}`}
+                      onSelect={(profile) => applyFilamentProfile(index, profile, setForm)}
+                      profiles={filamentProfiles}
+                      selectedProfileId={getSelectedProfileId(filament, filamentProfiles)}
+                    />
                   </FormField>
                   <FormField className="form-field--brand" label="Brand">
                     <input
@@ -994,40 +1021,24 @@ function ProductFormFields({
                     />
                   </FormField>
                   <FormField className="form-field--hex" label="Hex">
-                    <span className="hex-preview-field">
-                      <input
-                        aria-label={`Filament hex ${index + 1}`}
-                        onBlur={() => {
-                          if (filament.hexColor.trim()) {
-                            setHueForgeFilamentValue(
-                              index,
-                              "hexColor",
-                              normalizeHexColor(filament.hexColor),
-                              setForm,
-                            );
-                          }
-                        }}
-                        onChange={(event) =>
-                          setHueForgeFilamentValue(index, "hexColor", event.target.value, setForm)
+                    <input
+                      aria-label={`Filament hex ${index + 1}`}
+                      onBlur={() => {
+                        if (filament.hexColor.trim()) {
+                          setHueForgeFilamentValue(
+                            index,
+                            "hexColor",
+                            normalizeHexColor(filament.hexColor),
+                            setForm,
+                          );
                         }
-                        placeholder="#000000 or 000000"
-                        value={filament.hexColor}
-                      />
-                      <span
-                        aria-label={
-                          isHexColor(filament.hexColor)
-                            ? `Preview ${filament.hexColor}`
-                            : "No valid hex preview"
-                        }
-                        className="hex-preview-field__swatch"
-                        role="img"
-                        style={
-                          isHexColor(filament.hexColor)
-                            ? { backgroundColor: normalizeHexColor(filament.hexColor) }
-                            : undefined
-                        }
-                      />
-                    </span>
+                      }}
+                      onChange={(event) =>
+                        setHueForgeFilamentValue(index, "hexColor", event.target.value, setForm)
+                      }
+                      placeholder="#000000 or 000000"
+                      value={filament.hexColor}
+                    />
                   </FormField>
                   <FormField className="form-field--td" label="TD">
                     <input
@@ -1051,23 +1062,11 @@ function ProductFormFields({
                   </FormField>
                   <div className="filament-editor__alternatives">
                     <span>Alternatives</span>
-                    <select
-                      aria-label={`Filament alternatives ${index + 1}`}
-                      onChange={(event) => {
-                        if (event.target.value) {
-                          addAlternativeFilament(index, Number(event.target.value), setForm);
-                          event.target.value = "";
-                        }
-                      }}
-                      value=""
-                    >
-                      <option value="">Add inventory spool...</option>
-                      {getAvailableAlternativeFilaments(filament, filaments).map((spool) => (
-                        <option key={spool.id} value={spool.id}>
-                          {formatFilamentSpoolLabel(spool)}
-                        </option>
-                      ))}
-                    </select>
+                    <FilamentSpoolCombobox
+                      label={`Filament alternatives ${index + 1}`}
+                      onSelect={(spool) => addAlternativeFilament(index, spool.id, setForm)}
+                      spools={getAvailableAlternativeFilaments(filament, filaments)}
+                    />
                     <div className="filament-editor__alternative-list">
                       {filament.alternativeFilamentIds.length === 0 ? (
                         <small>No alternatives saved.</small>
@@ -1115,6 +1114,327 @@ function ProductFormFields({
   );
 }
 
+function FilamentProfileCombobox({
+  filaments,
+  label,
+  onSelect,
+  profiles,
+  selectedProfileId,
+}: {
+  readonly filaments: readonly FilamentRecord[];
+  readonly label: string;
+  readonly onSelect: (profile: FilamentProfileRecord) => void;
+  readonly profiles: readonly FilamentProfileRecord[];
+  readonly selectedProfileId: string;
+}) {
+  const selectedProfile = profiles.find((profile) => String(profile.id) === selectedProfileId) ?? null;
+  const selectedDisplay = selectedProfile ? formatFilamentProfileLabel(selectedProfile) : "Manual entry";
+  const listboxId = `filament-profile-${label.replace(/\s+/g, "-").toLowerCase()}-listbox`;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState(selectedDisplay);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setQuery(selectedDisplay);
+    }
+  }, [isOpen, selectedDisplay]);
+
+  const filteredProfiles = useMemo(
+    () => filterFilamentProfiles(query, profiles, filaments),
+    [filaments, profiles, query],
+  );
+  const boundedActiveIndex =
+    filteredProfiles.length > 0
+      ? Math.min(activeIndex, filteredProfiles.length - 1)
+      : -1;
+  const activeProfile = boundedActiveIndex >= 0 ? filteredProfiles[boundedActiveIndex] : null;
+
+  function openWithSelection(): void {
+    setIsOpen(true);
+    const selectedIndex = filteredProfiles.findIndex(
+      (profile) => String(profile.id) === selectedProfileId,
+    );
+    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+  }
+
+  function chooseProfile(profile: FilamentProfileRecord): void {
+    onSelect(profile);
+    setQuery(formatFilamentProfileLabel(profile));
+    setIsOpen(false);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) =>
+        filteredProfiles.length === 0 ? 0 : (current + 1) % filteredProfiles.length,
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) =>
+        filteredProfiles.length === 0
+          ? 0
+          : (current - 1 + filteredProfiles.length) % filteredProfiles.length,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && isOpen) {
+      event.preventDefault();
+
+      if (activeProfile) {
+        chooseProfile(activeProfile);
+      }
+
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      setQuery(selectedDisplay);
+    }
+  }
+
+  return (
+    <div
+      className="filament-profile-combobox"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <input
+        aria-activedescendant={isOpen && activeProfile ? getFilamentProfileOptionId(listboxId, activeProfile) : undefined}
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-expanded={isOpen}
+        aria-label={label}
+        autoComplete="off"
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setIsOpen(true);
+          setActiveIndex(0);
+        }}
+        onFocus={openWithSelection}
+        onKeyDown={handleKeyDown}
+        placeholder="Search brand, color, material, TD..."
+        role="combobox"
+        value={query}
+      />
+      {isOpen ? (
+        <div className="filament-profile-combobox__menu" id={listboxId} role="listbox">
+          <div className="filament-profile-combobox__manual">
+            <strong>Manual entry</strong>
+            <span>Edit the row fields directly for a custom filament.</span>
+          </div>
+          {filteredProfiles.length > 0 ? (
+            filteredProfiles.map((profile, index) => {
+              const stock = getFilamentProfileStockSummary(profile, filaments);
+              const isActive = index === boundedActiveIndex;
+              const isSelected = String(profile.id) === selectedProfileId;
+
+              return (
+                <div
+                  aria-selected={isSelected}
+                  className="filament-profile-combobox__option"
+                  data-active={isActive ? "true" : "false"}
+                  data-selected={isSelected ? "true" : "false"}
+                  id={getFilamentProfileOptionId(listboxId, profile)}
+                  key={profile.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    chooseProfile(profile);
+                  }}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  role="option"
+                >
+                  <span
+                    aria-label={profile.colorName}
+                    className="filament-profile-combobox__swatch"
+                    style={{ backgroundColor: normalizeHexColor(profile.hexColor) }}
+                  />
+                  <span className="filament-profile-combobox__identity">
+                    <strong>{profile.colorName}</strong>
+                    <span>{profile.brand}</span>
+                  </span>
+                  <span className="filament-profile-combobox__chips">
+                    <Badge>{profile.materialType}</Badge>
+                    <Badge>
+                      {profile.transmissionDistance == null
+                        ? "TD --"
+                        : `TD ${profile.transmissionDistance}`}
+                    </Badge>
+                  </span>
+                  <span className="filament-profile-combobox__stock">
+                    {formatFilamentProfileStockSummary(stock)}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="filament-profile-combobox__empty">No saved profiles match this search.</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FilamentSpoolCombobox({
+  label,
+  onSelect,
+  spools,
+}: {
+  readonly label: string;
+  readonly onSelect: (spool: FilamentRecord) => void;
+  readonly spools: readonly FilamentRecord[];
+}) {
+  const listboxId = `filament-spool-${label.replace(/\s+/g, "-").toLowerCase()}-listbox`;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const filteredSpools = useMemo(
+    () => filterFilamentSpools(query, spools),
+    [query, spools],
+  );
+  const boundedActiveIndex =
+    filteredSpools.length > 0
+      ? Math.min(activeIndex, filteredSpools.length - 1)
+      : -1;
+  const activeSpool = boundedActiveIndex >= 0 ? filteredSpools[boundedActiveIndex] : null;
+
+  function chooseSpool(spool: FilamentRecord): void {
+    onSelect(spool);
+    setQuery("");
+    setActiveIndex(0);
+    setIsOpen(false);
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) =>
+        filteredSpools.length === 0 ? 0 : (current + 1) % filteredSpools.length,
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) =>
+        filteredSpools.length === 0
+          ? 0
+          : (current - 1 + filteredSpools.length) % filteredSpools.length,
+      );
+      return;
+    }
+
+    if (event.key === "Enter" && isOpen) {
+      event.preventDefault();
+
+      if (activeSpool) {
+        chooseSpool(activeSpool);
+      }
+
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+      setQuery("");
+    }
+  }
+
+  return (
+    <div
+      className="filament-spool-combobox"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setIsOpen(false);
+        }
+      }}
+    >
+      <input
+        aria-activedescendant={isOpen && activeSpool ? getFilamentSpoolOptionId(listboxId, activeSpool) : undefined}
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-expanded={isOpen}
+        aria-label={label}
+        autoComplete="off"
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setIsOpen(true);
+          setActiveIndex(0);
+        }}
+        onFocus={() => setIsOpen(true)}
+        onKeyDown={handleKeyDown}
+        placeholder="Search inventory spool..."
+        role="combobox"
+        value={query}
+      />
+      {isOpen ? (
+        <div className="filament-spool-combobox__menu" id={listboxId} role="listbox">
+          {filteredSpools.length > 0 ? (
+            filteredSpools.map((spool, index) => {
+              const isActive = index === boundedActiveIndex;
+
+              return (
+                <div
+                  aria-selected={isActive}
+                  className="filament-spool-combobox__option"
+                  data-active={isActive ? "true" : "false"}
+                  id={getFilamentSpoolOptionId(listboxId, spool)}
+                  key={spool.id}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    chooseSpool(spool);
+                  }}
+                  onMouseEnter={() => setActiveIndex(index)}
+                  role="option"
+                >
+                  <span
+                    aria-label={spool.colorName}
+                    className="filament-spool-combobox__swatch"
+                    style={{ backgroundColor: normalizeHexColor(spool.hexColor) }}
+                  />
+                  <span className="filament-spool-combobox__identity">
+                    <strong>{spool.name || `${spool.brand} ${spool.colorName}`}</strong>
+                    <span>{spool.brand} · {spool.colorName}</span>
+                  </span>
+                  <span className="filament-spool-combobox__chips">
+                    <Badge>{spool.materialType}</Badge>
+                    <Badge>
+                      {spool.transmissionDistance == null
+                        ? "TD --"
+                        : `TD ${spool.transmissionDistance}`}
+                    </Badge>
+                  </span>
+                  <span className="filament-spool-combobox__stock">
+                    {formatAvailableGrams(spool.estimatedGramsLeft)} left · {spool.spoolStatus}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="filament-spool-combobox__empty">No inventory spools match this search.</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FormField({
   children,
   className = "",
@@ -1132,6 +1452,16 @@ function FormField({
       {children}
     </label>
   );
+}
+
+function getFilamentRowColorStyle(hexColor: string): CSSProperties | undefined {
+  if (!isHexColor(hexColor)) {
+    return undefined;
+  }
+
+  return {
+    "--filament-row-color": normalizeHexColor(hexColor),
+  } as CSSProperties;
 }
 
 function setFormValue<K extends keyof ProductFormState>(
@@ -1263,6 +1593,163 @@ function formatFilamentProfileLabel(profile: FilamentProfileRecord): string {
   return `${profile.brand} ${profile.materialType} ${profile.colorName} / ${tdLabel}`;
 }
 
+function filterFilamentProfiles(
+  query: string,
+  profiles: readonly FilamentProfileRecord[],
+  filaments: readonly FilamentRecord[],
+): readonly FilamentProfileRecord[] {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized || normalized === "manual entry") {
+    return profiles;
+  }
+
+  return profiles.filter((profile) => {
+    const stock = getFilamentProfileStockSummary(profile, filaments);
+
+    return [
+      profile.brand,
+      profile.materialType,
+      profile.colorName,
+      profile.transmissionDistance == null ? "TD --" : `TD ${profile.transmissionDistance}`,
+      profile.hexColor,
+      formatFilamentProfileStockSummary(stock),
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalized);
+  });
+}
+
+function filterFilamentSpools(
+  query: string,
+  spools: readonly FilamentRecord[],
+): readonly FilamentRecord[] {
+  const normalized = query.trim().toLowerCase();
+
+  if (!normalized) {
+    return spools;
+  }
+
+  return spools.filter((spool) =>
+    [
+      spool.brand,
+      spool.name,
+      spool.materialType,
+      spool.colorName,
+      spool.transmissionDistance == null ? "TD --" : `TD ${spool.transmissionDistance}`,
+      spool.hexColor,
+      formatAvailableGrams(spool.estimatedGramsLeft),
+      spool.spoolStatus,
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalized),
+  );
+}
+
+function getFilamentProfileStockSummary(
+  profile: FilamentProfileRecord,
+  filaments: readonly FilamentRecord[],
+): {
+  readonly gramsLeft: number;
+  readonly statusCounts: Partial<Record<SpoolStatus, number>>;
+  readonly spoolCount: number;
+} {
+  const matchingFilaments = filaments.filter((filament) =>
+    filament.spoolStatus !== "archived" && doesFilamentMatchProfileRecord(filament, profile),
+  );
+
+  return {
+    gramsLeft: matchingFilaments.reduce(
+      (sum, filament) => sum + Math.max(0, filament.estimatedGramsLeft),
+      0,
+    ),
+    spoolCount: matchingFilaments.length,
+    statusCounts: matchingFilaments.reduce<Partial<Record<SpoolStatus, number>>>(
+      (counts, filament) => ({
+        ...counts,
+        [filament.spoolStatus]: (counts[filament.spoolStatus] ?? 0) + 1,
+      }),
+      {},
+    ),
+  };
+}
+
+function doesFilamentMatchProfileRecord(
+  filament: FilamentRecord,
+  profile: FilamentProfileRecord,
+): boolean {
+  return (
+    filament.brand.trim().toLowerCase() === profile.brand.trim().toLowerCase() &&
+    filament.materialType === profile.materialType &&
+    filament.colorName.trim().toLowerCase() === profile.colorName.trim().toLowerCase() &&
+    normalizeHexColor(filament.hexColor) === normalizeHexColor(profile.hexColor) &&
+    areTransmissionDistancesEqual(filament.transmissionDistance, profile.transmissionDistance)
+  );
+}
+
+function areTransmissionDistancesEqual(
+  first: number | null,
+  second: number | null,
+): boolean {
+  if (first == null || second == null) {
+    return first == null && second == null;
+  }
+
+  return Math.abs(first - second) < 0.0001;
+}
+
+function formatFilamentProfileStockSummary({
+  gramsLeft,
+  spoolCount,
+  statusCounts,
+}: {
+  readonly gramsLeft: number;
+  readonly statusCounts: Partial<Record<SpoolStatus, number>>;
+  readonly spoolCount: number;
+}): string {
+  if (spoolCount === 0) {
+    return "No matching stock";
+  }
+
+  return `${formatAvailableGrams(gramsLeft)} available · ${formatSpoolStatusCounts(statusCounts)}`;
+}
+
+function formatAvailableGrams(grams: number): string {
+  if (!Number.isFinite(grams)) {
+    return "--";
+  }
+
+  return `${Math.max(0, Math.round(grams)).toLocaleString()}g`;
+}
+
+function formatSpoolStatusCounts(
+  statusCounts: Partial<Record<SpoolStatus, number>>,
+): string {
+  return (["open", "sealed", "empty"] as const)
+    .flatMap((status) => {
+      const count = statusCounts[status] ?? 0;
+
+      return count > 0 ? [`${count} ${status}`] : [];
+    })
+    .join(", ");
+}
+
+function getFilamentProfileOptionId(
+  listboxId: string,
+  profile: FilamentProfileRecord,
+): string {
+  return `${listboxId}-option-${profile.id}`;
+}
+
+function getFilamentSpoolOptionId(
+  listboxId: string,
+  spool: FilamentRecord,
+): string {
+  return `${listboxId}-option-${spool.id}`;
+}
+
 function formatFilamentSpoolLabel(spool: FilamentRecord): string {
   const tdLabel =
     spool.transmissionDistance == null ? "TD --" : `TD ${spool.transmissionDistance}`;
@@ -1346,6 +1833,29 @@ function toFormState(product: ProductRecord): ProductFormState {
     saleUnit: product.saleUnit,
     sourceLink: product.sourceLink,
   };
+}
+
+function getDuplicateDesignName(
+  designName: string,
+  products: readonly ProductRecord[],
+): string {
+  const baseName = designName.trim() || "Product";
+  const existingNames = new Set(
+    products.map((product) => product.designName.trim().toLocaleLowerCase()),
+  );
+
+  for (let copyNumber = 1; copyNumber < 1000; copyNumber += 1) {
+    const candidate =
+      copyNumber === 1
+        ? `${baseName} (Copy)`
+        : `${baseName} (Copy ${copyNumber})`;
+
+    if (!existingNames.has(candidate.toLocaleLowerCase())) {
+      return candidate;
+    }
+  }
+
+  return `${baseName} (Copy ${Date.now()})`;
 }
 
 function toBasicFilamentInput(

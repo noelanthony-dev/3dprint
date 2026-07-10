@@ -2176,6 +2176,16 @@ textarea {
   grid-template-columns: minmax(0, 1fr) 44px;
 }
 
+.filament-editor__row--colorized {
+  border-color: color-mix(in srgb, var(--filament-row-color, var(--color-border)) 52%, var(--color-border));
+  background:
+    linear-gradient(rgba(14, 18, 16, 0.78), rgba(14, 18, 16, 0.84)),
+    var(--filament-row-color, var(--color-card));
+  box-shadow:
+    inset 6px 0 0 var(--filament-row-color, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
 .filament-editor__row .form-field {
   min-width: 0;
 }
@@ -2258,33 +2268,6 @@ textarea {
   color: var(--color-subtle);
   font-style: italic;
   opacity: 0.62;
-}
-
-.hex-preview-field {
-  display: grid;
-  grid-template-columns: minmax(112px, 1fr) 38px;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.hex-preview-field__swatch {
-  display: block;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background:
-    linear-gradient(45deg, var(--color-panel-high) 25%, transparent 25%),
-    linear-gradient(-45deg, var(--color-panel-high) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, var(--color-panel-high) 75%),
-    linear-gradient(-45deg, transparent 75%, var(--color-panel-high) 75%),
-    var(--color-input);
-  background-position:
-    0 0,
-    0 8px,
-    8px -8px,
-    -8px 0;
-  background-size: 16px 16px;
 }
 
 .filament-editor__remove {
@@ -2600,6 +2583,275 @@ textarea {
 }
 
 .product-design-combobox__empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  padding: var(--space-3);
+}
+
+.filament-profile-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.filament-profile-combobox input {
+  width: 100%;
+}
+
+.filament-profile-combobox__menu {
+  position: absolute;
+  z-index: 160;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-panel-high);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+}
+
+.filament-profile-combobox__manual {
+  display: grid;
+  gap: 2px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-card);
+  padding: var(--space-2) var(--space-3);
+}
+
+.filament-profile-combobox__manual strong,
+.filament-profile-combobox__manual span {
+  text-transform: none;
+}
+
+.filament-profile-combobox__manual strong {
+  color: var(--color-text);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+
+.filament-profile-combobox__manual span {
+  color: var(--color-muted);
+  font-family: var(--sans);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.filament-profile-combobox__option {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) max-content minmax(180px, max-content);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+
+.filament-profile-combobox__swatch {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.filament-profile-combobox__identity {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.filament-profile-combobox__identity strong,
+.filament-profile-combobox__identity span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.filament-profile-combobox__identity strong {
+  color: var(--color-text);
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.filament-profile-combobox__identity span {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.filament-profile-combobox__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.filament-profile-combobox__chips .badge {
+  min-height: 22px;
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
+.filament-profile-combobox__stock {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: right;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.filament-profile-combobox__option[data-active="true"] {
+  border-color: rgba(0, 200, 83, 0.5);
+  background: var(--color-primary-dim);
+}
+
+.filament-profile-combobox__option[data-selected="true"] .filament-profile-combobox__identity strong,
+.filament-profile-combobox__option[data-active="true"] .filament-profile-combobox__identity strong,
+.filament-profile-combobox__option[data-selected="true"] .filament-profile-combobox__stock,
+.filament-profile-combobox__option[data-active="true"] .filament-profile-combobox__stock {
+  color: var(--color-primary-bright);
+}
+
+.filament-profile-combobox__empty {
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  padding: var(--space-3);
+}
+
+.filament-spool-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.filament-spool-combobox input {
+  width: 100%;
+}
+
+.filament-spool-combobox__menu {
+  position: absolute;
+  z-index: 155;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: var(--space-1);
+  max-height: 300px;
+  overflow: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-panel-high);
+  box-shadow: var(--shadow-popover);
+  padding: var(--space-1);
+}
+
+.filament-spool-combobox__option {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) max-content minmax(150px, max-content);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 58px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+}
+
+.filament-spool-combobox__swatch {
+  display: block;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.filament-spool-combobox__identity {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.filament-spool-combobox__identity strong,
+.filament-spool-combobox__identity span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.filament-spool-combobox__identity strong {
+  color: var(--color-text);
+  font-family: var(--sans);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.filament-spool-combobox__identity span {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+}
+
+.filament-spool-combobox__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.filament-spool-combobox__chips .badge {
+  min-height: 22px;
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  text-transform: uppercase;
+}
+
+.filament-spool-combobox__stock {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: right;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.filament-spool-combobox__option[data-active="true"] {
+  border-color: rgba(0, 200, 83, 0.5);
+  background: var(--color-primary-dim);
+}
+
+.filament-spool-combobox__option[data-active="true"] .filament-spool-combobox__identity strong,
+.filament-spool-combobox__option[data-active="true"] .filament-spool-combobox__stock {
+  color: var(--color-primary-bright);
+}
+
+.filament-spool-combobox__empty {
   border: 1px dashed var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-muted);
