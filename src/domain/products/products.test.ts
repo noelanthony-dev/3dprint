@@ -14,6 +14,7 @@ import {
 
 const validInput: ProductInput = {
   authorName: "Studio_3D",
+  canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
   designName: "Red Blossom Bookmark",

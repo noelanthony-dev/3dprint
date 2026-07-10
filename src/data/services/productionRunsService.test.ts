@@ -99,10 +99,72 @@ describe("production runs service", () => {
       { filamentId: redFilament.id, gramsBefore: 100, gramsAfter: 99, gramsDeducted: 1 },
     ]);
   });
+
+  it("checks aggregate grams before deducting repeated selections from the same spool", async () => {
+    const adjustedFilaments: Array<{ filamentId: number; gramsDelta: number }> = [];
+    const createdRuns: ProductionRunCreateInput[] = [];
+    const filamentsById = new Map<number, FilamentRecord>([
+      [blackFilament.id, blackFilament],
+    ]);
+
+    const filaments: FilamentRepository = {
+      adjustStock: async (filamentId, input) => {
+        adjustedFilaments.push({ filamentId, gramsDelta: input.gramsDelta });
+        return filamentsById.get(filamentId) ?? blackFilament;
+      },
+      create: async () => blackFilament,
+      get: async (id) => filamentsById.get(id) ?? null,
+      list: async () => [...filamentsById.values()],
+      listAdjustments: async () => [],
+      update: async () => blackFilament,
+    };
+
+    const service = createProductionRunsService({
+      addOns: emptyAddOns,
+      filaments,
+      finishedGoods,
+      printProfiles,
+      productionRuns: {
+        create: async (input) => {
+          createdRuns.push(input);
+          return productionRun;
+        },
+        get: async () => productionRun,
+        list: async () => [],
+        listAddOnDeductions: async () => [],
+        listFilamentDeductions: async () => [],
+      },
+      products,
+    });
+
+    await expect(
+      service.logProductionRun({
+        addOnId: null,
+        addOnQuantity: 0,
+        expectedPieces: 1,
+        failedPieces: 0,
+        failureReason: "",
+        filamentId: blackFilament.id,
+        filamentSelections: [
+          { filamentId: blackFilament.id, requiredGrams: 70, requirementLabel: "Black base" },
+          { filamentId: blackFilament.id, requiredGrams: 40, requirementLabel: "Black detail" },
+        ],
+        goodPieces: 1,
+        notes: "",
+        printProfileId: profile.id,
+        productId: product.id,
+        runDate: "2026-07-08",
+      }),
+    ).rejects.toThrow("Selected filament does not have enough estimated grams for this run.");
+
+    expect(adjustedFilaments).toEqual([]);
+    expect(createdRuns).toEqual([]);
+  });
 });
 
 const product: ProductRecord = {
   authorName: "Studio",
+  canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
   createdAt: "2026-07-08T00:00:00.000Z",

@@ -53,6 +53,7 @@ export interface ProductHueForgeFilament {
 
 export interface ProductRecord {
   readonly id: number;
+  readonly canPrintWithInventory: boolean;
   readonly designName: string;
   readonly sourceLink: string;
   readonly authorName: string;
@@ -70,6 +71,7 @@ export interface ProductRecord {
 }
 
 export interface ProductInput {
+  readonly canPrintWithInventory: boolean;
   readonly designName: string;
   readonly sourceLink: string;
   readonly authorName: string;

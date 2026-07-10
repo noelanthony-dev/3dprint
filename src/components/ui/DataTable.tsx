@@ -1,7 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
 
+type DataTableColumn =
+  | string
+  | {
+      readonly header: ReactNode;
+      readonly key: string;
+    };
+
 interface DataTableProps {
-  readonly columns: readonly string[];
+  readonly columns: readonly DataTableColumn[];
   readonly columnsTemplate?: string;
   readonly density?: "default" | "dense";
   readonly emptyMessage?: string;
@@ -29,8 +36,8 @@ export function DataTable({
     <div className="data-table" data-density={density} role="table" style={tableStyle}>
       <div className="data-table__head" role="row">
         {columns.map((column) => (
-          <span key={column} role="columnheader">
-            {column}
+          <span key={getColumnKey(column)} role="columnheader">
+            {getColumnHeader(column)}
           </span>
         ))}
       </div>
@@ -77,4 +84,12 @@ export function DataTable({
       {footer ? <div className="data-table__footer">{footer}</div> : null}
     </div>
   );
+}
+
+function getColumnKey(column: DataTableColumn): string {
+  return typeof column === "string" ? column : column.key;
+}
+
+function getColumnHeader(column: DataTableColumn): ReactNode {
+  return typeof column === "string" ? column : column.header;
 }

@@ -236,6 +236,7 @@ export function HueForgeMatchCheckerPage() {
     try {
       const productInput: ProductInput = {
         authorName: designForm.authorName,
+        canPrintWithInventory: selectedProduct?.canPrintWithInventory ?? false,
         category: designForm.category,
         commercialLicenseStatus: selectedProduct?.commercialLicenseStatus ?? "unknown",
         designName: designForm.designName,

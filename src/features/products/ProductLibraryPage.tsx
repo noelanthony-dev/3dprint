@@ -51,10 +51,34 @@ import {
   type ProductSaleUnit,
 } from "@/domain/products";
 
-type FilterValue = "all" | "warning" | "with-image" | "no-image";
+export type FilterValue = "all" | "warning" | "with-image" | "no-image";
+export type ExistingColorsFilterValue = "all" | "ready" | "needs";
+export type ProductSortKey = "default" | "design" | "author";
+
+export interface ProductCatalogFilters {
+  readonly authorFilter: string;
+  readonly categoryFilter: "all" | ProductCategory;
+  readonly colorsFilter: ExistingColorsFilterValue;
+  readonly filter: FilterValue;
+  readonly search: string;
+  readonly sortKey: ProductSortKey;
+}
+
+interface ProductTableHeaderOption {
+  readonly label: string;
+  readonly value: string;
+}
+
+export interface ProductNavigationState {
+  readonly count: number;
+  readonly currentIndex: number;
+  readonly nextProduct: ProductRecord;
+  readonly previousProduct: ProductRecord;
+}
 
 interface ProductFormState {
   readonly authorName: string;
+  readonly canPrintWithInventory: boolean;
   readonly category: ProductCategory;
   readonly commercialLicenseStatus: CommercialLicenseStatus;
   readonly designName: string;
@@ -83,6 +107,7 @@ interface ProductHueForgeFilamentForm {
 
 const emptyForm: ProductFormState = {
   authorName: "",
+  canPrintWithInventory: false,
   category: "Bookmarks",
   commercialLicenseStatus: "unknown",
   designName: "",
@@ -123,6 +148,7 @@ export function ProductLibraryPage() {
   const [filter, setFilter] = useState<FilterValue>("all");
   const [form, setForm] = useState<ProductFormState>(emptyForm);
   const [duplicateSourceName, setDuplicateSourceName] = useState<string | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -130,9 +156,13 @@ export function ProductLibraryPage() {
   const [isShoppingItemSaving, setIsShoppingItemSaving] = useState(false);
   const [filamentProfiles, setFilamentProfiles] = useState<FilamentProfileRecord[]>([]);
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
+  const [authorFilter, setAuthorFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | ProductCategory>("all");
+  const [colorsFilter, setColorsFilter] = useState<ExistingColorsFilterValue>("all");
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [sortKey, setSortKey] = useState<ProductSortKey>("default");
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
 
@@ -183,44 +213,34 @@ export function ProductLibraryPage() {
 
   const selectedProduct = products.find((product) => product.id === selectedId) ?? products[0] ?? null;
 
-  const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    return products.filter((product) => {
-      const license = getLicenseWarningDisplay(product.commercialLicenseStatus);
-      const hasImage = product.imageReference.trim().length > 0;
-      const matchesFilter =
-        filter === "all" ||
-        (filter === "warning"
-          ? license.shouldWarn
-          : filter === "with-image"
-            ? hasImage
-            : !hasImage);
-      const matchesQuery =
-        !query ||
-        [
-          product.designName,
-          product.authorName,
-          product.category,
-          product.saleUnit,
-          product.sourceLink,
-          product.hueForgeFilaments
-            .map((filament) =>
-              [
-                filament.brand,
-                filament.materialType,
-                filament.colorName,
-              ].join(" "),
-            )
-            .join(" "),
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-
-      return matchesFilter && matchesQuery;
-    });
-  }, [filter, products, search]);
+  const filteredProducts = useMemo(
+    () =>
+      filterProductsForCatalog(products, {
+        authorFilter,
+        categoryFilter,
+        colorsFilter,
+        filter,
+        search,
+        sortKey,
+      }),
+    [authorFilter, categoryFilter, colorsFilter, filter, products, search, sortKey],
+  );
+  const authorFilterOptions = useMemo(
+    () => getProductAuthorFilterOptions(products),
+    [products],
+  );
+  const productNavigation = useMemo(
+    () => getProductNavigationState(editingId, filteredProducts, products),
+    [editingId, filteredProducts, products],
+  );
+  const detailNavigation = useMemo(
+    () => getProductNavigationState(selectedProduct?.id ?? null, filteredProducts, products),
+    [filteredProducts, products, selectedProduct],
+  );
+  const selectedRowIndex = useMemo(
+    () => filteredProducts.findIndex((product) => product.id === selectedProduct?.id),
+    [filteredProducts, selectedProduct],
+  );
 
   const warningCount = products.filter((product) =>
     getLicenseWarningDisplay(product.commercialLicenseStatus).shouldWarn,
@@ -240,6 +260,7 @@ export function ProductLibraryPage() {
     setEditingId(product.id);
     setDuplicateSourceName(null);
     setSelectedId(product.id);
+    setIsDetailModalOpen(false);
     setForm(toFormState(product));
     setValidationMessage(null);
     setIsFormOpen(true);
@@ -249,12 +270,34 @@ export function ProductLibraryPage() {
     setEditingId(null);
     setDuplicateSourceName(product.designName);
     setSelectedId(product.id);
+    setIsDetailModalOpen(false);
     setForm({
       ...toFormState(product),
       designName: getDuplicateDesignName(product.designName, products),
     });
     setValidationMessage(null);
     setIsFormOpen(true);
+  }
+
+  function openProductDetail(product: ProductRecord): void {
+    setSelectedId(product.id);
+    setIsDetailModalOpen(true);
+  }
+
+  function closeProductDetail(): void {
+    setIsDetailModalOpen(false);
+  }
+
+  function navigateProductDetail(product: ProductRecord): void {
+    setSelectedId(product.id);
+  }
+
+  function navigateEditingProduct(product: ProductRecord): void {
+    if (isSaving) {
+      return;
+    }
+
+    startEdit(product);
   }
 
   function closeForm(): void {
@@ -366,6 +409,9 @@ export function ProductLibraryPage() {
         setForm(emptyForm);
         setIsFormOpen(false);
       }
+      if (selectedId === product.id) {
+        setIsDetailModalOpen(false);
+      }
       showToast("success", "Product Deleted", `${product.designName} was removed.`);
     } catch (deleteError) {
       const message = formatRepositoryError(deleteError);
@@ -463,45 +509,101 @@ export function ProductLibraryPage() {
       <div className="content-grid content-grid--split">
         <Panel title="Product Catalog">
           <DataTable
-            columns={["Img", "Design", "Category", "Author", "HF", "License"]}
-            columnsTemplate="52px minmax(220px, 1.55fr) minmax(116px, 0.72fr) minmax(104px, 0.8fr) minmax(62px, 0.34fr) minmax(128px, 0.78fr)"
+            columns={[
+              "Img",
+              {
+                key: "design",
+                header: (
+                  <ProductTableHeaderButton
+                    active={sortKey === "design"}
+                    label="Design"
+                    onClick={() => setSortKey("design")}
+                  />
+                ),
+              },
+              {
+                key: "category",
+                header: (
+                  <ProductTableHeaderSelect
+                    label="Category"
+                    onChange={(value) => setCategoryFilter(value as "all" | ProductCategory)}
+                    options={[
+                      { label: "All", value: "all" },
+                      ...PRODUCT_CATEGORIES.map((category) => ({
+                        label: category,
+                        value: category,
+                      })),
+                    ]}
+                    value={categoryFilter}
+                  />
+                ),
+              },
+              {
+                key: "author",
+                header: (
+                  <ProductTableHeaderSelect
+                    actionActive={sortKey === "author"}
+                    actionLabel="Sort author"
+                    label="Author"
+                    onAction={() => setSortKey("author")}
+                    onChange={setAuthorFilter}
+                    options={[
+                      { label: "All", value: "all" },
+                      ...authorFilterOptions.map((author) => ({
+                        label: author,
+                        value: author,
+                      })),
+                    ]}
+                    value={authorFilter}
+                  />
+                ),
+              },
+              {
+                key: "existing-colors",
+                header: (
+                  <ProductTableHeaderSelect
+                    label="Existing Colors"
+                    onChange={(value) => setColorsFilter(value as ExistingColorsFilterValue)}
+                    options={[
+                      { label: "All", value: "all" },
+                      { label: "OK", value: "ready" },
+                      { label: "Not OK", value: "needs" },
+                    ]}
+                    value={colorsFilter}
+                  />
+                ),
+              },
+            ]}
+            columnsTemplate="52px minmax(260px, 1.7fr) minmax(120px, 0.7fr) minmax(112px, 0.72fr) minmax(150px, 0.82fr)"
             density="dense"
             footer={
               isLoading
                 ? "Loading local SQLite records..."
                 : `${filteredProducts.length} visible of ${products.length} product records.`
             }
+            onRowClick={(rowIndex) => {
+              const product = filteredProducts[rowIndex];
+              if (product) {
+                openProductDetail(product);
+              }
+            }}
             rows={filteredProducts.map((product) => {
-              const license = getLicenseWarningDisplay(product.commercialLicenseStatus);
               const currentCategoryTone = categoryTone[product.category];
 
               return [
                 <ProductThumb product={product} />,
-                <button
-                  className="table-link"
-                  onClick={() => {
-                    setSelectedId(product.id);
-                    startEdit(product);
-                  }}
-                  type="button"
-                >
-                  <span className="row-title">
-                    <strong>{product.designName}</strong>
-                    <small>{product.sourceLink}</small>
-                  </span>
-                </button>,
+                <span className="row-title">
+                  <strong>{product.designName}</strong>
+                  <small>{product.sourceLink}</small>
+                </span>,
                 <Badge {...(currentCategoryTone ? { tone: currentCategoryTone } : {})}>
                   {product.category}
                 </Badge>,
                 product.authorName,
-                getHueForgeSpecCount(product) > 0 ? (
-                  <Badge tone="accent">{getHueForgeSpecCount(product)}</Badge>
-                ) : (
-                  <Badge>0</Badge>
-                ),
-                <Badge tone={license.tone}>{license.label}</Badge>,
+                <InventoryReadyBadge canPrintWithInventory={product.canPrintWithInventory} />,
               ];
             })}
+            selectedRowIndex={selectedRowIndex >= 0 ? selectedRowIndex : null}
           />
         </Panel>
 
@@ -528,6 +630,71 @@ export function ProductLibraryPage() {
         </div>
       </div>
 
+      {isDetailModalOpen && selectedProduct ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="product-detail-modal-title"
+            aria-modal="true"
+            className="modal modal--product-snapshot"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <div className="modal__title-row">
+                {detailNavigation ? (
+                  <button
+                    aria-label="Previous product"
+                    className="modal__nav-button"
+                    disabled={isDeleting || detailNavigation.count <= 1}
+                    onClick={() => navigateProductDetail(detailNavigation.previousProduct)}
+                    type="button"
+                  >
+                    ‹
+                  </button>
+                ) : null}
+                <div className="modal__title-stack">
+                  <h2 id="product-detail-modal-title">Product Details</h2>
+                  <span className="modal__position">
+                    {formatProductId(selectedProduct.id)}
+                    {detailNavigation
+                      ? ` · ${detailNavigation.currentIndex + 1} / ${detailNavigation.count}`
+                      : ""}
+                  </span>
+                </div>
+                {detailNavigation ? (
+                  <button
+                    aria-label="Next product"
+                    className="modal__nav-button"
+                    disabled={isDeleting || detailNavigation.count <= 1}
+                    onClick={() => navigateProductDetail(detailNavigation.nextProduct)}
+                    type="button"
+                  >
+                    ›
+                  </button>
+                ) : null}
+              </div>
+              <button
+                aria-label="Close product details"
+                className="modal__close-button"
+                onClick={closeProductDetail}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <div className="modal__body">
+              <ProductSnapshot
+                filaments={filaments}
+                isDeleting={isDeleting}
+                onDelete={() => void deleteProduct(selectedProduct)}
+                onDuplicate={() => startDuplicate(selectedProduct)}
+                onEdit={() => startEdit(selectedProduct)}
+                product={selectedProduct}
+              />
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {isFormOpen ? (
         <div className="modal-backdrop" role="presentation">
           <section
@@ -537,15 +704,47 @@ export function ProductLibraryPage() {
             role="dialog"
           >
             <header className="modal__header">
-              <h2 id="product-form-title">
-                {editingId == null
-                  ? duplicateSourceName
-                    ? "Duplicate Product"
-                    : "Add Product"
-                  : "Edit Product"}
-              </h2>
+              <div className="modal__title-row">
+                {productNavigation ? (
+                  <button
+                    aria-label="Previous product"
+                    className="modal__nav-button"
+                    disabled={isSaving || productNavigation.count <= 1}
+                    onClick={() => navigateEditingProduct(productNavigation.previousProduct)}
+                    type="button"
+                  >
+                    ‹
+                  </button>
+                ) : null}
+                <div className="modal__title-stack">
+                  <h2 id="product-form-title">
+                    {editingId == null
+                      ? duplicateSourceName
+                        ? "Duplicate Product"
+                        : "Add Product"
+                      : "Edit Product"}
+                  </h2>
+                  {productNavigation ? (
+                    <span className="modal__position">
+                      {productNavigation.currentIndex + 1} / {productNavigation.count}
+                    </span>
+                  ) : null}
+                </div>
+                {productNavigation ? (
+                  <button
+                    aria-label="Next product"
+                    className="modal__nav-button"
+                    disabled={isSaving || productNavigation.count <= 1}
+                    onClick={() => navigateEditingProduct(productNavigation.nextProduct)}
+                    type="button"
+                  >
+                    ›
+                  </button>
+                ) : null}
+              </div>
               <button
                 aria-label="Close product form"
+                className="modal__close-button"
                 disabled={isSaving}
                 onClick={closeForm}
                 type="button"
@@ -635,6 +834,7 @@ function ProductDetail({
             <Badge {...(currentCategoryTone ? { tone: currentCategoryTone } : {})}>
               {product.category}
             </Badge>
+            <InventoryReadyBadge canPrintWithInventory={product.canPrintWithInventory} />
             <Badge tone={license.tone}>{license.label}</Badge>
           </div>
           <strong>{product.designName}</strong>
@@ -657,6 +857,8 @@ function ProductDetail({
         <strong>{product.authorName}</strong>
         <span>Sale Unit</span>
         <strong>{product.saleUnit}</strong>
+        <span>Existing Colors</span>
+        <strong>{product.canPrintWithInventory ? "Ready to print" : "Needs filament colors"}</strong>
         <span>Source</span>
         <strong>{product.sourceLink}</strong>
         <span>Image Ref</span>
@@ -691,6 +893,190 @@ function ProductDetail({
           Edit Selected
         </ToolbarButton>
       </div>
+    </div>
+  );
+}
+
+function ProductSnapshot({
+  filaments,
+  isDeleting,
+  onDelete,
+  onDuplicate,
+  onEdit,
+  product,
+}: {
+  readonly filaments: readonly FilamentRecord[];
+  readonly isDeleting: boolean;
+  readonly onDelete: () => void;
+  readonly onDuplicate: () => void;
+  readonly onEdit: () => void;
+  readonly product: ProductRecord;
+}) {
+  const license = getLicenseWarningDisplay(product.commercialLicenseStatus);
+  const payment = getLicensePaymentDisplay(
+    product.licenseCostAmount,
+    product.licenseBillingInterval,
+  );
+  const currentCategoryTone = categoryTone[product.category];
+  const colorCount = getHueForgeSpecCount(product);
+
+  return (
+    <div className="product-snapshot">
+      <div className="product-snapshot__hero">
+        <div className="product-snapshot__image">
+          {isRenderableImageReference(product.imageReference) ? (
+            <img alt={product.designName} src={product.imageReference} />
+          ) : (
+            <span>{product.imageReference ? "IMAGE REF" : "NO IMAGE"}</span>
+          )}
+        </div>
+        <div className="product-snapshot__summary">
+          <div className="spool-card-head__badges">
+            <Badge {...(currentCategoryTone ? { tone: currentCategoryTone } : {})}>
+              {product.category}
+            </Badge>
+            <InventoryReadyBadge canPrintWithInventory={product.canPrintWithInventory} />
+            <Badge tone={license.tone}>{license.label}</Badge>
+          </div>
+          <div>
+            <strong>{product.designName}</strong>
+            <span>{product.sourceLink || "No source link saved."}</span>
+          </div>
+          <div className="product-snapshot__metrics">
+            <span>
+              <small>Author</small>
+              <strong>{product.authorName || "--"}</strong>
+            </span>
+            <span>
+              <small>Sale Unit</small>
+              <strong>{product.saleUnit}</strong>
+            </span>
+            <span>
+              <small>Colors</small>
+              <strong>{colorCount}</strong>
+            </span>
+            <span>
+              <small>License Cost</small>
+              <strong>{payment.label}</strong>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="product-snapshot__grid">
+        <div className="product-snapshot__panel">
+          <div className="product-snapshot__panel-head">
+            <span>Color Specs</span>
+            <Badge>{product.filamentMode === "basic" ? "Basic" : "HueForge"}</Badge>
+          </div>
+          <ProductSnapshotFilaments
+            filaments={product.hueForgeFilaments}
+            inventoryFilaments={filaments}
+            mode={product.filamentMode}
+          />
+        </div>
+        <div className="product-snapshot__panel">
+          <div className="product-snapshot__panel-head">
+            <span>Notes</span>
+          </div>
+          <p>{product.notes || "No product notes saved."}</p>
+          <dl className="product-snapshot__facts">
+            <div>
+              <dt>Image Ref</dt>
+              <dd>{product.imageReference || "--"}</dd>
+            </div>
+            <div>
+              <dt>Existing Colors</dt>
+              <dd>{product.canPrintWithInventory ? "Ready to print" : "Needs filament colors"}</dd>
+            </div>
+            <div>
+              <dt>Commercial Use</dt>
+              <dd>{license.message}</dd>
+            </div>
+          </dl>
+        </div>
+      </div>
+
+      <div className="form-actions product-snapshot__actions">
+        <ToolbarButton
+          isLoading={isDeleting}
+          loadingLabel="Deleting"
+          onClick={onDelete}
+          tone="danger"
+        >
+          Delete
+        </ToolbarButton>
+        <ToolbarButton onClick={onDuplicate}>
+          Duplicate
+        </ToolbarButton>
+        <ToolbarButton onClick={onEdit} tone="primary">
+          Edit Product
+        </ToolbarButton>
+      </div>
+    </div>
+  );
+}
+
+function ProductSnapshotFilaments({
+  filaments,
+  inventoryFilaments,
+  mode,
+}: {
+  readonly filaments: readonly ProductHueForgeFilament[];
+  readonly inventoryFilaments: readonly FilamentRecord[];
+  readonly mode: ProductFilamentMode;
+}) {
+  if (filaments.length === 0) {
+    return <p className="product-snapshot__empty">No filament color specs saved.</p>;
+  }
+
+  return (
+    <div className="product-snapshot-filaments">
+      {filaments.map((filament, index) => {
+        const alternativeLabels = formatAlternativeFilamentLabels(
+          filament.alternativeFilamentIds,
+          inventoryFilaments,
+        );
+        const key = `${filament.brand}-${filament.colorName}-${index}`;
+
+        if (mode === "basic") {
+          return (
+            <div className="product-snapshot-filaments__item" key={key}>
+              <Badge>Filament {index + 1}</Badge>
+              <strong>{filament.requiredGrams > 0 ? `${filament.requiredGrams}g` : "0g"}</strong>
+            </div>
+          );
+        }
+
+        return (
+          <div
+            className="product-snapshot-filaments__item product-snapshot-filaments__item--colorized"
+            key={key}
+            style={getFilamentRowColorStyle(filament.hexColor)}
+          >
+            {isHexColor(filament.hexColor) ? (
+              <Swatch color={normalizeHexColor(filament.hexColor)} label={filament.colorName} />
+            ) : (
+              <Badge>{filament.colorName || "Color"}</Badge>
+            )}
+            <div>
+              <strong>
+                {filament.brand || "--"} {filament.materialType} {filament.colorName || ""}
+              </strong>
+              <span>
+                {filament.transmissionDistance == null
+                  ? "TD --"
+                  : `TD ${filament.transmissionDistance.toFixed(1)}`}
+                {filament.requiredGrams > 0 ? ` / ${filament.requiredGrams}g` : ""}
+                {filament.role ? ` / ${filament.role}` : ""}
+              </span>
+              {alternativeLabels.length > 0 ? (
+                <small>Alternatives: {alternativeLabels.join(", ")}</small>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -747,7 +1133,11 @@ function ProductHueForgeFilamentList({
         );
 
         return (
-          <div className="product-filament-list__item" key={`${filament.brand}-${filament.colorName}-${index}`}>
+          <div
+            className="product-filament-list__item product-filament-list__item--colorized"
+            key={`${filament.brand}-${filament.colorName}-${index}`}
+            style={getFilamentRowColorStyle(filament.hexColor)}
+          >
             {isHexColor(filament.hexColor) ? (
               <Swatch color={normalizeHexColor(filament.hexColor)} label={filament.colorName} />
             ) : (
@@ -793,6 +1183,214 @@ function ProductThumb({ product }: { readonly product: ProductRecord }) {
       {product.imageReference ? "REF" : "IMG"}
     </span>
   );
+}
+
+function InventoryReadyBadge({
+  canPrintWithInventory,
+}: {
+  readonly canPrintWithInventory: boolean;
+}) {
+  return canPrintWithInventory ? (
+    <Badge tone="success">Colors Ready</Badge>
+  ) : (
+    <Badge tone="warning">Needs Colors</Badge>
+  );
+}
+
+function ProductTableHeaderButton({
+  active,
+  label,
+  onClick,
+}: {
+  readonly active: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+}) {
+  return (
+    <button
+      className="product-table-header__button"
+      data-active={active ? "true" : "false"}
+      onClick={onClick}
+      type="button"
+    >
+      <span>{label}</span>
+      <strong>A-Z</strong>
+    </button>
+  );
+}
+
+function ProductTableHeaderSelect({
+  actionActive = false,
+  actionLabel,
+  label,
+  onAction,
+  onChange,
+  options,
+  value,
+}: {
+  readonly actionActive?: boolean;
+  readonly actionLabel?: string;
+  readonly label: string;
+  readonly onAction?: () => void;
+  readonly onChange: (value: string) => void;
+  readonly options: readonly ProductTableHeaderOption[];
+  readonly value: string;
+}) {
+  return (
+    <span className="product-table-header">
+      {onAction ? (
+        <button
+          aria-label={actionLabel ?? `Sort ${label}`}
+          className="product-table-header__button"
+          data-active={actionActive ? "true" : "false"}
+          onClick={onAction}
+          type="button"
+        >
+          <span>{label}</span>
+          <strong>A-Z</strong>
+        </button>
+      ) : (
+        <span className="product-table-header__label">{label}</span>
+      )}
+      <select
+        aria-label={`${label} filter`}
+        className="product-table-header__select"
+        onChange={(event) => onChange(event.target.value)}
+        value={value}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+export function filterProductsForCatalog(
+  products: readonly ProductRecord[],
+  filters: ProductCatalogFilters,
+): readonly ProductRecord[] {
+  const query = filters.search.trim().toLowerCase();
+
+  const filtered = products.filter((product) => {
+    const license = getLicenseWarningDisplay(product.commercialLicenseStatus);
+    const hasImage = product.imageReference.trim().length > 0;
+    const matchesFilter =
+      filters.filter === "all" ||
+      (filters.filter === "warning"
+        ? license.shouldWarn
+        : filters.filter === "with-image"
+          ? hasImage
+          : !hasImage);
+    const matchesAuthor =
+      filters.authorFilter === "all" || product.authorName === filters.authorFilter;
+    const matchesCategory =
+      filters.categoryFilter === "all" || product.category === filters.categoryFilter;
+    const matchesColors =
+      filters.colorsFilter === "all" ||
+      (filters.colorsFilter === "ready"
+        ? product.canPrintWithInventory
+        : !product.canPrintWithInventory);
+    const matchesQuery =
+      !query ||
+      [
+        product.designName,
+        product.authorName,
+        product.canPrintWithInventory ? "colors ready printable inventory" : "needs colors not printable",
+        product.category,
+        product.saleUnit,
+        product.sourceLink,
+        product.hueForgeFilaments
+          .map((filament) =>
+            [
+              filament.brand,
+              filament.materialType,
+              filament.colorName,
+            ].join(" "),
+          )
+          .join(" "),
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+
+    return matchesFilter && matchesAuthor && matchesCategory && matchesColors && matchesQuery;
+  });
+
+  return sortProducts(filtered, filters.sortKey);
+}
+
+export function getProductNavigationState(
+  editingId: number | null,
+  filteredProducts: readonly ProductRecord[],
+  products: readonly ProductRecord[],
+): ProductNavigationState | null {
+  if (editingId == null) {
+    return null;
+  }
+
+  const visibleIndex = filteredProducts.findIndex((product) => product.id === editingId);
+  const navigationProducts = visibleIndex >= 0 ? filteredProducts : products;
+  const currentIndex = navigationProducts.findIndex((product) => product.id === editingId);
+
+  if (currentIndex < 0 || navigationProducts.length === 0) {
+    return null;
+  }
+
+  const count = navigationProducts.length;
+  const previousProduct = navigationProducts[(currentIndex - 1 + count) % count]!;
+  const nextProduct = navigationProducts[(currentIndex + 1) % count]!;
+
+  return {
+    count,
+    currentIndex,
+    nextProduct,
+    previousProduct,
+  };
+}
+
+export function sortProducts(
+  products: readonly ProductRecord[],
+  sortKey: ProductSortKey,
+): readonly ProductRecord[] {
+  if (sortKey === "default") {
+    return products;
+  }
+
+  return [...products].sort((left, right) => {
+    if (sortKey === "design") {
+      return compareProductText(left.designName, right.designName);
+    }
+
+    return (
+      compareProductText(left.authorName, right.authorName) ||
+      compareProductText(left.designName, right.designName)
+    );
+  });
+}
+
+export function getProductAuthorFilterOptions(
+  products: readonly ProductRecord[],
+): readonly string[] {
+  const authors = new Set<string>();
+
+  products.forEach((product) => {
+    const author = product.authorName.trim();
+    if (author.length > 0) {
+      authors.add(author);
+    }
+  });
+
+  return [...authors].sort(compareProductText);
+}
+
+function compareProductText(left: string, right: string): number {
+  return left.localeCompare(right, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 function ProductFormFields({
@@ -901,6 +1499,17 @@ function ProductFormFields({
           value={form.imageReference}
         />
       </FormField>
+      <div className="inventory-ready-field" data-ready={form.canPrintWithInventory ? "true" : "false"}>
+        <label>
+          <input
+            checked={form.canPrintWithInventory}
+            onChange={(event) => setFormValue("canPrintWithInventory", event.target.checked, setForm)}
+            type="checkbox"
+          />
+          <span>Existing Colors Ready</span>
+        </label>
+        <InventoryReadyBadge canPrintWithInventory={form.canPrintWithInventory} />
+      </div>
       <div className="form-section">
         <div className="form-section__header">
           <div className="form-section__title-group">
@@ -1459,9 +2068,36 @@ function getFilamentRowColorStyle(hexColor: string): CSSProperties | undefined {
     return undefined;
   }
 
+  const normalizedHex = normalizeHexColor(hexColor);
+  const useDarkText = getHexRelativeLuminance(normalizedHex) > 0.54;
+  const textColor = useDarkText ? "#101412" : "#f6f8f5";
+  const mutedColor = useDarkText ? "rgba(16, 20, 18, 0.76)" : "rgba(246, 248, 245, 0.78)";
+  const softFill = useDarkText ? "rgba(16, 20, 18, 0.12)" : "rgba(255, 255, 255, 0.13)";
+  const borderColor = useDarkText ? "rgba(16, 20, 18, 0.42)" : "rgba(255, 255, 255, 0.45)";
+
   return {
-    "--filament-row-color": normalizeHexColor(hexColor),
+    "--filament-row-border": borderColor,
+    "--filament-row-color": normalizedHex,
+    "--filament-row-muted": mutedColor,
+    "--filament-row-soft-fill": softFill,
+    "--filament-row-text": textColor,
   } as CSSProperties;
+}
+
+function getHexRelativeLuminance(hexColor: string): number {
+  const hex = normalizeHexColor(hexColor).slice(1);
+  const red = Number.parseInt(hex.slice(0, 2), 16) / 255;
+  const green = Number.parseInt(hex.slice(2, 4), 16) / 255;
+  const blue = Number.parseInt(hex.slice(4, 6), 16) / 255;
+  const linearRed = toLinearRgbChannel(red);
+  const linearGreen = toLinearRgbChannel(green);
+  const linearBlue = toLinearRgbChannel(blue);
+
+  return 0.2126 * linearRed + 0.7152 * linearGreen + 0.0722 * linearBlue;
+}
+
+function toLinearRgbChannel(channel: number): number {
+  return channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
 
 function setFormValue<K extends keyof ProductFormState>(
@@ -1800,6 +2436,7 @@ function removeHueForgeFilament(
 function toProductInput(form: ProductFormState): ProductInput {
   return {
     authorName: form.authorName,
+    canPrintWithInventory: form.canPrintWithInventory,
     category: form.category,
     commercialLicenseStatus: form.commercialLicenseStatus,
     designName: form.designName,
@@ -1821,6 +2458,7 @@ function toProductInput(form: ProductFormState): ProductInput {
 function toFormState(product: ProductRecord): ProductFormState {
   return {
     authorName: product.authorName,
+    canPrintWithInventory: product.canPrintWithInventory,
     category: product.category,
     commercialLicenseStatus: product.commercialLicenseStatus,
     designName: product.designName,

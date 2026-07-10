@@ -18,12 +18,14 @@ class FakeDatabase implements SqlDatabase {
       { name: "license_billing_interval" },
       { name: "hueforge_filaments" },
       { name: "filament_mode" },
+      { name: "can_print_with_inventory" },
     ],
     rowOverrides: Record<string, unknown> = {},
   ) {
     this.columns = columns;
     this.row = {
       author_name: "Studio_3D",
+      can_print_with_inventory: 1,
       category: "Bookmarks",
       commercial_license_status: "commercial-ok",
       created_at: "2026-07-01T00:00:00.000Z",
@@ -85,6 +87,7 @@ class FakeDatabase implements SqlDatabase {
 
 const input: ProductInput = {
   authorName: " Studio_3D ",
+  canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
   designName: " Red Blossom Bookmark ",
@@ -144,6 +147,22 @@ describe("products repository", () => {
     )).toBe(true);
   });
 
+  it("adds inventory printable status to existing product tables", async () => {
+    const fakeDb = new FakeDatabase([
+      { name: "license_cost_amount" },
+      { name: "license_billing_interval" },
+      { name: "hueforge_filaments" },
+      { name: "filament_mode" },
+    ]);
+    const repository = createProductsRepository(async () => fakeDb);
+
+    await repository.list();
+
+    expect(fakeDb.executed.some((statement) =>
+      statement.query.includes("ALTER TABLE products ADD COLUMN can_print_with_inventory"),
+    )).toBe(true);
+  });
+
   it("binds create values instead of interpolating design names", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createProductsRepository(async () => fakeDb);
@@ -176,6 +195,7 @@ describe("products repository", () => {
         transmissionDistance: 0.3,
       },
     ]);
+    expect(insert?.values[10]).toBe(1);
   });
 
   it("reloads created products by the returned insert id", async () => {
@@ -192,13 +212,74 @@ describe("products repository", () => {
     expect(reload?.values).toEqual([1]);
   });
 
+  it("binds update values with inventory readiness and normalized filament alternatives", async () => {
+    const fakeDb = new FakeDatabase();
+    const repository = createProductsRepository(async () => fakeDb);
+
+    await repository.update(1, {
+      ...input,
+      canPrintWithInventory: false,
+      hueForgeFilaments: [
+        {
+          ...input.hueForgeFilaments[0]!,
+          alternativeFilamentIds: [2, 2, 7],
+        },
+      ],
+    });
+
+    const update = fakeDb.executed.find((statement) =>
+      statement.query.includes("UPDATE products"),
+    );
+
+    expect(update?.query).toContain("can_print_with_inventory = $11");
+    expect(update?.values[10]).toBe(0);
+    expect(update?.values[13]).toBe(1);
+    expect(JSON.parse(String(update?.values[9]))).toEqual([
+      {
+        alternativeFilamentIds: [2, 7],
+        brand: "Jayo",
+        colorName: "Black",
+        hexColor: "#111111",
+        layerRange: "L0-L8",
+        materialType: "PLA",
+        purchaseSource: "https://example.com/jayo-black",
+        requiredGrams: 12,
+        role: "Shadow",
+        transmissionDistance: 0.3,
+      },
+    ]);
+  });
+
   it("loads older product filament JSON without alternatives", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createProductsRepository(async () => fakeDb);
 
     const products = await repository.list();
 
+    expect(products[0]?.canPrintWithInventory).toBe(true);
     expect(products[0]?.hueForgeFilaments[0]?.alternativeFilamentIds).toEqual([]);
+  });
+
+  it("defaults legacy products without inventory readiness to needs colors", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      can_print_with_inventory: null,
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.canPrintWithInventory).toBe(false);
+  });
+
+  it("loads malformed filament JSON as no product color specs", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      hueforge_filaments: "{not valid json",
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.hueForgeFilaments).toEqual([]);
   });
 
   it("ignores malformed alternative filament ids when loading products", async () => {

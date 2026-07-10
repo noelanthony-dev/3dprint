@@ -20,6 +20,7 @@ export interface ProductsRepository {
 
 interface ProductRow {
   readonly author_name: string;
+  readonly can_print_with_inventory: number | null;
   readonly category: string;
   readonly commercial_license_status: string;
   readonly created_at: string;
@@ -40,6 +41,7 @@ type DatabaseFactory = () => Promise<SqlDatabase>;
 
 const PRODUCT_COLUMNS = `
   id,
+  can_print_with_inventory,
   design_name,
   source_link,
   author_name,
@@ -94,9 +96,10 @@ export function createProductsRepository(
           license_billing_interval,
           filament_mode,
           hueforge_filaments,
+          can_print_with_inventory,
           notes,
           image_reference
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         values,
       );
 
@@ -169,10 +172,11 @@ export function createProductsRepository(
           license_billing_interval = $8,
           filament_mode = $9,
           hueforge_filaments = $10,
-          notes = $11,
-          image_reference = $12,
+          can_print_with_inventory = $11,
+          notes = $12,
+          image_reference = $13,
           updated_at = datetime('now')
-         WHERE id = $13`,
+         WHERE id = $14`,
         [...values, id],
       );
 
@@ -216,6 +220,7 @@ async function ensureProductsSchema(db: SqlDatabase): Promise<void> {
         filament_mode IN ('hueforge', 'basic')
       ),
       hueforge_filaments TEXT NOT NULL DEFAULT '[]',
+      can_print_with_inventory INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
       image_reference TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -237,6 +242,7 @@ async function ensureProductsSchema(db: SqlDatabase): Promise<void> {
     "filament_mode",
     "TEXT NOT NULL DEFAULT 'hueforge' CHECK (filament_mode IN ('hueforge', 'basic'))",
   );
+  await addColumnIfMissing(db, "products", "can_print_with_inventory", "INTEGER NOT NULL DEFAULT 0");
 
   await db.execute(`
     CREATE INDEX IF NOT EXISTS idx_products_category_design
@@ -273,6 +279,7 @@ function toPersistedValues(input: ProductInput): readonly unknown[] {
     input.licenseBillingInterval,
     input.filamentMode,
     JSON.stringify(input.hueForgeFilaments.map(toPersistedHueForgeFilament)),
+    input.canPrintWithInventory ? 1 : 0,
     input.notes.trim(),
     input.imageReference.trim(),
   ];
@@ -281,6 +288,7 @@ function toPersistedValues(input: ProductInput): readonly unknown[] {
 function mapProductRow(row: ProductRow): ProductRecord {
   return {
     authorName: row.author_name,
+    canPrintWithInventory: row.can_print_with_inventory === 1,
     category: row.category as ProductCategory,
     commercialLicenseStatus: row.commercial_license_status as CommercialLicenseStatus,
     createdAt: row.created_at,
