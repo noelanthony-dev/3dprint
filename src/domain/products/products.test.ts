@@ -14,6 +14,7 @@ import {
 
 const validInput: ProductInput = {
   authorName: "Studio_3D",
+  businesses: ["Sincerely, Books"],
   canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",

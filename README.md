@@ -25,3 +25,6 @@ npm run tauri:dev
 
 Rust and Cargo are required for `npm run tauri:dev` and `npm run tauri:build`.
 
+npm run tauri:build
+When it finishes, your Mac app will be here:
+/Users/noel/Desktop/Coding/3dprint/src-tauri/target/release/bundle/macos/3D Print Business Manager.app

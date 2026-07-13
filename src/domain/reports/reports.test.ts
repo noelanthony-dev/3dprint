@@ -59,7 +59,15 @@ const membership: MembershipRecord = {
 };
 
 const productionRun: ProductionRunRecord = {
-  addOnId: 2,
+  addOnDeductions: [{
+    addOnId: 2,
+    createdAt: "2026-07-02T00:00:00.000Z",
+    id: 1,
+    productionRunId: 1,
+    quantityAfter: 4,
+    quantityBefore: 10,
+    quantityDeducted: 6,
+  }],
   addOnQuantityDeducted: 6,
   createdAt: "2026-07-02T00:00:00.000Z",
   expectedPieces: 10,

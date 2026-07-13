@@ -36,8 +36,7 @@ import {
 } from "@/domain/production";
 
 interface RunFormState {
-  readonly addOnId: string;
-  readonly addOnQuantity: string;
+  readonly addOns: readonly RunAddOnFormState[];
   readonly expectedPieces: string;
   readonly failedPieces: string;
   readonly failureReason: string;
@@ -50,9 +49,14 @@ interface RunFormState {
   readonly runDate: string;
 }
 
+interface RunAddOnFormState {
+  readonly key: string;
+  readonly addOnId: string;
+  readonly quantity: string;
+}
+
 const emptyForm: RunFormState = {
-  addOnId: "",
-  addOnQuantity: "0",
+  addOns: [],
   expectedPieces: "10",
   failedPieces: "0",
   failureReason: "",
@@ -66,7 +70,7 @@ const emptyForm: RunFormState = {
 };
 
 const emptyPlan: ProductionDeductionPlan = {
-  addOnQuantityToDeduct: 0,
+  addOnDeductions: [],
   attemptedPieces: 0,
   expectedPieces: 0,
   failedPieces: 0,
@@ -157,7 +161,6 @@ export function ProductionRunsPage() {
     profiles.find((profile) => String(profile.id) === form.printProfileId) ?? null;
   const selectedFilament =
     filaments.find((filament) => String(filament.id) === form.filamentId) ?? null;
-  const selectedAddOn = addOns.find((addOn) => String(addOn.id) === form.addOnId) ?? null;
   const productFilamentRequirements = selectedProduct
     ? getProductFilamentRequirements(selectedProduct)
     : [];
@@ -247,6 +250,29 @@ export function ProductionRunsPage() {
         filamentSelections: nextSelections,
       };
     });
+  }
+
+  function addAddOnRow(): void {
+    setForm((current) => ({
+      ...current,
+      addOns: [...current.addOns, createRunAddOnRow()],
+    }));
+  }
+
+  function updateAddOnRow(key: string, field: "addOnId" | "quantity", value: string): void {
+    setForm((current) => ({
+      ...current,
+      addOns: current.addOns.map((addOn) =>
+        addOn.key === key ? { ...addOn, [field]: value } : addOn,
+      ),
+    }));
+  }
+
+  function removeAddOnRow(key: string): void {
+    setForm((current) => ({
+      ...current,
+      addOns: current.addOns.filter((addOn) => addOn.key !== key),
+    }));
   }
 
   function handleOpenRunModal(): void {
@@ -352,8 +378,10 @@ export function ProductionRunsPage() {
                 <strong>{run.goodPieces}</strong> / {run.failedPieces}
               </span>,
               formatGramsLeft(run.filamentGramsDeducted),
-              run.addOnId
-                ? `${formatQuantity(run.addOnQuantityDeducted, "")} ${addOnNames.get(run.addOnId) ?? "add-on"}`
+              run.addOnDeductions.length > 0
+                ? run.addOnDeductions
+                    .map((deduction) => `${formatQuantity(deduction.quantityDeducted, "")} ${addOnNames.get(deduction.addOnId) ?? "add-on"}`)
+                    .join(", ")
                 : "--",
             ])}
           />
@@ -476,19 +504,45 @@ export function ProductionRunsPage() {
                     <FormField label="Failed Pieces">
                       <input inputMode="numeric" onChange={(event) => setFormValue("failedPieces", event.target.value, setForm)} value={form.failedPieces} />
                     </FormField>
-                    <FormField label="Add-on Quantity">
-                      <input inputMode="decimal" onChange={(event) => setFormValue("addOnQuantity", event.target.value, setForm)} value={form.addOnQuantity} />
-                    </FormField>
-                    <FormField label="Add-on Item" wide>
-                      <select onChange={(event) => setFormValue("addOnId", event.target.value, setForm)} value={form.addOnId}>
-                        <option value="">No add-on deduction</option>
-                        {addOns.filter((addOn) => addOn.isActive).map((addOn) => (
-                          <option key={addOn.id} value={addOn.id}>
-                            {addOn.itemName} ({formatQuantity(addOn.quantityOnHand, addOn.unit)})
-                          </option>
-                        ))}
-                      </select>
-                    </FormField>
+                    <div className="addon-editor" data-wide="true">
+                      <div className="addon-editor__header">
+                        <span>Add-on Deductions</span>
+                        <ToolbarButton onClick={addAddOnRow} type="button">Add Add-on</ToolbarButton>
+                      </div>
+                      {form.addOns.length === 0 ? (
+                        <p className="addon-editor__empty">No add-on deductions for this run.</p>
+                      ) : form.addOns.map((row, index) => (
+                        <div className="addon-editor__row" key={row.key}>
+                          <FormField label={`Add-on ${index + 1}`}>
+                            <select
+                              onChange={(event) => updateAddOnRow(row.key, "addOnId", event.target.value)}
+                              value={row.addOnId}
+                            >
+                              <option value="">Choose an add-on</option>
+                              {addOns
+                                .filter((addOn) => addOn.isActive || String(addOn.id) === row.addOnId)
+                                .map((addOn) => (
+                                  <option
+                                    disabled={form.addOns.some((selected) => selected.key !== row.key && selected.addOnId === String(addOn.id))}
+                                    key={addOn.id}
+                                    value={addOn.id}
+                                  >
+                                    {addOn.itemName} ({formatQuantity(addOn.quantityOnHand, addOn.unit)})
+                                  </option>
+                                ))}
+                            </select>
+                          </FormField>
+                          <FormField label="Quantity">
+                            <input
+                              inputMode="decimal"
+                              onChange={(event) => updateAddOnRow(row.key, "quantity", event.target.value)}
+                              value={row.quantity}
+                            />
+                          </FormField>
+                          <ToolbarButton onClick={() => removeAddOnRow(row.key)} type="button">Remove</ToolbarButton>
+                        </div>
+                      ))}
+                    </div>
                     <FormField label="Failure Reason" wide>
                       <input onChange={(event) => setFormValue("failureReason", event.target.value, setForm)} value={form.failureReason} />
                     </FormField>
@@ -524,9 +578,22 @@ export function ProductionRunsPage() {
               <strong>{selectedFilament ? formatGramsLeft(selectedFilament.estimatedGramsLeft) : "--"}</strong>
               <span>Product Filaments</span>
               <strong>{productFilamentRequirements.length > 0 ? productFilamentRequirements.length : "--"}</strong>
-              <span>Add-on Deduction</span>
-              <strong>{selectedAddOn ? formatQuantity(deductionPlan.addOnQuantityToDeduct, selectedAddOn.unit) : "--"}</strong>
+              <span>Add-on Deductions</span>
+              <strong>{deductionPlan.addOnDeductions.length || "--"}</strong>
             </div>
+            {deductionPlan.addOnDeductions.length > 0 ? (
+              <div className="production-deduction-preview">
+                {deductionPlan.addOnDeductions.map((deduction) => {
+                  const item = addOns.find((addOn) => addOn.id === deduction.addOnId);
+                  return (
+                    <div key={deduction.addOnId}>
+                      <span>{item?.itemName ?? `Add-on ${deduction.addOnId}`}</span>
+                      <strong>{formatQuantity(deduction.quantityToDeduct, item?.unit ?? "")}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
             {deductionPlan.filamentDeductions.length > 1 ? (
               <div className="production-deduction-preview">
                 {deductionPlan.filamentDeductions.map((deduction, index) => (
@@ -618,12 +685,11 @@ function getProfileRunDefaults(
   profile: PrintProfileRecord | null | undefined,
 ): Pick<
   RunFormState,
-  "addOnId" | "addOnQuantity" | "expectedPieces" | "failedPieces" | "goodPieces"
+  "addOns" | "expectedPieces" | "failedPieces" | "goodPieces"
 > {
   if (!profile) {
     return {
-      addOnId: "",
-      addOnQuantity: "0",
+      addOns: [],
       expectedPieces: "",
       failedPieces: "0",
       goodPieces: "",
@@ -631,8 +697,13 @@ function getProfileRunDefaults(
   }
 
   return {
-    addOnId: profile.addOnId == null ? "" : String(profile.addOnId),
-    addOnQuantity: profile.addOnId == null ? "0" : String(profile.addOnQuantity),
+    addOns: profile.addOns
+      .filter((addOn) => addOn.addOnId != null)
+      .map((addOn, index) => ({
+        addOnId: String(addOn.addOnId),
+        key: `profile-${profile.id}-${index}`,
+        quantity: String(addOn.quantity),
+      })),
     expectedPieces: String(profile.expectedGoodUnits + profile.expectedFailedUnits),
     failedPieces: String(profile.expectedFailedUnits),
     goodPieces: String(profile.expectedGoodUnits),
@@ -841,8 +912,10 @@ function toProductionRunInput(
     Number(form.filamentId);
 
   return {
-    addOnId: form.addOnId ? Number(form.addOnId) : null,
-    addOnQuantity: toNumber(form.addOnQuantity),
+    addOns: form.addOns.map((addOn) => ({
+      addOnId: Number(addOn.addOnId),
+      quantity: toNumber(addOn.quantity),
+    })),
     expectedPieces: toInteger(form.expectedPieces),
     failedPieces: toInteger(form.failedPieces),
     failureReason: form.failureReason,
@@ -853,6 +926,16 @@ function toProductionRunInput(
     printProfileId: Number(form.printProfileId),
     productId: Number(form.productId),
     runDate: form.runDate,
+  };
+}
+
+let nextRunAddOnRowId = 1;
+
+function createRunAddOnRow(): RunAddOnFormState {
+  return {
+    addOnId: "",
+    key: `run-${nextRunAddOnRowId++}`,
+    quantity: "1",
   };
 }
 

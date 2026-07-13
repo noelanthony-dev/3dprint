@@ -1,4 +1,4 @@
-import { closeDatabase, PRINTOPS_DB_PATH } from "@/data/db/client";
+import { PRINTOPS_DB_PATH } from "@/data/db/client";
 import {
   createBackupEnvelope,
   decodeBase64ToBytes,
@@ -9,13 +9,13 @@ import {
   type BackupMetadata,
 } from "@/domain/backup";
 import type { AppSettings } from "@/domain/settings";
-import { BaseDirectory, exists, readFile, readTextFile, writeFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { invoke } from "@tauri-apps/api/core";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { open, save } from "@tauri-apps/plugin-dialog";
 
 const APP_VERSION = "0.1.0";
 const BACKUP_FILE_PREFIX = "printops-backup";
 const SETTINGS_FILE_PREFIX = "printops-settings";
-const DATABASE_FILE_NAME = "printops-studio.db";
 
 export interface BackupActionResult {
   readonly canceled: boolean;
@@ -43,13 +43,7 @@ export async function createLocalBackup(settings: AppSettings): Promise<BackupAc
     return canceledBackupResult("Backup canceled.");
   }
 
-  const databaseExists = await exists(DATABASE_FILE_NAME, { baseDir: BaseDirectory.AppData });
-
-  if (!databaseExists) {
-    throw new Error("Local SQLite database file was not found. Open a persisted feature once before creating a full backup.");
-  }
-
-  const databaseBytes = await readFile(DATABASE_FILE_NAME, { baseDir: BaseDirectory.AppData });
+  const databaseBytes = new Uint8Array(await invoke<number[]>("export_database_snapshot"));
   const envelope = createBackupEnvelope({
     appVersion: APP_VERSION,
     createdAt: new Date().toISOString(),
@@ -87,9 +81,8 @@ export async function restoreLocalBackup(): Promise<BackupActionResult & { reado
     throw new Error(`Backup restore blocked: ${validation.errors.join(" ")}`);
   }
 
-  await closeDatabase();
-  await writeFile(DATABASE_FILE_NAME, decodeBase64ToBytes(envelope.databaseBase64), {
-    baseDir: BaseDirectory.AppData,
+  await invoke("restore_database_snapshot", {
+    databaseBytes: Array.from(decodeBase64ToBytes(envelope.databaseBase64)),
   });
 
   return {
@@ -201,6 +194,6 @@ function timestampForFileName(): string {
 
 export const backupInfrastructureStatus = {
   automaticSyncEnabled: false,
-  implementation: "tauri-dialog-fs",
+  implementation: "native-sqlite-snapshot",
   manualOnly: true,
 } as const;

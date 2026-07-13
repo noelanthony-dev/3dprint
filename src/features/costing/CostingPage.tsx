@@ -32,10 +32,7 @@ import type { ProductRecord, ProductSaleUnit } from "@/domain/products";
 import type { AppSettings } from "@/domain/settings";
 
 interface ProfileFormState {
-  readonly addOnCost: string;
-  readonly addOnDescription: string;
-  readonly addOnId: string;
-  readonly addOnQuantity: string;
+  readonly addOns: readonly ProfileAddOnFormState[];
   readonly expectedFailedUnits: string;
   readonly expectedGoodUnits: string;
   readonly filamentCostPerKg: string;
@@ -50,11 +47,17 @@ interface ProfileFormState {
   readonly targetMarkup: string;
 }
 
+export interface ProfileAddOnFormState {
+  readonly key: string;
+  readonly addOnId: string;
+  readonly description: string;
+  readonly quantity: string;
+  readonly totalCost: string;
+  readonly unitCost: string;
+}
+
 const emptyForm: ProfileFormState = {
-  addOnCost: "0",
-  addOnDescription: "",
-  addOnId: "",
-  addOnQuantity: "0",
+  addOns: [],
   expectedFailedUnits: "0",
   expectedGoodUnits: "1",
   filamentCostPerKg: "750",
@@ -122,10 +125,9 @@ export function CostingPage() {
 
   const selectedProduct = products.find((product) => String(product.id) === form.productId) ?? null;
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) ?? null;
-  const selectedAddOn = addOns.find((addOn) => String(addOn.id) === form.addOnId) ?? null;
   const input = useMemo(
-    () => toPrintProfileInput(form, settings, selectedAddOn),
-    [form, selectedAddOn, settings],
+    () => toPrintProfileInput(form, settings, addOns),
+    [addOns, form, settings],
   );
   const validation = validatePrintProfileInput(input);
   const breakdown = calculatePrintCost(input);
@@ -144,6 +146,7 @@ export function CostingPage() {
       ),
     [products],
   );
+  const selectedAddOnIds = new Set(form.addOns.map((addOn) => addOn.addOnId).filter(Boolean));
 
   function startCreate(): void {
     setEditingId(null);
@@ -222,13 +225,11 @@ export function CostingPage() {
     const product = products.find((candidate) => String(candidate.id) === form.productId);
 
     setForm((current) => {
-      const shouldSyncAddOnQuantity =
-        key === "expectedGoodUnits" &&
-        current.addOnId &&
-        toNumber(current.addOnQuantity) === toNumber(current.expectedGoodUnits);
       const next = {
         ...current,
-        addOnQuantity: shouldSyncAddOnQuantity ? value : current.addOnQuantity,
+        addOns: key === "expectedGoodUnits"
+          ? syncAddOnQuantities(current.addOns, current.expectedGoodUnits, value)
+          : current.addOns,
         [key]: value,
       };
 
@@ -239,29 +240,53 @@ export function CostingPage() {
     });
   }
 
-  function handleAddOnChange(addOnId: string): void {
-    const addOn = addOns.find((candidate) => String(candidate.id) === addOnId) ?? null;
-    const quantity = addOn ? normalizeQuantity(form.expectedGoodUnits, "1") : "0";
-    const addOnCost = addOn ? calculateAddOnCost(addOn, toNumber(quantity)) : 0;
-
+  function addAddOnRow(): void {
     setForm((current) => ({
       ...current,
-      addOnCost: String(addOnCost),
-      addOnDescription: addOn ? buildAddOnDescription(addOn) : "",
-      addOnId,
-      addOnQuantity: quantity,
+      addOns: [...current.addOns, createAddOnFormRow(current.expectedGoodUnits)],
     }));
   }
 
-  function handleAddOnQuantityChange(quantity: string): void {
-    const addOnCost = selectedAddOn ? calculateAddOnCost(selectedAddOn, toNumber(quantity)) : 0;
-
+  function removeAddOnRow(key: string): void {
     setForm((current) => ({
       ...current,
-      addOnCost: String(addOnCost),
-      addOnDescription: selectedAddOn ? buildAddOnDescription(selectedAddOn) : "",
-      addOnQuantity: quantity,
+      addOns: current.addOns.filter((addOn) => addOn.key !== key),
     }));
+  }
+
+  function updateAddOnRow(
+    key: string,
+    update: (current: ProfileAddOnFormState) => ProfileAddOnFormState,
+  ): void {
+    setForm((current) => ({
+      ...current,
+      addOns: current.addOns.map((addOn) => addOn.key === key ? update(addOn) : addOn),
+    }));
+  }
+
+  function handleAddOnChange(key: string, addOnId: string): void {
+    const inventoryItem = addOns.find((candidate) => String(candidate.id) === addOnId) ?? null;
+    updateAddOnRow(key, (current) => ({
+      ...current,
+      addOnId,
+      description: inventoryItem ? buildAddOnDescription(inventoryItem) : "",
+      totalCost: inventoryItem
+        ? String(calculateAddOnCost(inventoryItem, toNumber(current.quantity)))
+        : "0",
+      unitCost: inventoryItem ? String(inventoryItem.unitCost) : "0",
+    }));
+  }
+
+  function handleAddOnQuantityChange(key: string, quantity: string): void {
+    updateAddOnRow(key, (current) => {
+      const inventoryItem = addOns.find((candidate) => String(candidate.id) === current.addOnId);
+      const unitCost = inventoryItem?.unitCost ?? toNumber(current.unitCost);
+      return {
+        ...current,
+        quantity,
+        totalCost: String(roundCost(unitCost * toNumber(quantity))),
+      };
+    });
   }
 
   return (
@@ -342,25 +367,56 @@ export function CostingPage() {
               >
                 <input inputMode="decimal" onChange={(event) => setFormValue("filamentCostPerKg", event.target.value, setForm)} value={form.filamentCostPerKg} />
               </FormField>
-              <FormField label="Add-on / Hardware">
-                <select onChange={(event) => handleAddOnChange(event.target.value)} value={form.addOnId}>
-                  <option value="">No add-on</option>
-                  {addOns.map((addOn) => (
-                    <option key={addOn.id} value={addOn.id}>
-                      {addOn.itemName} - {formatCurrency(addOn.unitCost, settings.currencySymbol)} / {addOn.unit}
-                      {addOn.isActive ? "" : " (inactive)"}
-                    </option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="Add-on Qty">
-                <input
-                  disabled={!selectedAddOn}
-                  inputMode="decimal"
-                  onChange={(event) => handleAddOnQuantityChange(event.target.value)}
-                  value={form.addOnQuantity}
-                />
-              </FormField>
+              <div className="addon-editor" data-wide="true">
+                <div className="addon-editor__header">
+                  <span>Add-ons / Hardware</span>
+                  <ToolbarButton onClick={addAddOnRow} type="button">Add Add-on</ToolbarButton>
+                </div>
+                {form.addOns.length === 0 ? (
+                  <p className="addon-editor__empty">No add-ons configured for this profile.</p>
+                ) : form.addOns.map((row, index) => {
+                  const inventoryItem = addOns.find((addOn) => String(addOn.id) === row.addOnId) ?? null;
+                  return (
+                    <div className="addon-editor__row" key={row.key}>
+                      <FormField label={`Add-on ${index + 1}`}>
+                        <select
+                          onChange={(event) => handleAddOnChange(row.key, event.target.value)}
+                          value={row.addOnId}
+                        >
+                          <option value="">Choose an add-on</option>
+                          {!inventoryItem && row.description ? (
+                            <option value="">{row.description} (inventory item removed)</option>
+                          ) : null}
+                          {addOns
+                            .filter((addOn) => addOn.isActive || String(addOn.id) === row.addOnId)
+                            .map((addOn) => (
+                              <option
+                                disabled={selectedAddOnIds.has(String(addOn.id)) && String(addOn.id) !== row.addOnId}
+                                key={addOn.id}
+                                value={addOn.id}
+                              >
+                                {addOn.itemName} - {formatCurrency(addOn.unitCost, settings.currencySymbol)} / {addOn.unit}
+                                {addOn.isActive ? "" : " (inactive)"}
+                              </option>
+                            ))}
+                        </select>
+                      </FormField>
+                      <FormField label="Quantity">
+                        <input
+                          inputMode="decimal"
+                          onChange={(event) => handleAddOnQuantityChange(row.key, event.target.value)}
+                          value={row.quantity}
+                        />
+                      </FormField>
+                      <div className="addon-editor__cost">
+                        <span>Cost</span>
+                        <strong>{formatCurrency(toNumber(row.totalCost), settings.currencySymbol)}</strong>
+                      </div>
+                      <ToolbarButton onClick={() => removeAddOnRow(row.key)} type="button">Remove</ToolbarButton>
+                    </div>
+                  );
+                })}
+              </div>
               <FormField
                 label="Print Minutes"
                 tooltip="Total machine print time in minutes. Example: enter 870 for 14h 30m."
@@ -384,11 +440,19 @@ export function CostingPage() {
               </FormField>
               <div className="callout" data-wide="true">
                 <Badge>Add-on Cost</Badge>
-                <p>
-                  {selectedAddOn
-                    ? `${formatQuantity(toNumber(form.addOnQuantity), selectedAddOn.unit)} x ${formatCurrency(selectedAddOn.unitCost, settings.currencySymbol)} = ${formatCurrency(input.addOnCost, settings.currencySymbol)}`
-                    : "No add-on or hardware item selected for this batch profile."}
-                </p>
+                {input.addOns.length > 0 ? (
+                  <div className="addon-cost-list">
+                    {input.addOns.map((addOn, index) => {
+                      const inventoryItem = addOns.find((item) => item.id === addOn.addOnId);
+                      return (
+                        <p key={`${addOn.addOnId ?? "removed"}-${index}`}>
+                          {addOn.description}: {formatQuantity(addOn.quantity, inventoryItem?.unit ?? "")} x {formatCurrency(addOn.unitCost, settings.currencySymbol)} = {formatCurrency(addOn.totalCost, settings.currencySymbol)}
+                        </p>
+                      );
+                    })}
+                    <strong>Total: {formatCurrency(breakdown.addOnCost, settings.currencySymbol)}</strong>
+                  </div>
+                ) : <p>No add-on or hardware items selected for this batch profile.</p>}
               </div>
               <div className="callout" data-wide="true">
                 <Badge>Settings Defaults</Badge>
@@ -409,21 +473,28 @@ export function CostingPage() {
 
           <Panel title="Saved Profiles">
             <DataTable
-              columns={["Product", "Profile", "Good", "Markup", "Unit Cost"]}
-              columnsTemplate="minmax(150px, 1.35fr) minmax(126px, 1fr) 0.42fr 0.45fr 0.58fr"
+              columns={["Product", "Good", "Markup", "Unit Cost", "Suggested Sell Price"]}
+              columnsTemplate="minmax(190px, 1.45fr) 0.48fr 0.5fr 0.65fr minmax(140px, 0.85fr)"
               density="dense"
               footer={`${profiles.length} print profiles. Profiles estimate only; inventory is not deducted.`}
               rows={profiles.map((profile) => {
                 const profileCost = calculatePrintCost(profile);
+                const profilePricing = calculatePricing({
+                  costPerUnit: profileCost.costPerGoodUnit,
+                  expectedGoodUnits: profile.expectedGoodUnits,
+                  laborMinutes: profile.laborMinutes,
+                  markupMultiplier: profile.targetMarkup,
+                  printHours: profileCost.totalPrintHours,
+                });
 
                 return [
-                  profileProductNames.get(profile.productId) ?? `Product ${profile.productId}`,
                   <button className="table-link" onClick={() => startEdit(profile)} type="button">
-                    {profile.profileName}
+                    {profileProductNames.get(profile.productId) ?? `Product ${profile.productId}`}
                   </button>,
                   `${profile.expectedGoodUnits} ${profile.saleUnit}`,
                   formatMarkupPercent(profile.targetMarkup),
                   formatCurrency(profileCost.costPerGoodUnit, settings.currencySymbol),
+                  formatCurrency(profilePricing.suggestedSellPrice, settings.currencySymbol),
                 ];
               })}
             />
@@ -434,7 +505,15 @@ export function CostingPage() {
           <Panel title="Cost Breakdown">
             <div className="cost-breakdown">
               <CostLine currency={settings.currencySymbol} label={`Filament (${formatCurrency(input.filamentCostPerKg, settings.currencySymbol)}/kg)`} tone="success" value={breakdown.filamentCost} />
-              <CostLine currency={settings.currencySymbol} label={input.addOnDescription || "Add-ons"} tone="warning" value={breakdown.addOnCost} />
+              {input.addOns.map((addOn, index) => (
+                <CostLine
+                  currency={settings.currencySymbol}
+                  key={`${addOn.addOnId ?? "removed"}-${index}`}
+                  label={addOn.description || `Add-on ${index + 1}`}
+                  tone="warning"
+                  value={addOn.totalCost}
+                />
+              ))}
               <CostLine currency={settings.currencySymbol} label={`Electricity (${settings.electricityRatePerKwh.toFixed(2)} ${getCurrencyUnitLabel(settings.currencySymbol)}/kWh)`} value={breakdown.electricityCost} />
               <CostLine currency={settings.currencySymbol} label={`Wear & Tear (${formatCurrency(settings.wearRatePerHour, settings.currencySymbol)}/hr)`} value={breakdown.wearCost} />
               <CostLine currency={settings.currencySymbol} label={`Labor (${formatCurrency(settings.laborRateHourly, settings.currencySymbol)}/hr)`} tone="danger" value={breakdown.laborCost} />
@@ -539,19 +618,23 @@ function setFormValue<K extends keyof ProfileFormState>(
 function toPrintProfileInput(
   form: ProfileFormState,
   settings: AppSettings,
-  selectedAddOn: AddOnRecord | null,
+  inventoryAddOns: readonly AddOnRecord[],
 ): PrintProfileInput {
-  const addOnQuantity = toNumber(form.addOnQuantity);
-  const addOnCost = selectedAddOn
-    ? calculateAddOnCost(selectedAddOn, addOnQuantity)
-    : toNumber(form.addOnCost);
   const printTime = splitPrintTimeMinutes(toNumber(form.printMinutes));
 
   return {
-    addOnCost,
-    addOnDescription: selectedAddOn ? buildAddOnDescription(selectedAddOn) : form.addOnDescription,
-    addOnId: selectedAddOn ? selectedAddOn.id : null,
-    addOnQuantity,
+    addOns: form.addOns.map((row) => {
+      const inventoryItem = inventoryAddOns.find((addOn) => String(addOn.id) === row.addOnId);
+      const quantity = toNumber(row.quantity);
+      const unitCost = toNumber(row.unitCost);
+      return {
+        addOnId: inventoryItem?.id ?? null,
+        description: inventoryItem ? buildAddOnDescription(inventoryItem) : row.description,
+        quantity,
+        totalCost: roundCost(unitCost * quantity),
+        unitCost,
+      };
+    }),
     electricityRatePerKwh: settings.electricityRatePerKwh,
     expectedFailedUnits: toNumber(form.expectedFailedUnits),
     expectedGoodUnits: toNumber(form.expectedGoodUnits),
@@ -572,12 +655,16 @@ function toPrintProfileInput(
   };
 }
 
-function toFormState(profile: PrintProfileRecord): ProfileFormState {
+export function toFormState(profile: PrintProfileRecord): ProfileFormState {
   return {
-    addOnCost: String(profile.addOnCost),
-    addOnDescription: profile.addOnDescription,
-    addOnId: profile.addOnId == null ? "" : String(profile.addOnId),
-    addOnQuantity: String(profile.addOnQuantity),
+    addOns: profile.addOns.map((addOn, index) => ({
+      addOnId: addOn.addOnId == null ? "" : String(addOn.addOnId),
+      description: addOn.description,
+      key: `saved-${profile.id}-${index}`,
+      quantity: String(addOn.quantity),
+      totalCost: String(addOn.totalCost),
+      unitCost: String(addOn.unitCost),
+    })),
     expectedFailedUnits: String(profile.expectedFailedUnits),
     expectedGoodUnits: String(profile.expectedGoodUnits),
     filamentCostPerKg: String(profile.filamentCostPerKg),
@@ -649,10 +736,36 @@ function calculateAddOnCost(addOn: AddOnRecord, quantity: number): number {
   return Math.round((addOn.unitCost * quantity + Number.EPSILON) * 100) / 100;
 }
 
-function normalizeQuantity(value: string, fallback: string): string {
-  const parsed = toNumber(value);
+let nextAddOnRowId = 1;
 
-  return parsed > 0 ? value : fallback;
+export function createAddOnFormRow(expectedGoodUnits: string): ProfileAddOnFormState {
+  return {
+    addOnId: "",
+    description: "",
+    key: `new-${nextAddOnRowId++}`,
+    quantity: toNumber(expectedGoodUnits) > 0 ? expectedGoodUnits : "1",
+    totalCost: "0",
+    unitCost: "0",
+  };
+}
+
+export function syncAddOnQuantities(
+  addOns: readonly ProfileAddOnFormState[],
+  previousExpectedGoodUnits: string,
+  nextExpectedGoodUnits: string,
+): readonly ProfileAddOnFormState[] {
+  return addOns.map((addOn) => ({
+    ...addOn,
+    quantity:
+      toNumber(addOn.quantity) === toNumber(previousExpectedGoodUnits)
+        ? nextExpectedGoodUnits
+        : addOn.quantity,
+  }));
+}
+
+function roundCost(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function getBatchFilamentGramsForForm(

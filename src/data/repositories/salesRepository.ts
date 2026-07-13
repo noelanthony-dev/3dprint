@@ -1,9 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
+import { updateSaleDetailsNative } from "@/data/db/nativeWorkflows";
 import {
   calculateSaleTotals,
+  validateSaleDetailsInput,
   validateSaleInput,
+  type SaleDetailsInput,
   type SaleInput,
   type SaleRecord,
   type SaleTotals,
@@ -18,11 +21,11 @@ export interface SaleCreateInput extends SaleInput {
 }
 
 export interface SalesRepository {
-  create(input: SaleCreateInput): Promise<SaleRecord>;
   get(id: number): Promise<SaleRecord | null>;
   list(): Promise<SaleRecord[]>;
   listStockMovements(saleId: number): Promise<SaleStockMovementRecord[]>;
   recordSaleWithStockMovement(input: SaleCreateInput): Promise<SaleRecord>;
+  updateDetails(id: number, input: SaleDetailsInput): Promise<SaleRecord>;
 }
 
 interface SaleRow {
@@ -53,12 +56,13 @@ interface SaleStockMovementRow {
   readonly sale_id: number;
 }
 
-interface SqliteMasterRow {
-  readonly sql: string | null;
-}
-
 type DatabaseFactory = () => Promise<SqlDatabase>;
 type NativeSaleRecorder = (input: SaleCreateInput, totals: SaleTotals) => Promise<number>;
+type NativeSaleUpdater = (
+  id: number,
+  input: SaleDetailsInput,
+  totals: SaleTotals,
+) => Promise<void>;
 
 interface NativeRecordSaleResult {
   readonly saleId: number;
@@ -95,108 +99,13 @@ const SALE_STOCK_MOVEMENT_COLUMNS = `
 export function createSalesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
   nativeSaleRecorder: NativeSaleRecorder = recordSaleWithStockMovementNative,
+  nativeSaleUpdater: NativeSaleUpdater = updateSaleDetailsWithNativeCommand,
 ): SalesRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureSalesSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
-    async create(input) {
-      const validation = validateSaleInput(input);
-
-      if (!validation.valid) {
-        throw new Error(Object.values(validation.errors)[0] ?? "Invalid sale.");
-      }
-
-      const totals = calculateSaleTotals(input);
-      const db = await database();
-      let insertedId: number | null = null;
-
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        const result = await db.execute(
-          `INSERT INTO sales (
-            finished_good_id,
-            product_reference,
-            sale_date,
-            quantity,
-            sale_unit,
-            channel,
-            gross_revenue,
-            discounts_fees,
-            net_revenue,
-            notes,
-            stock_quantity_before,
-            stock_quantity_after
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-          [
-            input.finishedGoodId,
-            input.productReference.trim(),
-            input.saleDate.trim(),
-            input.quantity,
-            input.saleUnit,
-            input.channel,
-            totals.grossRevenue,
-            totals.discountsFees,
-            totals.netRevenue,
-            input.notes.trim(),
-            input.stockQuantityBefore,
-            input.stockQuantityAfter,
-          ],
-        );
-
-        if (result.lastInsertId == null) {
-          throw new Error("SQLite did not return the inserted sale id.");
-        }
-
-        insertedId = result.lastInsertId;
-
-        await db.execute(
-          `INSERT INTO sale_stock_movements (
-            sale_id,
-            finished_good_id,
-            quantity_delta,
-            quantity_before,
-            quantity_after
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            insertedId,
-            input.finishedGoodId,
-            -input.quantity,
-            input.stockQuantityBefore,
-            input.stockQuantityAfter,
-          ],
-        );
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await rollbackIfActive(db);
-        throw error;
-      }
-
-      if (insertedId == null) {
-        throw new Error("Inserted sale id was not captured.");
-      }
-
-      const created = await this.get(insertedId);
-
-      if (!created) {
-        throw new Error("Inserted sale could not be loaded.");
-      }
-
-      return created;
-    },
-
     async get(id) {
       const db = await database();
       const rows = await db.select<SaleRow[]>(
@@ -261,6 +170,34 @@ export function createSalesRepository(
 
       return created;
     },
+
+    async updateDetails(id, input) {
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error("Sale id is invalid.");
+      }
+
+      const validation = validateSaleDetailsInput(input);
+
+      if (!validation.valid) {
+        throw new Error(Object.values(validation.errors)[0] ?? "Invalid sale details.");
+      }
+
+      const totals = calculateSaleTotals({
+        discountsFees: input.discountsFees,
+        grossRevenue: input.grossRevenue,
+        quantity: 1,
+      });
+      await database();
+      await nativeSaleUpdater(id, input, totals);
+
+      const updated = await this.get(id);
+
+      if (!updated) {
+        throw new Error(`Sale ${id} does not exist.`);
+      }
+
+      return updated;
+    },
   };
 }
 
@@ -288,154 +225,20 @@ async function recordSaleWithStockMovementNative(
   return result.saleId;
 }
 
-async function insertSaleRows(
-  db: SqlDatabase,
-  input: SaleCreateInput,
-  totals = calculateSaleTotals(input),
-): Promise<number> {
-  const result = await db.execute(
-    `INSERT INTO sales (
-      finished_good_id,
-      product_reference,
-      sale_date,
-      quantity,
-      sale_unit,
-      channel,
-      gross_revenue,
-      discounts_fees,
-      net_revenue,
-      notes,
-      stock_quantity_before,
-      stock_quantity_after
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-    [
-      input.finishedGoodId,
-      input.productReference.trim(),
-      input.saleDate.trim(),
-      input.quantity,
-      input.saleUnit,
-      input.channel,
-      totals.grossRevenue,
-      totals.discountsFees,
-      totals.netRevenue,
-      input.notes.trim(),
-      input.stockQuantityBefore,
-      input.stockQuantityAfter,
-    ],
-  );
-
-  if (result.lastInsertId == null) {
-    throw new Error("SQLite did not return the inserted sale id.");
-  }
-
-  await db.execute(
-    `INSERT INTO sale_stock_movements (
-      sale_id,
-      finished_good_id,
-      quantity_delta,
-      quantity_before,
-      quantity_after
-    ) VALUES ($1, $2, $3, $4, $5)`,
-    [
-      result.lastInsertId,
-      input.finishedGoodId,
-      -input.quantity,
-      input.stockQuantityBefore,
-      input.stockQuantityAfter,
-    ],
-  );
-
-  return result.lastInsertId;
-}
-
-async function ensureSalesSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(createSalesTableStatement("sales", true));
-  await migrateSalesChannelConstraint(db);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_sales_date
-    ON sales (sale_date DESC, created_at DESC)
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_sales_channel
-    ON sales (channel, sale_date DESC)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS sale_stock_movements (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      sale_id INTEGER NOT NULL,
-      finished_good_id INTEGER NOT NULL,
-      quantity_delta INTEGER NOT NULL CHECK (quantity_delta < 0),
-      quantity_before INTEGER NOT NULL CHECK (quantity_before >= 0),
-      quantity_after INTEGER NOT NULL CHECK (quantity_after >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
-      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE RESTRICT
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_sale_stock_movements_sale
-    ON sale_stock_movements (sale_id)
-  `);
-}
-
-function createSalesTableStatement(tableName: string, ifNotExists: boolean): string {
-  return `
-    CREATE TABLE ${ifNotExists ? "IF NOT EXISTS " : ""}${tableName} (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      finished_good_id INTEGER NOT NULL,
-      product_reference TEXT NOT NULL,
-      sale_date TEXT NOT NULL,
-      quantity INTEGER NOT NULL CHECK (quantity > 0),
-      sale_unit TEXT NOT NULL,
-      channel TEXT NOT NULL,
-      gross_revenue REAL NOT NULL DEFAULT 0 CHECK (gross_revenue >= 0),
-      discounts_fees REAL NOT NULL DEFAULT 0 CHECK (discounts_fees >= 0),
-      net_revenue REAL NOT NULL DEFAULT 0 CHECK (net_revenue >= 0),
-      notes TEXT,
-      stock_quantity_before INTEGER NOT NULL CHECK (stock_quantity_before >= 0),
-      stock_quantity_after INTEGER NOT NULL CHECK (stock_quantity_after >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE RESTRICT
-    )
-  `;
-}
-
-async function migrateSalesChannelConstraint(db: SqlDatabase): Promise<void> {
-  const rows = await db.select<SqliteMasterRow[]>(
-    `SELECT sql
-     FROM sqlite_master
-     WHERE type = 'table'
-      AND name = 'sales'
-     LIMIT 1`,
-  );
-  const createSql = rows[0]?.sql ?? "";
-
-  if (!createSql.includes("channel TEXT NOT NULL CHECK")) {
-    return;
-  }
-
-  await db.execute("BEGIN IMMEDIATE");
-
-  try {
-    await db.execute("DROP TABLE IF EXISTS sales_channel_migration");
-    await db.execute(createSalesTableStatement("sales_channel_migration", false));
-    await db.execute(`
-      INSERT INTO sales_channel_migration (${SALE_COLUMNS})
-      SELECT ${SALE_COLUMNS}
-      FROM sales
-    `);
-    await db.execute("DROP TABLE sales");
-    await db.execute("ALTER TABLE sales_channel_migration RENAME TO sales");
-    await db.execute("COMMIT");
-  } catch (error) {
-    await rollbackIfActive(db);
-    throw error;
-  }
+async function updateSaleDetailsWithNativeCommand(
+  id: number,
+  input: SaleDetailsInput,
+  totals: SaleTotals,
+): Promise<void> {
+  await updateSaleDetailsNative({
+    channel: input.channel,
+    discountsFees: totals.discountsFees,
+    grossRevenue: totals.grossRevenue,
+    netRevenue: totals.netRevenue,
+    notes: input.notes.trim(),
+    saleDate: input.saleDate.trim(),
+    saleId: id,
+  });
 }
 
 function mapSaleRow(row: SaleRow): SaleRecord {
@@ -468,18 +271,6 @@ function mapSaleStockMovementRow(row: SaleStockMovementRow): SaleStockMovementRe
     quantityDelta: row.quantity_delta,
     saleId: row.sale_id,
   };
-}
-
-async function rollbackIfActive(db: SqlDatabase): Promise<void> {
-  try {
-    await db.execute("ROLLBACK");
-  } catch (rollbackError) {
-    const message = String(rollbackError);
-
-    if (!message.includes("no transaction is active")) {
-      throw rollbackError;
-    }
-  }
 }
 
 export const salesRepository = createSalesRepository();

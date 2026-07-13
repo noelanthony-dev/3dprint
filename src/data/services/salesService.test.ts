@@ -45,7 +45,6 @@ describe("sales service", () => {
     };
 
     const sales: SalesRepository = {
-      create: async () => saleRecord,
       get: async () => saleRecord,
       list: async () => [saleRecord],
       listStockMovements: async () => [],
@@ -57,6 +56,7 @@ describe("sales service", () => {
           stockQuantityBefore: input.stockQuantityBefore,
         };
       },
+      updateDetails: async () => saleRecord,
     };
 
     const service = createSalesService({ finishedGoods, sales });

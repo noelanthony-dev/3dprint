@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
 import type { PrintProfileInput } from "@/domain/costing";
@@ -56,15 +56,21 @@ class FakeDatabase implements SqlDatabase {
       ] as T;
     }
 
+    if (query.includes("FROM print_profile_addons")) {
+      return [
+        { addon_id: 4, description: "Mechanical switch", print_profile_id: 1, quantity: 5, total_cost: 2.5, unit_cost: 0.5 },
+      ] as T;
+    }
+
     return [this.row] as T;
   }
 }
 
 const input: PrintProfileInput = {
-  addOnCost: 2.5,
-  addOnDescription: " Magnets and box ",
-  addOnId: 4,
-  addOnQuantity: 5,
+  addOns: [
+    { addOnId: 4, description: " Mechanical switch ", quantity: 5, totalCost: 2.5, unitCost: 0.5 },
+    { addOnId: 5, description: " Lobster clasp ", quantity: 5, totalCost: 5, unitCost: 1 },
+  ],
   electricityRatePerKwh: 0.15,
   expectedFailedUnits: 1,
   expectedGoodUnits: 10,
@@ -85,34 +91,34 @@ const input: PrintProfileInput = {
 };
 
 describe("print profiles repository", () => {
-  it("creates print profile schema before the first query", async () => {
+  it("queries print profiles without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createPrintProfilesRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS print_profiles");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_print_profiles_product");
-    expect(fakeDb.selected[0]?.query).toContain("PRAGMA table_info");
-    expect(fakeDb.selected[2]?.query).toContain("FROM print_profiles");
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected.some((statement) => statement.query.includes("PRAGMA"))).toBe(false);
+    expect(fakeDb.selected.some((statement) => statement.query.includes("FROM print_profiles"))).toBe(true);
   });
 
-  it("binds create values instead of interpolating profile text", async () => {
+  it("sends create values through one native transaction payload", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createPrintProfilesRepository(async () => fakeDb);
+    const profileSaver = vi.fn(async () => 1);
+    const repository = createPrintProfilesRepository(async () => fakeDb, profileSaver);
 
     await repository.create(input);
 
-    const insert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT INTO print_profiles"),
-    );
-
-    expect(insert?.query).toContain("VALUES ($1, $2, $3");
-    expect(insert?.query).not.toContain("0.2mm Standard");
-    expect(insert?.values[1]).toBe("0.2mm Standard");
-    expect(insert?.values[6]).toBe(4);
-    expect(insert?.values[7]).toBe("Magnets and box");
-    expect(insert?.values[8]).toBe(5);
-    expect(insert?.values[19]).toBe(3);
+    expect(profileSaver).toHaveBeenCalledOnce();
+    expect(profileSaver).toHaveBeenCalledWith(expect.objectContaining({
+      addOns: [
+        { addOnId: 4, description: "Mechanical switch", quantity: 5, totalCost: 2.5, unitCost: 0.5 },
+        { addOnId: 5, description: "Lobster clasp", quantity: 5, totalCost: 5, unitCost: 1 },
+      ],
+      id: null,
+      profileName: "0.2mm Standard",
+      targetMarkup: 3,
+    }));
+    expect(fakeDb.executed).toEqual([]);
   });
 });

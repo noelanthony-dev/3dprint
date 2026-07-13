@@ -2333,10 +2333,150 @@ textarea {
 
 .form-field[data-wide="true"],
 .callout[data-wide="true"],
+.addon-editor[data-wide="true"],
+.business-multiselect,
 .form-section,
 .form-message,
 .form-actions {
   grid-column: 1 / -1;
+}
+
+.addon-editor {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.addon-editor__header,
+.addon-editor__row {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.addon-editor__header {
+  align-items: center;
+  justify-content: space-between;
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.addon-editor__row {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  padding: var(--space-3);
+}
+
+.addon-editor__row .form-field:first-child {
+  flex: 1 1 280px;
+}
+
+.addon-editor__row .form-field:nth-child(2) {
+  flex: 0 1 120px;
+}
+
+.addon-editor__cost {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 110px;
+}
+
+.addon-editor__cost span,
+.addon-editor__empty {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+}
+
+.addon-editor__cost strong {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+}
+
+.addon-cost-list {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.addon-cost-list p {
+  margin: 0;
+}
+
+.business-multiselect {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.business-multiselect legend {
+  margin-bottom: var(--space-2);
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.business-multiselect__options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.business-multiselect__options button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-input);
+  color: var(--color-text);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1.3;
+  padding: var(--space-2) var(--space-3);
+  -webkit-text-fill-color: var(--color-text);
+}
+
+.business-multiselect__options button:hover {
+  border-color: var(--color-muted);
+}
+
+.business-multiselect__options button[data-selected="true"] {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-input));
+  color: var(--color-text);
+}
+
+.business-multiselect__options button span {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border: 1px solid var(--color-muted);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 0.76rem;
+  line-height: 1;
+  -webkit-text-fill-color: var(--color-text);
+}
+
+.business-multiselect__options button[data-selected="true"] span {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-active-text);
+  -webkit-text-fill-color: var(--color-active-text);
 }
 
 .form-section {

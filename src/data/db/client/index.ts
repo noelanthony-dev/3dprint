@@ -1,4 +1,4 @@
-import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 
 export const PRINTOPS_DB_PATH = "sqlite:printops-studio.db";
 
@@ -26,23 +26,30 @@ export async function closeDatabase(): Promise<boolean> {
     return true;
   }
 
-  const database = await databasePromise;
   databasePromise = null;
-
-  return database.close ? database.close() : true;
+  return true;
 }
 
 export const databaseClientStatus = {
   databasePath: PRINTOPS_DB_PATH,
-  implementation: "tauri-sqlite",
+  implementation: "native-serialized-sqlite",
   persistenceEnabled: true,
   rawSqlAllowedInReact: false,
 } as const;
 
 async function loadDatabase(): Promise<SqlDatabase> {
-  const database = await Database.load(PRINTOPS_DB_PATH);
-
-  await database.execute("PRAGMA busy_timeout = 5000");
-
-  return database;
+  return {
+    execute(query, bindValues = []) {
+      return invoke<QueryResult>("db_execute", {
+        query,
+        values: [...bindValues],
+      });
+    },
+    select<T>(query: string, bindValues: readonly unknown[] = []) {
+      return invoke<T>("db_select", {
+        query,
+        values: [...bindValues],
+      });
+    },
+  };
 }

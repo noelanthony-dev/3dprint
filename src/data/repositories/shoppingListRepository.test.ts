@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
+import type { SaveShoppingItemCommand } from "@/data/db/nativeWorkflows";
 import type { ShoppingListItemInput } from "@/domain/shopping";
 
 import { createShoppingListRepository } from "./shoppingListRepository";
@@ -9,20 +10,6 @@ class FakeDatabase implements SqlDatabase {
   readonly executed: { query: string; values: readonly unknown[] }[] = [];
   readonly selected: { query: string; values: readonly unknown[] }[] = [];
 
-  private shoppingListColumns = [
-    "id",
-    "item_name",
-    "category",
-    "quantity_needed",
-    "unit",
-    "priority",
-    "status",
-    "source_type",
-    "source_note",
-    "notes",
-    "created_at",
-    "updated_at",
-  ];
   private productLinks = new Map<number, number[]>([[1, [7]]]);
 
   private row = {
@@ -92,18 +79,6 @@ class FakeDatabase implements SqlDatabase {
       }
     }
 
-    if (query.includes("ALTER TABLE shopping_list_items ADD COLUMN product_id")) {
-      this.shoppingListColumns.push("product_id");
-    }
-
-    if (query.includes("ALTER TABLE shopping_list_items ADD COLUMN required_transmission_distance")) {
-      this.shoppingListColumns.push("required_transmission_distance");
-    }
-
-    if (query.includes("ALTER TABLE shopping_list_items ADD COLUMN shopee_listing_name")) {
-      this.shoppingListColumns.push("shopee_listing_name");
-    }
-
     if (query.includes("INSERT OR IGNORE INTO shopping_list_item_products") && query.includes("SELECT id, product_id")) {
       this.productLinks.set(1, [7]);
     }
@@ -113,10 +88,6 @@ class FakeDatabase implements SqlDatabase {
 
   async select<T>(query: string, bindValues: readonly unknown[] = []): Promise<T> {
     this.selected.push({ query, values: bindValues });
-
-    if (query.includes("PRAGMA table_info(shopping_list_items)")) {
-      return this.shoppingListColumns.map((name) => ({ name })) as T;
-    }
 
     if (query.includes("FROM shopping_list_item_products")) {
       const itemIds = bindValues as readonly number[];
@@ -131,6 +102,25 @@ class FakeDatabase implements SqlDatabase {
     }
 
     return [this.row] as T;
+  }
+
+  applySavedItem(input: SaveShoppingItemCommand): void {
+    this.row = {
+      ...this.row,
+      category: input.category,
+      item_name: input.itemName,
+      notes: input.notes,
+      priority: input.priority,
+      product_id: input.productIds[0] ?? null,
+      quantity_needed: input.quantityNeeded,
+      required_transmission_distance: input.requiredTransmissionDistance,
+      shopee_listing_name: input.shopeeListingName,
+      source_note: input.sourceNote,
+      source_type: input.sourceType,
+      status: input.status,
+      unit: input.unit,
+    };
+    this.productLinks.set(this.row.id, [...input.productIds]);
   }
 }
 
@@ -151,44 +141,34 @@ const input: ShoppingListItemInput = {
 };
 
 describe("shopping list repository", () => {
-  it("creates shopping list schema before the first query", async () => {
+  it("queries shopping items without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createShoppingListRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS shopping_list_items");
-    expect(fakeDb.selected.some((statement) => statement.query.includes("PRAGMA table_info(shopping_list_items)"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("ALTER TABLE shopping_list_items ADD COLUMN product_id"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("ALTER TABLE shopping_list_items ADD COLUMN required_transmission_distance"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("ALTER TABLE shopping_list_items ADD COLUMN shopee_listing_name"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("CREATE TABLE IF NOT EXISTS shopping_list_item_products"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("SELECT id, product_id"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("CREATE INDEX IF NOT EXISTS idx_shopping_list_status_priority"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("CREATE INDEX IF NOT EXISTS idx_shopping_list_product_status"))).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("CREATE INDEX IF NOT EXISTS idx_shopping_list_item_products_product"))).toBe(true);
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected.some((statement) => statement.query.includes("PRAGMA"))).toBe(false);
     expect(fakeDb.selected.some((statement) => statement.query.includes("FROM shopping_list_items"))).toBe(true);
   });
 
-  it("binds create values instead of interpolating item text", async () => {
+  it("sends create values through one native transaction payload", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createShoppingListRepository(async () => fakeDb);
+    const shoppingItemSaver = vi.fn(async () => 1);
+    const repository = createShoppingListRepository(async () => fakeDb, shoppingItemSaver);
 
     await repository.create(input);
 
-    const insert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT INTO shopping_list_items"),
-    );
-
-    expect(insert?.query).toContain("product_id");
-    expect(insert?.query).toContain("VALUES ($1, $2, $3");
-    expect(insert?.query).not.toContain("6x2mm magnets");
-    expect(insert?.values[0]).toBe("6x2mm magnets");
-    expect(insert?.values[1]).toBe(7);
-    expect(insert?.values[4]).toBe(2.1);
-    expect(insert?.values[5]).toBe("Bambu PLA Basic Green 1kg");
-    expect(insert?.values[10]).toBe("Manual entry");
-    expect(fakeDb.executed.some((statement) => statement.query.includes("INSERT OR IGNORE INTO shopping_list_item_products") && statement.values[1] === 7)).toBe(true);
+    expect(shoppingItemSaver).toHaveBeenCalledOnce();
+    expect(shoppingItemSaver).toHaveBeenCalledWith(expect.objectContaining({
+      id: null,
+      itemName: "6x2mm magnets",
+      productIds: [7],
+      requiredTransmissionDistance: 2.1,
+      shopeeListingName: "Bambu PLA Basic Green 1kg",
+      sourceNote: "Manual entry",
+    }));
+    expect(fakeDb.executed).toEqual([]);
   });
 
   it("maps selected product ids from shopping product links", async () => {
@@ -203,9 +183,13 @@ describe("shopping list repository", () => {
     expect(item?.shopeeListingName).toBe("Bambu PLA Basic Green 1kg");
   });
 
-  it("updates shopping item details through bound values", async () => {
+  it("updates shopping item and product links through one native payload", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createShoppingListRepository(async () => fakeDb);
+    const shoppingItemSaver = vi.fn(async (command: SaveShoppingItemCommand) => {
+      fakeDb.applySavedItem(command);
+      return 1;
+    });
+    const repository = createShoppingListRepository(async () => fakeDb, shoppingItemSaver);
 
     const updated = await repository.update(1, {
       ...input,
@@ -217,19 +201,16 @@ describe("shopping list repository", () => {
       sourceNote: " For rose bookmark ",
     });
 
-    const update = fakeDb.executed.find((statement) =>
-      statement.query.includes("UPDATE shopping_list_items") && statement.query.includes("item_name = $1"),
-    );
-
-    expect(update?.query).not.toContain("Bambu Lab Hot Pink PLA");
-    expect(update?.values[0]).toBe("Bambu Lab Hot Pink PLA");
-    expect(update?.values[1]).toBe(9);
-    expect(update?.values[4]).toBe(4.2);
-    expect(update?.values[5]).toBe("Jayo Matte White PLA Shopee");
-    expect(update?.values[10]).toBe("For rose bookmark");
-    expect(update?.values[12]).toBe(1);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("DELETE FROM shopping_list_item_products") && statement.values[0] === 1)).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query.includes("INSERT OR IGNORE INTO shopping_list_item_products") && statement.values[1] === 10)).toBe(true);
+    expect(shoppingItemSaver).toHaveBeenCalledOnce();
+    expect(shoppingItemSaver).toHaveBeenCalledWith(expect.objectContaining({
+      id: 1,
+      itemName: "Bambu Lab Hot Pink PLA",
+      productIds: [9, 10],
+      requiredTransmissionDistance: 4.2,
+      shopeeListingName: "Jayo Matte White PLA Shopee",
+      sourceNote: "For rose bookmark",
+    }));
+    expect(fakeDb.executed).toEqual([]);
     expect(updated.itemName).toBe("Bambu Lab Hot Pink PLA");
     expect(updated.productId).toBe(9);
     expect(updated.productIds).toEqual([9, 10]);

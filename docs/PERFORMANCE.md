@@ -8,7 +8,7 @@ The app should feel fast, local, and responsive on a MacBook. Startup should be 
 
 - Lazy-load feature pages where practical.
 - Do not load every feature module at startup.
-- Do not perform database-heavy work during app boot.
+- Limit database startup work to opening the single connection and applying bounded versioned migrations; feature data queries remain lazy.
 - Do not load product images at startup.
 - Do not calculate monthly reports at startup.
 - Keep the app shell small and predictable.
@@ -46,5 +46,5 @@ The app should feel fast, local, and responsive on a MacBook. Startup should be 
 
 - Settings are read from `localStorage` only when the Settings or Backup pages need them.
 - Backup and restore use Tauri dialog/file-system plugins only after explicit user actions.
-- Full backup creation reads the SQLite database file on demand and encodes it into a JSON envelope; no backup work runs at startup.
-- Restore/import validation runs before any write back to local settings or the app-data SQLite file, and full restore closes the SQL pool before replacing the database.
+- Full backup creation asks native SQLite for a consistent snapshot and encodes it into the existing JSON envelope; no backup work runs at startup.
+- Restore validates `quick_check`, closes the managed connection, swaps the database, removes stale sidecars, and requires restart.

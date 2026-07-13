@@ -62,14 +62,13 @@ const input: FilamentInput = {
 };
 
 describe("filament repository", () => {
-  it("creates the filament schema before the first query", async () => {
+  it("queries filaments without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createFilamentRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS filaments");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_filaments_status_brand");
+    expect(fakeDb.executed).toEqual([]);
     expect(fakeDb.selected[0]?.query).toContain("FROM filaments");
   });
 

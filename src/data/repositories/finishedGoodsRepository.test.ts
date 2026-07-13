@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
 import type { FinishedGoodInput, FinishedGoodStockAdjustmentInput } from "@/domain/inventory";
@@ -56,6 +56,10 @@ class FakeDatabase implements SqlDatabase {
 
     return [this.row] as T;
   }
+
+  setReadyQuantity(quantityReady: number): void {
+    this.row = { ...this.row, quantity_ready: quantityReady };
+  }
 }
 
 const input: FinishedGoodInput = {
@@ -73,16 +77,13 @@ const adjustment: FinishedGoodStockAdjustmentInput = {
 };
 
 describe("finished goods repository", () => {
-  it("creates finished goods and adjustment schema before the first query", async () => {
+  it("queries finished goods without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createFinishedGoodsRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS finished_goods");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_finished_goods_product_reference");
-    expect(fakeDb.executed[2]?.query).toContain("CREATE TABLE IF NOT EXISTS finished_good_stock_adjustments");
-    expect(fakeDb.executed[3]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_finished_good_stock_adjustments_item");
+    expect(fakeDb.executed).toEqual([]);
     expect(fakeDb.selected[0]?.query).toContain("FROM finished_goods");
   });
 
@@ -102,23 +103,24 @@ describe("finished goods repository", () => {
     expect(insert?.values[3]).toBe(2);
   });
 
-  it("records manual stock adjustments through repository SQL", async () => {
+  it("records manual stock adjustments through one native transaction", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createFinishedGoodsRepository(async () => fakeDb);
+    const stockAdjuster = vi.fn(async (command: { readonly quantityAfter: number }) => {
+      fakeDb.setReadyQuantity(command.quantityAfter);
+    });
+    const repository = createFinishedGoodsRepository(async () => fakeDb, stockAdjuster);
 
     const updated = await repository.adjustStock(1, adjustment);
 
-    const update = fakeDb.executed.find((statement) =>
-      statement.query.includes("UPDATE finished_goods"),
-    );
-    const adjustmentInsert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT INTO finished_good_stock_adjustments"),
-    );
-
-    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(true);
-    expect(update?.values).toEqual([10, 1]);
-    expect(adjustmentInsert?.values).toEqual([1, 2, 10, "manual count", ""]);
+    expect(stockAdjuster).toHaveBeenCalledWith({
+      id: 1,
+      notes: "",
+      quantityAfter: 10,
+      quantityBefore: 8,
+      quantityDelta: 2,
+      reason: "manual count",
+    });
+    expect(fakeDb.executed).toEqual([]);
     expect(updated.quantityReady).toBe(10);
   });
 });

@@ -17,6 +17,13 @@ export const PRODUCT_CATEGORIES = [
 
 export const PRODUCT_SALE_UNITS = ["piece", "pair", "set", "bundle", "pack"] as const;
 
+export const PRODUCT_BUSINESSES = [
+  "Sincerely, Books",
+  "Flora & Faun",
+  "Dear Reader",
+  "Stomping Grounds",
+] as const;
+
 export const COMMERCIAL_LICENSE_STATUSES = [
   "commercial-ok",
   "permission-needed",
@@ -33,6 +40,7 @@ export const LICENSE_BILLING_INTERVALS = [
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 export type ProductSaleUnit = (typeof PRODUCT_SALE_UNITS)[number];
+export type ProductBusiness = (typeof PRODUCT_BUSINESSES)[number];
 export type CommercialLicenseStatus = (typeof COMMERCIAL_LICENSE_STATUSES)[number];
 export type LicenseBillingInterval = (typeof LICENSE_BILLING_INTERVALS)[number];
 export type LicenseWarningTone = "success" | "warning" | "danger";
@@ -54,6 +62,7 @@ export interface ProductHueForgeFilament {
 export interface ProductRecord {
   readonly id: number;
   readonly canPrintWithInventory: boolean;
+  readonly businesses: readonly ProductBusiness[];
   readonly designName: string;
   readonly sourceLink: string;
   readonly authorName: string;
@@ -72,6 +81,7 @@ export interface ProductRecord {
 
 export interface ProductInput {
   readonly canPrintWithInventory: boolean;
+  readonly businesses: readonly ProductBusiness[];
   readonly designName: string;
   readonly sourceLink: string;
   readonly authorName: string;
@@ -184,6 +194,10 @@ export function getLicensePaymentDisplay(
 
 export function validateProductInput(input: ProductInput): ProductValidationResult {
   const errors: Partial<Record<keyof ProductInput, string>> = {};
+
+  if (input.businesses.some((business) => !PRODUCT_BUSINESSES.includes(business))) {
+    errors.businesses = "Choose only supported businesses.";
+  }
 
   if (!input.designName.trim()) {
     errors.designName = "Design name is required.";

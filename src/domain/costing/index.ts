@@ -9,10 +9,7 @@ export interface PrintProfileRecord {
   readonly filamentGrams: number;
   readonly supportGrams: number;
   readonly filamentCostPerKg: number;
-  readonly addOnId: number | null;
-  readonly addOnDescription: string;
-  readonly addOnQuantity: number;
-  readonly addOnCost: number;
+  readonly addOns: readonly PrintProfileAddOn[];
   readonly printHours: number;
   readonly printMinutes: number;
   readonly electricityRatePerKwh: number;
@@ -35,10 +32,7 @@ export interface PrintProfileInput {
   readonly filamentGrams: number;
   readonly supportGrams: number;
   readonly filamentCostPerKg: number;
-  readonly addOnId: number | null;
-  readonly addOnDescription: string;
-  readonly addOnQuantity: number;
-  readonly addOnCost: number;
+  readonly addOns: readonly PrintProfileAddOn[];
   readonly printHours: number;
   readonly printMinutes: number;
   readonly electricityRatePerKwh: number;
@@ -50,6 +44,14 @@ export interface PrintProfileInput {
   readonly expectedFailedUnits: number;
   readonly targetMarkup: number;
   readonly notes: string;
+}
+
+export interface PrintProfileAddOn {
+  readonly addOnId: number | null;
+  readonly description: string;
+  readonly quantity: number;
+  readonly unitCost: number;
+  readonly totalCost: number;
 }
 
 export interface PrintProfileValidationResult {
@@ -79,11 +81,12 @@ export function calculatePrintCost(input: PrintProfileInput): PrintCostBreakdown
     totalPrintHours * (input.printerPowerWatts / 1000) * input.electricityRatePerKwh;
   const wearCost = totalPrintHours * input.wearRatePerHour;
   const laborCost = (input.laborMinutes / 60) * input.laborRatePerHour;
-  const batchCost = filamentCost + input.addOnCost + electricityCost + wearCost + laborCost;
+  const addOnCost = input.addOns.reduce((sum, addOn) => sum + addOn.totalCost, 0);
+  const batchCost = filamentCost + addOnCost + electricityCost + wearCost + laborCost;
   const totalUnitsAttempted = input.expectedGoodUnits + input.expectedFailedUnits;
 
   return {
-    addOnCost: roundCurrency(input.addOnCost),
+    addOnCost: roundCurrency(addOnCost),
     batchCost: roundCurrency(batchCost),
     costPerAttemptedUnit:
       totalUnitsAttempted > 0 ? roundCurrency(batchCost / totalUnitsAttempted) : 0,
@@ -119,8 +122,6 @@ export function validatePrintProfileInput(
   validateNonNegative(input, errors, "filamentGrams", "Filament grams cannot be negative.");
   validateNonNegative(input, errors, "supportGrams", "Purge/support grams cannot be negative.");
   validateNonNegative(input, errors, "filamentCostPerKg", "Filament cost cannot be negative.");
-  validateNonNegative(input, errors, "addOnQuantity", "Add-on quantity cannot be negative.");
-  validateNonNegative(input, errors, "addOnCost", "Add-on cost cannot be negative.");
   validateNonNegative(input, errors, "printHours", "Print hours cannot be negative.");
   validateNonNegative(input, errors, "printMinutes", "Print minutes cannot be negative.");
   validateNonNegative(input, errors, "electricityRatePerKwh", "Electricity rate cannot be negative.");
@@ -138,13 +139,34 @@ export function validatePrintProfileInput(
     errors.targetMarkup = "Target markup must be 1x or greater.";
   }
 
-  if (input.addOnId != null && (!Number.isInteger(input.addOnId) || input.addOnId <= 0)) {
-    errors.addOnId = "Choose a valid add-on item.";
-  }
+  const selectedIds = new Set<number>();
+  input.addOns.forEach((addOn, index) => {
+    if (addOn.addOnId == null) {
+      if (!addOn.description.trim()) {
+        errors.addOns = `Choose a valid item for add-on ${index + 1}.`;
+        return;
+      }
+    } else {
+      if (!Number.isInteger(addOn.addOnId) || addOn.addOnId <= 0) {
+        errors.addOns = `Choose a valid item for add-on ${index + 1}.`;
+        return;
+      }
 
-  if (input.addOnQuantity > 0 && input.addOnId == null) {
-    errors.addOnId = "Choose an add-on item before adding add-on quantity.";
-  }
+      if (selectedIds.has(addOn.addOnId)) {
+        errors.addOns = "Each add-on item can only be selected once.";
+        return;
+      }
+      selectedIds.add(addOn.addOnId);
+    }
+
+    if (!Number.isFinite(addOn.quantity) || addOn.quantity < 0) {
+      errors.addOns = `Add-on ${index + 1} quantity cannot be negative.`;
+    } else if (!Number.isFinite(addOn.unitCost) || addOn.unitCost < 0) {
+      errors.addOns = `Add-on ${index + 1} unit cost cannot be negative.`;
+    } else if (!Number.isFinite(addOn.totalCost) || addOn.totalCost < 0) {
+      errors.addOns = `Add-on ${index + 1} total cost cannot be negative.`;
+    }
+  });
 
   return {
     errors,

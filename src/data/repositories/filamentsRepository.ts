@@ -1,5 +1,9 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  adjustFilamentStockNative,
+  type DecimalStockAdjustmentCommand,
+} from "@/data/db/nativeWorkflows";
+import {
   normalizeHexColor,
   type FilamentInput,
   type FilamentMaterial,
@@ -49,6 +53,7 @@ interface FilamentStockAdjustmentRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type StockAdjuster = (input: DecimalStockAdjustmentCommand) => Promise<void>;
 
 const FILAMENT_COLUMNS = `
   id,
@@ -81,18 +86,10 @@ const FILAMENT_ADJUSTMENT_COLUMNS = `
 
 export function createFilamentRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  stockAdjuster: StockAdjuster = adjustFilamentStockNative,
 ): FilamentRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureFilamentSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -103,7 +100,6 @@ export function createFilamentRepository(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid filament adjustment.");
       }
 
-      const db = await database();
       const current = await this.get(filamentId);
 
       if (!current) {
@@ -120,40 +116,14 @@ export function createFilamentRepository(
         throw new Error("Adjustment cannot increase filament above starting grams.");
       }
 
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        await db.execute(
-          `UPDATE filaments
-           SET
-            estimated_grams_left = $1,
-            updated_at = datetime('now')
-           WHERE id = $2`,
-          [nextGrams, filamentId],
-        );
-
-        await db.execute(
-          `INSERT INTO filament_stock_adjustments (
-            filament_id,
-            grams_delta,
-            grams_after,
-            reason,
-            notes
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            filamentId,
-            input.gramsDelta,
-            nextGrams,
-            input.reason.trim(),
-            input.notes.trim(),
-          ],
-        );
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await db.execute("ROLLBACK");
-        throw error;
-      }
+      await stockAdjuster({
+        id: filamentId,
+        notes: input.notes.trim(),
+        quantityAfter: nextGrams,
+        quantityBefore: current.estimatedGramsLeft,
+        quantityDelta: input.gramsDelta,
+        reason: input.reason.trim(),
+      });
 
       const updated = await this.get(filamentId);
 
@@ -282,52 +252,6 @@ export function createFilamentRepository(
       return updated;
     },
   };
-}
-
-async function ensureFilamentSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS filaments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      brand TEXT NOT NULL,
-      name TEXT NOT NULL,
-      material_type TEXT NOT NULL,
-      color_name TEXT NOT NULL,
-      hex_color TEXT NOT NULL,
-      transmission_distance REAL,
-      spool_status TEXT NOT NULL CHECK (spool_status IN ('open', 'sealed', 'empty', 'archived')),
-      starting_grams REAL NOT NULL CHECK (starting_grams > 0),
-      estimated_grams_left REAL NOT NULL CHECK (estimated_grams_left >= 0),
-      spool_cost REAL NOT NULL DEFAULT 0 CHECK (spool_cost >= 0),
-      purchase_source TEXT,
-      notes TEXT,
-      low_stock_threshold_grams REAL NOT NULL DEFAULT 200 CHECK (low_stock_threshold_grams >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_filaments_status_brand
-    ON filaments (spool_status, brand, name)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS filament_stock_adjustments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      filament_id INTEGER NOT NULL,
-      grams_delta REAL NOT NULL CHECK (grams_delta != 0),
-      grams_after REAL NOT NULL CHECK (grams_after >= 0),
-      reason TEXT NOT NULL,
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_filament_stock_adjustments_item
-    ON filament_stock_adjustments (filament_id, created_at DESC)
-  `);
 }
 
 function toPersistedValues(input: FilamentInput): readonly unknown[] {

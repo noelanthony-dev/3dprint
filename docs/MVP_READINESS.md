@@ -32,7 +32,7 @@ MVP-ready for local development and debug `.app` packaging, with one remaining p
 - Reworked the Inventory landing page into three implemented workspace entry cards.
 - Added accessible empty table output for empty data sets.
 - Added horizontal scrolling for dense tables on compact widths.
-- Added database client tests for SQL pool reuse and close/reopen behavior used by backup restore.
+- Added database client tests for the native facade and command routing; native tests cover migrations, serialization, rollback, and backup snapshots.
 - Added route metadata tests to guard against stale placeholder language.
 
 ## MVP Constraints Preserved

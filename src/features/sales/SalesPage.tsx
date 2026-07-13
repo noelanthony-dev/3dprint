@@ -31,7 +31,9 @@ import {
   calculateSaleTotals,
   SALES_CHANNELS,
   validateSaleAgainstStock,
+  validateSaleDetailsInput,
   validateSaleInput,
+  type SaleDetailsInput,
   type SaleInput,
   type SaleRecord,
   type SalesChannel,
@@ -48,6 +50,14 @@ interface SaleFormState {
   readonly saleDate: string;
 }
 
+interface SaleEditFormState {
+  readonly channel: SalesChannel;
+  readonly discountsFees: string;
+  readonly grossRevenue: string;
+  readonly notes: string;
+  readonly saleDate: string;
+}
+
 const emptyForm: SaleFormState = {
   channel: "Direct",
   discountsFees: "0",
@@ -59,9 +69,20 @@ const emptyForm: SaleFormState = {
   saleDate: todayInputValue(),
 };
 
+const emptyEditForm: SaleEditFormState = {
+  channel: "Direct",
+  discountsFees: "0",
+  grossRevenue: "0",
+  notes: "",
+  saleDate: todayInputValue(),
+};
+
 export function SalesPage() {
   const [channelFilter, setChannelFilter] = useState<"All" | SalesChannel>("All");
   const [error, setError] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<SaleEditFormState>(emptyEditForm);
+  const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [editValidationMessage, setEditValidationMessage] = useState<string | null>(null);
   const [finishedGoods, setFinishedGoods] = useState<FinishedGoodRecord[]>([]);
   const [form, setForm] = useState<SaleFormState>(emptyForm);
   const [isAddSaleOpen, setIsAddSaleOpen] = useState(false);
@@ -115,6 +136,19 @@ export function SalesPage() {
     ? validateSaleAgainstStock(input, selectedFinishedGood)
     : "Choose a finished good item.";
   const totals = calculateSaleTotals(input);
+  const editInput = useMemo<SaleDetailsInput>(() => ({
+    channel: editForm.channel,
+    discountsFees: toNumber(editForm.discountsFees),
+    grossRevenue: toNumber(editForm.grossRevenue),
+    notes: editForm.notes,
+    saleDate: editForm.saleDate,
+  }), [editForm]);
+  const editValidation = validateSaleDetailsInput(editInput);
+  const editTotals = calculateSaleTotals({
+    discountsFees: editInput.discountsFees,
+    grossRevenue: editInput.grossRevenue,
+    quantity: editingSale?.quantity ?? 1,
+  });
   const filteredSales = channelFilter === "All"
     ? sales
     : sales.filter((sale) => sale.channel === channelFilter);
@@ -185,6 +219,59 @@ export function SalesPage() {
     }
   }
 
+  function openEditSaleModal(sale: SaleRecord): void {
+    setValidationMessage(null);
+    setEditValidationMessage(null);
+    setEditForm({
+      channel: sale.channel,
+      discountsFees: String(sale.discountsFees),
+      grossRevenue: String(sale.grossRevenue),
+      notes: sale.notes,
+      saleDate: sale.saleDate,
+    });
+    setEditingSale(sale);
+  }
+
+  function closeEditSaleModal(): void {
+    if (!isSaving) {
+      setEditingSale(null);
+      setEditValidationMessage(null);
+    }
+  }
+
+  async function handleEditSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+
+    if (!editingSale || saveInFlightRef.current) {
+      return;
+    }
+
+    setEditValidationMessage(null);
+
+    if (!editValidation.valid) {
+      setEditValidationMessage(
+        Object.values(editValidation.errors)[0] ?? "Check the sale correction fields.",
+      );
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await salesRepository.updateDetails(editingSale.id, editInput);
+      setEditingSale(null);
+      setValidationMessage("Sale updated. Finished-goods stock history was unchanged.");
+      await loadSalesData();
+    } catch (saveError) {
+      setError(formatRepositoryError(saveError, "update"));
+    } finally {
+      saveInFlightRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
   return (
     <Page
       actions={
@@ -205,9 +292,9 @@ export function SalesPage() {
           <p>{error}</p>
         </div>
       ) : null}
-      {validationMessage && !isAddSaleOpen ? (
-        <div className={validationMessage.startsWith("Sale recorded") ? "callout" : "callout callout--warning"}>
-          <Badge tone={validationMessage.startsWith("Sale recorded") ? "success" : "warning"}>
+      {validationMessage && !isAddSaleOpen && !editingSale ? (
+        <div className={isSaleSuccessMessage(validationMessage) ? "callout" : "callout callout--warning"}>
+          <Badge tone={isSaleSuccessMessage(validationMessage) ? "success" : "warning"}>
             Sale Entry
           </Badge>
           <p>{validationMessage}</p>
@@ -242,8 +329,8 @@ export function SalesPage() {
           />
         </div>
         <DataTable
-          columns={["Date", "Product", "Channel", "Qty", "Gross", "Net", "Stock"]}
-          columnsTemplate="0.68fr minmax(150px, 1.35fr) 0.65fr 0.42fr 0.58fr 0.58fr 0.5fr"
+          columns={["Date", "Product", "Channel", "Qty", "Gross", "Net", "Stock", "Actions"]}
+          columnsTemplate="0.68fr minmax(150px, 1.35fr) 0.65fr 0.42fr 0.58fr 0.58fr 0.5fr 0.42fr"
           density="dense"
           footer={filteredSales.length === 0 ? "No sales recorded for this channel." : `Showing ${filteredSales.length} sales.`}
           rows={filteredSales.map((sale) => [
@@ -256,6 +343,11 @@ export function SalesPage() {
               <strong>{formatCurrency(sale.netRevenue)}</strong>
             </span>,
             `${sale.stockQuantityBefore} -> ${sale.stockQuantityAfter}`,
+            <span className="table-actions">
+              <button disabled={isSaving} onClick={() => openEditSaleModal(sale)} type="button">
+                Edit
+              </button>
+            </span>,
           ])}
         />
       </Panel>
@@ -371,6 +463,95 @@ export function SalesPage() {
                 </div>
               ) : null}
             </aside>
+          </section>
+        </div>
+      ) : null}
+
+      {editingSale ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            aria-labelledby="edit-sale-form-title"
+            aria-modal="true"
+            className="modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <h2 id="edit-sale-form-title">Edit Sale</h2>
+              <button
+                aria-label="Close edit sale form"
+                disabled={isSaving}
+                onClick={closeEditSaleModal}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <div className="modal__body">
+              <form className="inventory-form sales-form" onSubmit={(event) => void handleEditSubmit(event)}>
+                <FormField label="Product" wide>
+                  <input readOnly value={editingSale.productReference} />
+                </FormField>
+                <FormField label="Quantity">
+                  <input readOnly value={formatFinishedGoodsQuantity(editingSale.quantity, editingSale.saleUnit)} />
+                </FormField>
+                <FormField label="Stock Movement">
+                  <input readOnly value={`${editingSale.stockQuantityBefore} -> ${editingSale.stockQuantityAfter}`} />
+                </FormField>
+                <FormField label="Sale Date">
+                  <input
+                    onChange={(event) => setEditForm((current) => ({ ...current, saleDate: event.target.value }))}
+                    type="date"
+                    value={editForm.saleDate}
+                  />
+                </FormField>
+                <FormField label="Channel">
+                  <select
+                    onChange={(event) => setEditForm((current) => ({ ...current, channel: event.target.value as SalesChannel }))}
+                    value={editForm.channel}
+                  >
+                    {SALES_CHANNELS.map((channel) => (
+                      <option key={channel} value={channel}>{channel}</option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField label="Gross Revenue">
+                  <input
+                    inputMode="decimal"
+                    onChange={(event) => setEditForm((current) => ({ ...current, grossRevenue: event.target.value }))}
+                    value={editForm.grossRevenue}
+                  />
+                </FormField>
+                <FormField label="Discounts / Fees">
+                  <input
+                    inputMode="decimal"
+                    onChange={(event) => setEditForm((current) => ({ ...current, discountsFees: event.target.value }))}
+                    value={editForm.discountsFees}
+                  />
+                </FormField>
+                <FormField label="Net Revenue">
+                  <input readOnly value={formatCurrency(editTotals.netRevenue)} />
+                </FormField>
+                <FormField label="Notes" wide>
+                  <textarea
+                    onChange={(event) => setEditForm((current) => ({ ...current, notes: event.target.value }))}
+                    value={editForm.notes}
+                  />
+                </FormField>
+                <div className="callout" data-wide="true">
+                  <Badge>Stock protected</Badge>
+                  <p>Product, quantity, and stock movement stay unchanged when correcting this sale.</p>
+                </div>
+                <div className="form-actions">
+                  <ToolbarButton disabled={isSaving} onClick={closeEditSaleModal}>Cancel</ToolbarButton>
+                  <ToolbarButton isLoading={isSaving} loadingLabel="Saving" tone="primary" type="submit">
+                    Save Changes
+                  </ToolbarButton>
+                </div>
+                {editValidationMessage ? (
+                  <div className="form-message" role="alert">{editValidationMessage}</div>
+                ) : null}
+              </form>
+            </div>
           </section>
         </div>
       ) : null}
@@ -644,20 +825,32 @@ function formatCurrency(value: number): string {
   return `₱${value.toFixed(2)}`;
 }
 
-function formatRepositoryError(error: unknown, context: "load" | "save" = "load"): string {
+function formatRepositoryError(error: unknown, context: "load" | "save" | "update" = "load"): string {
   const message = getErrorMessage(error);
-  const fallback = context === "save" ? "Sale could not be saved." : "Sales storage could not be opened.";
-  const prefix = context === "save" ? "Sale could not be saved" : "Sales storage could not be opened";
+  const fallback = context === "load"
+    ? "Sales storage could not be opened."
+    : context === "update"
+      ? "Sale changes could not be saved."
+      : "Sale could not be saved.";
+  const prefix = context === "load"
+    ? "Sales storage could not be opened"
+    : context === "update"
+      ? "Sale changes could not be saved"
+      : "Sale could not be saved";
 
   if (error instanceof Error) {
     if (isBrowserPreviewError(error)) {
-      return "Browser preview cannot access the Tauri SQLite plugin. Open the desktop app to load and save local sales.";
+      return "Browser preview cannot access the native SQLite database. Open the desktop app to load and save local sales.";
     }
   }
 
   return message
     ? `${prefix}: ${message}`
     : fallback;
+}
+
+function isSaleSuccessMessage(message: string): boolean {
+  return message.startsWith("Sale recorded") || message.startsWith("Sale updated");
 }
 
 function getErrorMessage(error: unknown): string {

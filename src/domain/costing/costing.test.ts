@@ -7,10 +7,9 @@ import {
 } from "./index";
 
 const validInput: PrintProfileInput = {
-  addOnCost: 2.5,
-  addOnDescription: "Magnets and box",
-  addOnId: 4,
-  addOnQuantity: 5,
+  addOns: [
+    { addOnId: 4, description: "Mechanical switch", quantity: 5, unitCost: 0.5, totalCost: 2.5 },
+  ],
   electricityRatePerKwh: 0.15,
   expectedFailedUnits: 1,
   expectedGoodUnits: 10,
@@ -77,11 +76,28 @@ describe("print costing", () => {
   it("requires an add-on selection before add-on quantity is costed", () => {
     const result = validatePrintProfileInput({
       ...validInput,
-      addOnId: null,
-      addOnQuantity: 2,
+      addOns: [{ addOnId: null, description: "", quantity: 2, unitCost: 1, totalCost: 2 }],
     });
 
     expect(result.valid).toBe(false);
-    expect(result.errors.addOnId).toBeDefined();
+    expect(result.errors.addOns).toBeDefined();
+  });
+
+  it("sums multiple add-ons and rejects duplicate selections", () => {
+    const result = calculatePrintCost({
+      ...validInput,
+      addOns: [
+        { addOnId: 4, description: "Mechanical switch", quantity: 1, unitCost: 6, totalCost: 6 },
+        { addOnId: 5, description: "Lobster clasp", quantity: 1, unitCost: 6.3, totalCost: 6.3 },
+      ],
+    });
+    expect(result.addOnCost).toBe(12.3);
+    expect(result.batchCost).toBe(31.34);
+
+    const duplicate = validatePrintProfileInput({
+      ...validInput,
+      addOns: [...validInput.addOns, validInput.addOns[0]!],
+    });
+    expect(duplicate.errors.addOns).toBe("Each add-on item can only be selected once.");
   });
 });

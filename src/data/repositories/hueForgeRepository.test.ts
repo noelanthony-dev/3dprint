@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
 import type { HueForgeRequirementMatch } from "@/domain/hueforge";
@@ -130,9 +130,10 @@ const match: HueForgeRequirementMatch = {
 };
 
 describe("HueForge repository", () => {
-  it("creates HueForge tables before saving analysis", async () => {
+  it("saves HueForge analysis through one native transaction without frontend DDL", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createHueForgeRepository(async () => fakeDb);
+    const analysisSaver = vi.fn(async () => undefined);
+    const repository = createHueForgeRepository(async () => fakeDb, analysisSaver);
 
     await repository.saveAnalysis({
       feasibilityNotes: "Ready.",
@@ -142,27 +143,18 @@ describe("HueForge repository", () => {
       productId: 3,
     });
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS hueforge_design_analyses");
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("CREATE TABLE IF NOT EXISTS author_filament_requirements"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("CREATE INDEX IF NOT EXISTS idx_author_filament_requirements_product"),
-    )).toBe(true);
-    expect(fakeDb.selected.some((statement) =>
-      statement.query.includes("PRAGMA table_info(hueforge_design_analyses)"),
-    )).toBe(true);
-    expect(fakeDb.selected.some((statement) =>
-      statement.query.includes("PRAGMA table_info(author_filament_requirements)"),
-    )).toBe(true);
+    expect(analysisSaver).toHaveBeenCalledOnce();
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected).toEqual([]);
   });
 
-  it("adds missing analysis and requirement columns before saving", async () => {
+  it("does not inspect or upgrade legacy columns from the repository", async () => {
     const fakeDb = new FakeDatabase({
       analysisColumns: ["id", "product_id", "feasibility_status"],
       requirementColumns: ["id", "product_id", "role", "brand"],
     });
-    const repository = createHueForgeRepository(async () => fakeDb);
+    const analysisSaver = vi.fn(async () => undefined);
+    const repository = createHueForgeRepository(async () => fakeDb, analysisSaver);
 
     await repository.saveAnalysis({
       feasibilityNotes: "Ready.",
@@ -172,36 +164,15 @@ describe("HueForge repository", () => {
       productId: 3,
     });
 
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE hueforge_design_analyses ADD COLUMN feasibility_notes"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE hueforge_design_analyses ADD COLUMN missing_warnings"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN required_grams"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN suggested_filament_label"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE author_filament_requirements ADD COLUMN td_delta"),
-    )).toBe(true);
-
-    const firstInsertIndex = fakeDb.executed.findIndex((statement) =>
-      statement.query.includes("INSERT INTO hueforge_design_analyses"),
-    );
-    const lastAlterIndex = fakeDb.executed.reduce(
-      (latest, statement, index) => statement.query.includes("ALTER TABLE") ? index : latest,
-      -1,
-    );
-
-    expect(lastAlterIndex).toBeLessThan(firstInsertIndex);
+    expect(analysisSaver).toHaveBeenCalledOnce();
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected).toEqual([]);
   });
 
-  it("stores analysis and requirement matches with bind values", async () => {
+  it("normalizes analysis and requirement values in the native payload", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createHueForgeRepository(async () => fakeDb);
+    const analysisSaver = vi.fn(async () => undefined);
+    const repository = createHueForgeRepository(async () => fakeDb, analysisSaver);
 
     await repository.saveAnalysis({
       feasibilityNotes: "Ready.",
@@ -211,20 +182,18 @@ describe("HueForge repository", () => {
       productId: 3,
     });
 
-    const analysisInsert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT INTO hueforge_design_analyses"),
-    );
-    const requirementInsert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT INTO author_filament_requirements"),
-    );
-
-    expect(fakeDb.executed.some((statement) => statement.query === "BEGIN IMMEDIATE")).toBe(true);
-    expect(fakeDb.executed.some((statement) => statement.query === "COMMIT")).toBe(true);
-    expect(analysisInsert?.values).toEqual([3, "ready", "Ready.", ""]);
-    expect(requirementInsert?.query).not.toContain("Bambu");
-    expect(requirementInsert?.values[0]).toBe(3);
-    expect(requirementInsert?.values[10]).toBe("Sunlu Matte Black");
-    expect(requirementInsert?.values[12]).toBe("excellent");
+    expect(analysisSaver).toHaveBeenCalledWith(expect.objectContaining({
+      feasibilityNotes: "Ready.",
+      feasibilityStatus: "ready",
+      productId: 3,
+      requirements: [expect.objectContaining({
+        brand: "Bambu",
+        matchStatus: "excellent",
+        suggestedFilamentId: 7,
+        suggestedFilamentLabel: "Sunlu Matte Black",
+      })],
+    }));
+    expect(fakeDb.executed).toEqual([]);
   });
 
   it("lists missing requirements for shopping suggestions", async () => {

@@ -4,6 +4,7 @@ import {
   calculateSaleTotals,
   getSaleStockStatus,
   validateSaleAgainstStock,
+  validateSaleDetailsInput,
   validateSaleInput,
   type SaleInput,
 } from "./index";
@@ -63,6 +64,24 @@ describe("sales validation", () => {
 
     expect(validation.valid).toBe(false);
     expect(validation.errors.discountsFees).toBe("Discounts and fees cannot exceed gross revenue.");
+  });
+
+  it("validates editable sale details without requiring stock fields", () => {
+    expect(validateSaleDetailsInput({
+      channel: "Flora",
+      discountsFees: 10,
+      grossRevenue: 150,
+      notes: "Corrected price",
+      saleDate: "2026-07-13",
+    })).toEqual({ errors: {}, valid: true });
+
+    expect(validateSaleDetailsInput({
+      channel: "Flora",
+      discountsFees: 160,
+      grossRevenue: 150,
+      notes: "",
+      saleDate: "2026-07-13",
+    }).errors.discountsFees).toBe("Discounts and fees cannot exceed gross revenue.");
   });
 });
 

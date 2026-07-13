@@ -1,5 +1,5 @@
 # SQLite Client
 
-The native app uses `@tauri-apps/plugin-sql` and loads `sqlite:printops-studio.db`.
+The frontend client is a small facade over native `db_select` and restricted single-statement `db_execute` commands. Rust owns the only SQLite connection.
 
-The client is initialized outside React and exposed only to repository modules. Do not import the SQL plugin directly from feature components or shared UI components.
+The client is initialized outside React and exposed only to repository modules. Compound writes use typed native workflow commands; feature components and shared UI must not issue raw SQL.

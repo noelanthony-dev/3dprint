@@ -5,7 +5,6 @@ import type {
   FilamentRepository,
   FinishedGoodsRepository,
   PrintProfilesRepository,
-  ProductionRunCreateInput,
   ProductsRepository,
 } from "@/data/repositories";
 import type { PrintProfileRecord } from "@/domain/costing";
@@ -16,9 +15,81 @@ import type { ProductionRunRecord } from "@/domain/production";
 import { createProductionRunsService } from "./productionRunsService";
 
 describe("production runs service", () => {
+  it("records the complete desktop production run atomically without repository stock writes", async () => {
+    const atomicInputs: unknown[] = [];
+    let stockWriteCount = 0;
+    const service = createProductionRunsService({
+      addOns: emptyAddOns,
+      atomicRecorder: async (input) => {
+        atomicInputs.push(input);
+        return productionRun.id;
+      },
+      filaments: {
+        create: async () => blackFilament,
+        get: async () => blackFilament,
+        list: async () => [blackFilament],
+        listAdjustments: async () => [],
+        update: async () => blackFilament,
+        adjustStock: async () => {
+          stockWriteCount += 1;
+          return blackFilament;
+        },
+      },
+      finishedGoods,
+      printProfiles,
+      productionRuns: {
+        get: async () => productionRun,
+        list: async () => [],
+        listAddOnDeductions: async () => [],
+        listFilamentDeductions: async () => [],
+      },
+      products,
+    });
+
+    await service.logProductionRun({
+      addOns: [],
+      expectedPieces: 1,
+      failedPieces: 0,
+      failureReason: "",
+      filamentId: blackFilament.id,
+      filamentSelections: [
+        { filamentId: blackFilament.id, requiredGrams: 13, requirementLabel: "Black PLA" },
+      ],
+      goodPieces: 1,
+      notes: "",
+      printProfileId: profile.id,
+      productId: product.id,
+      runDate: "2026-07-08",
+    });
+
+    expect(stockWriteCount).toBe(0);
+    expect(atomicInputs).toEqual([
+      expect.objectContaining({
+        filamentDeductions: [
+          expect.objectContaining({
+            filamentId: blackFilament.id,
+            gramsAfter: 87,
+            gramsBefore: 100,
+            gramsDeducted: 13,
+          }),
+        ],
+        filamentGramsDeducted: 13,
+        goodPieces: 1,
+      }),
+    ]);
+  });
+
   it("deducts each selected filament requirement separately", async () => {
     const adjustedFilaments: Array<{ filamentId: number; gramsDelta: number }> = [];
-    const createdRuns: ProductionRunCreateInput[] = [];
+    const atomicInputs: Array<{
+      readonly filamentDeductions: readonly {
+        readonly filamentId: number;
+        readonly gramsAfter: number;
+        readonly gramsBefore: number;
+        readonly gramsDeducted: number;
+      }[];
+      readonly filamentGramsDeducted: number;
+    }> = [];
     const filamentsById = new Map<number, FilamentRecord>(
       [blackFilament, whiteFilament, redFilament].map((filament) => [filament.id, filament]),
     );
@@ -50,14 +121,14 @@ describe("production runs service", () => {
 
     const service = createProductionRunsService({
       addOns: emptyAddOns,
+      atomicRecorder: async (atomicInput) => {
+        atomicInputs.push(atomicInput);
+        return productionRun.id;
+      },
       filaments,
       finishedGoods,
       printProfiles,
       productionRuns: {
-        create: async (input) => {
-          createdRuns.push(input);
-          return productionRun;
-        },
         get: async () => productionRun,
         list: async () => [],
         listAddOnDeductions: async () => [],
@@ -67,8 +138,7 @@ describe("production runs service", () => {
     });
 
     await service.logProductionRun({
-      addOnId: null,
-      addOnQuantity: 0,
+      addOns: [],
       expectedPieces: 1,
       failedPieces: 0,
       failureReason: "",
@@ -85,24 +155,71 @@ describe("production runs service", () => {
       runDate: "2026-07-08",
     });
 
-    expect(adjustedFilaments).toEqual([
-      { filamentId: blackFilament.id, gramsDelta: -9 },
-      { filamentId: whiteFilament.id, gramsDelta: -3 },
-      { filamentId: redFilament.id, gramsDelta: -1 },
-    ]);
-    const savedRun = createdRuns[0];
+    expect(adjustedFilaments).toEqual([]);
+    const savedRun = atomicInputs[0];
 
     expect(savedRun?.filamentGramsDeducted).toBe(13);
     expect(savedRun?.filamentDeductions).toEqual([
-      { filamentId: blackFilament.id, gramsBefore: 100, gramsAfter: 91, gramsDeducted: 9 },
-      { filamentId: whiteFilament.id, gramsBefore: 100, gramsAfter: 97, gramsDeducted: 3 },
-      { filamentId: redFilament.id, gramsBefore: 100, gramsAfter: 99, gramsDeducted: 1 },
+      expect.objectContaining({ filamentId: blackFilament.id, gramsBefore: 100, gramsAfter: 91, gramsDeducted: 9 }),
+      expect.objectContaining({ filamentId: whiteFilament.id, gramsBefore: 100, gramsAfter: 97, gramsDeducted: 3 }),
+      expect.objectContaining({ filamentId: redFilament.id, gramsBefore: 100, gramsAfter: 99, gramsDeducted: 1 }),
     ]);
+  });
+
+  it("prepares every add-on for one atomic production transaction", async () => {
+    const atomicInputs: Array<{ addOnDeductions?: readonly unknown[]; addOnQuantityDeducted?: number }> = [];
+    const switchItem = { ...emptyAddOn, id: 3, itemName: "Mechanical switch", quantityOnHand: 10 };
+    const claspItem = { ...emptyAddOn, id: 4, itemName: "Lobster clasp", quantityOnHand: 8 };
+    const addOnsById = new Map([switchItem, claspItem].map((item) => [item.id, item]));
+    const service = createProductionRunsService({
+      addOns: { ...emptyAddOns, get: async (id) => addOnsById.get(id) ?? null },
+      atomicRecorder: async (input) => {
+        atomicInputs.push(input);
+        return productionRun.id;
+      },
+      filaments: {
+        adjustStock: async () => blackFilament,
+        create: async () => blackFilament,
+        get: async () => blackFilament,
+        list: async () => [blackFilament],
+        listAdjustments: async () => [],
+        update: async () => blackFilament,
+      },
+      finishedGoods,
+      printProfiles,
+      productionRuns: {
+        get: async () => productionRun,
+        list: async () => [],
+        listAddOnDeductions: async () => [],
+        listFilamentDeductions: async () => [],
+      },
+      products,
+    });
+
+    await service.logProductionRun({
+      addOns: [{ addOnId: 3, quantity: 1 }, { addOnId: 4, quantity: 2 }],
+      expectedPieces: 1,
+      failedPieces: 0,
+      failureReason: "",
+      filamentId: blackFilament.id,
+      filamentSelections: [],
+      goodPieces: 1,
+      notes: "",
+      printProfileId: profile.id,
+      productId: product.id,
+      runDate: "2026-07-08",
+    });
+
+    expect(atomicInputs[0]?.addOnDeductions).toEqual([
+      { addOnId: 3, quantityAfter: 9, quantityBefore: 10, quantityDeducted: 1 },
+      { addOnId: 4, quantityAfter: 6, quantityBefore: 8, quantityDeducted: 2 },
+    ]);
+    expect(atomicInputs[0]?.addOnQuantityDeducted).toBe(3);
   });
 
   it("checks aggregate grams before deducting repeated selections from the same spool", async () => {
     const adjustedFilaments: Array<{ filamentId: number; gramsDelta: number }> = [];
-    const createdRuns: ProductionRunCreateInput[] = [];
+    let atomicCallCount = 0;
     const filamentsById = new Map<number, FilamentRecord>([
       [blackFilament.id, blackFilament],
     ]);
@@ -121,14 +238,14 @@ describe("production runs service", () => {
 
     const service = createProductionRunsService({
       addOns: emptyAddOns,
+      atomicRecorder: async () => {
+        atomicCallCount += 1;
+        return productionRun.id;
+      },
       filaments,
       finishedGoods,
       printProfiles,
       productionRuns: {
-        create: async (input) => {
-          createdRuns.push(input);
-          return productionRun;
-        },
         get: async () => productionRun,
         list: async () => [],
         listAddOnDeductions: async () => [],
@@ -139,8 +256,7 @@ describe("production runs service", () => {
 
     await expect(
       service.logProductionRun({
-        addOnId: null,
-        addOnQuantity: 0,
+        addOns: [],
         expectedPieces: 1,
         failedPieces: 0,
         failureReason: "",
@@ -158,12 +274,13 @@ describe("production runs service", () => {
     ).rejects.toThrow("Selected filament does not have enough estimated grams for this run.");
 
     expect(adjustedFilaments).toEqual([]);
-    expect(createdRuns).toEqual([]);
+    expect(atomicCallCount).toBe(0);
   });
 });
 
 const product: ProductRecord = {
   authorName: "Studio",
+  businesses: [],
   canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
@@ -182,10 +299,7 @@ const product: ProductRecord = {
 };
 
 const profile: PrintProfileRecord = {
-  addOnCost: 0,
-  addOnDescription: "",
-  addOnId: null,
-  addOnQuantity: 0,
+  addOns: [],
   createdAt: "2026-07-08T00:00:00.000Z",
   electricityRatePerKwh: 0,
   expectedFailedUnits: 0,
@@ -234,7 +348,7 @@ function makeFilament(id: number, brand: string, colorName: string): FilamentRec
 }
 
 const productionRun: ProductionRunRecord = {
-  addOnId: null,
+  addOnDeductions: [],
   addOnQuantityDeducted: 0,
   createdAt: "2026-07-08T00:00:00.000Z",
   expectedPieces: 1,

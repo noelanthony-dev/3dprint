@@ -22,6 +22,14 @@ export interface SaleInput {
   readonly saleUnit: FinishedGoodSaleUnit;
 }
 
+export interface SaleDetailsInput {
+  readonly channel: SalesChannel;
+  readonly discountsFees: number;
+  readonly grossRevenue: number;
+  readonly notes: string;
+  readonly saleDate: string;
+}
+
 export interface SaleRecord {
   readonly channel: SalesChannel;
   readonly createdAt: string;
@@ -59,6 +67,11 @@ export interface SaleTotals {
 
 export interface SaleValidationResult {
   readonly errors: Partial<Record<keyof SaleInput, string>>;
+  readonly valid: boolean;
+}
+
+export interface SaleDetailsValidationResult {
+  readonly errors: Partial<Record<keyof SaleDetailsInput, string>>;
   readonly valid: boolean;
 }
 
@@ -114,6 +127,41 @@ export function validateSaleInput(input: SaleInput): SaleValidationResult {
   if (!isFinishedGoodSaleUnit(input.saleUnit)) {
     errors.saleUnit = "Choose a valid sale unit.";
   }
+
+  if (!isSalesChannel(input.channel)) {
+    errors.channel = "Choose a valid sales channel.";
+  }
+
+  if (!input.saleDate.trim()) {
+    errors.saleDate = "Sale date is required.";
+  }
+
+  if (!Number.isFinite(input.grossRevenue) || input.grossRevenue < 0) {
+    errors.grossRevenue = "Gross revenue cannot be negative.";
+  }
+
+  if (!Number.isFinite(input.discountsFees) || input.discountsFees < 0) {
+    errors.discountsFees = "Discounts and fees cannot be negative.";
+  }
+
+  if (
+    Number.isFinite(input.grossRevenue) &&
+    Number.isFinite(input.discountsFees) &&
+    input.discountsFees > input.grossRevenue
+  ) {
+    errors.discountsFees = "Discounts and fees cannot exceed gross revenue.";
+  }
+
+  return {
+    errors,
+    valid: Object.keys(errors).length === 0,
+  };
+}
+
+export function validateSaleDetailsInput(
+  input: SaleDetailsInput,
+): SaleDetailsValidationResult {
+  const errors: Partial<Record<keyof SaleDetailsInput, string>> = {};
 
   if (!isSalesChannel(input.channel)) {
     errors.channel = "Choose a valid sales channel.";

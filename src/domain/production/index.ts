@@ -8,8 +8,7 @@ export interface ProductionFilamentSelectionInput {
 }
 
 export interface ProductionRunInput {
-  readonly addOnId: number | null;
-  readonly addOnQuantity: number;
+  readonly addOns: readonly ProductionAddOnSelectionInput[];
   readonly expectedPieces: number;
   readonly failedPieces: number;
   readonly failureReason: string;
@@ -22,8 +21,13 @@ export interface ProductionRunInput {
   readonly runDate: string;
 }
 
+export interface ProductionAddOnSelectionInput {
+  readonly addOnId: number;
+  readonly quantity: number;
+}
+
 export interface ProductionRunRecord {
-  readonly addOnId: number | null;
+  readonly addOnDeductions: readonly ProductionAddOnDeductionRecord[];
   readonly addOnQuantityDeducted: number;
   readonly createdAt: string;
   readonly expectedPieces: number;
@@ -67,7 +71,7 @@ export interface ProductionRunValidationResult {
 }
 
 export interface ProductionDeductionPlan {
-  readonly addOnQuantityToDeduct: number;
+  readonly addOnDeductions: readonly ProductionAddOnDeductionPlan[];
   readonly attemptedPieces: number;
   readonly expectedPieces: number;
   readonly failedPieces: number;
@@ -79,6 +83,11 @@ export interface ProductionDeductionPlan {
   readonly profileAttemptedPieces: number;
   readonly scaleFactor: number;
   readonly warnings: readonly string[];
+}
+
+export interface ProductionAddOnDeductionPlan {
+  readonly addOnId: number;
+  readonly quantityToDeduct: number;
 }
 
 export interface ProductionFilamentDeductionPlan {
@@ -113,17 +122,21 @@ export function validateProductionRunInput(
     }
   });
 
-  if (input.addOnId != null && (!Number.isInteger(input.addOnId) || input.addOnId <= 0)) {
-    errors.addOnId = "Choose a valid add-on item.";
-  }
-
-  if (!Number.isFinite(input.addOnQuantity) || input.addOnQuantity < 0) {
-    errors.addOnQuantity = "Add-on quantity cannot be negative.";
-  }
-
-  if (input.addOnQuantity > 0 && input.addOnId == null) {
-    errors.addOnId = "Choose an add-on item before deducting add-on quantity.";
-  }
+  const addOnIds = new Set<number>();
+  input.addOns.forEach((addOn, index) => {
+    if (!Number.isInteger(addOn.addOnId) || addOn.addOnId <= 0) {
+      errors.addOns = `Choose a valid item for add-on ${index + 1}.`;
+      return;
+    }
+    if (addOnIds.has(addOn.addOnId)) {
+      errors.addOns = "Each add-on item can only be selected once.";
+      return;
+    }
+    addOnIds.add(addOn.addOnId);
+    if (!Number.isFinite(addOn.quantity) || addOn.quantity < 0) {
+      errors.addOns = `Add-on ${index + 1} quantity cannot be negative.`;
+    }
+  });
 
   validatePositiveInteger(
     input.expectedPieces,
@@ -165,7 +178,7 @@ export function calculateProductionDeductionPlan(
   >,
   input: Pick<
     ProductionRunInput,
-    | "addOnQuantity"
+    | "addOns"
     | "expectedPieces"
     | "failedPieces"
     | "filamentId"
@@ -208,7 +221,10 @@ export function calculateProductionDeductionPlan(
   }
 
   return {
-    addOnQuantityToDeduct: roundProductionQuantity(Math.max(0, input.addOnQuantity)),
+    addOnDeductions: input.addOns.map((addOn) => ({
+      addOnId: addOn.addOnId,
+      quantityToDeduct: roundProductionQuantity(Math.max(0, addOn.quantity)),
+    })),
     attemptedPieces,
     expectedPieces: input.expectedPieces,
     failedPieces: input.failedPieces,

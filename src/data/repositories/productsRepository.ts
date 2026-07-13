@@ -1,10 +1,13 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
+import { deleteProductNative } from "@/data/db/nativeWorkflows";
 import {
+  PRODUCT_BUSINESSES,
   validateProductInput,
   isFilamentMaterial,
   type CommercialLicenseStatus,
   type LicenseBillingInterval,
   type ProductCategory,
+  type ProductBusiness,
   type ProductInput,
   type ProductRecord,
   type ProductSaleUnit,
@@ -21,6 +24,7 @@ export interface ProductsRepository {
 interface ProductRow {
   readonly author_name: string;
   readonly can_print_with_inventory: number | null;
+  readonly businesses: string | null;
   readonly category: string;
   readonly commercial_license_status: string;
   readonly created_at: string;
@@ -38,10 +42,12 @@ interface ProductRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type ProductDeleter = (id: number) => Promise<void>;
 
 const PRODUCT_COLUMNS = `
   id,
   can_print_with_inventory,
+  businesses,
   design_name,
   source_link,
   author_name,
@@ -60,18 +66,10 @@ const PRODUCT_COLUMNS = `
 
 export function createProductsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  productDeleter: ProductDeleter = deleteProductNative,
 ): ProductsRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureProductsSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -97,9 +95,10 @@ export function createProductsRepository(
           filament_mode,
           hueforge_filaments,
           can_print_with_inventory,
+          businesses,
           notes,
           image_reference
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
         values,
       );
 
@@ -117,19 +116,8 @@ export function createProductsRepository(
     },
 
     async delete(id) {
-      const db = await database();
-
-      await clearShoppingListProductLinksIfPresent(db, id);
-
-      const result = await db.execute(
-        `DELETE FROM products
-         WHERE id = $1`,
-        [id],
-      );
-
-      if (result.rowsAffected === 0) {
-        throw new Error(`Product ${id} does not exist.`);
-      }
+      await database();
+      await productDeleter(id);
     },
 
     async get(id) {
@@ -173,10 +161,11 @@ export function createProductsRepository(
           filament_mode = $9,
           hueforge_filaments = $10,
           can_print_with_inventory = $11,
-          notes = $12,
-          image_reference = $13,
+          businesses = $12,
+          notes = $13,
+          image_reference = $14,
           updated_at = datetime('now')
-         WHERE id = $14`,
+         WHERE id = $15`,
         [...values, id],
       );
 
@@ -193,66 +182,6 @@ export function createProductsRepository(
       return updated;
     },
   };
-}
-
-async function ensureProductsSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS products (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      design_name TEXT NOT NULL,
-      source_link TEXT NOT NULL,
-      author_name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      sale_unit TEXT NOT NULL,
-      commercial_license_status TEXT NOT NULL CHECK (
-        commercial_license_status IN (
-          'commercial-ok',
-          'permission-needed',
-          'personal-use',
-          'unknown'
-        )
-      ),
-      license_cost_amount REAL NOT NULL DEFAULT 0,
-      license_billing_interval TEXT NOT NULL DEFAULT 'none' CHECK (
-        license_billing_interval IN ('none', 'monthly', 'quarterly', 'yearly')
-      ),
-      filament_mode TEXT NOT NULL DEFAULT 'hueforge' CHECK (
-        filament_mode IN ('hueforge', 'basic')
-      ),
-      hueforge_filaments TEXT NOT NULL DEFAULT '[]',
-      can_print_with_inventory INTEGER NOT NULL DEFAULT 0,
-      notes TEXT,
-      image_reference TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await addColumnIfMissing(db, "products", "license_cost_amount", "REAL NOT NULL DEFAULT 0");
-  await addColumnIfMissing(
-    db,
-    "products",
-    "license_billing_interval",
-    "TEXT NOT NULL DEFAULT 'none' CHECK (license_billing_interval IN ('none', 'monthly', 'quarterly', 'yearly'))",
-  );
-  await addColumnIfMissing(db, "products", "hueforge_filaments", "TEXT NOT NULL DEFAULT '[]'");
-  await addColumnIfMissing(
-    db,
-    "products",
-    "filament_mode",
-    "TEXT NOT NULL DEFAULT 'hueforge' CHECK (filament_mode IN ('hueforge', 'basic'))",
-  );
-  await addColumnIfMissing(db, "products", "can_print_with_inventory", "INTEGER NOT NULL DEFAULT 0");
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_products_category_design
-    ON products (category, design_name)
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_products_license_status
-    ON products (commercial_license_status, design_name)
-  `);
 }
 
 async function getProductById(db: SqlDatabase, id: number): Promise<ProductRecord | null> {
@@ -280,6 +209,7 @@ function toPersistedValues(input: ProductInput): readonly unknown[] {
     input.filamentMode,
     JSON.stringify(input.hueForgeFilaments.map(toPersistedHueForgeFilament)),
     input.canPrintWithInventory ? 1 : 0,
+    JSON.stringify(input.businesses),
     input.notes.trim(),
     input.imageReference.trim(),
   ];
@@ -289,6 +219,7 @@ function mapProductRow(row: ProductRow): ProductRecord {
   return {
     authorName: row.author_name,
     canPrintWithInventory: row.can_print_with_inventory === 1,
+    businesses: parseBusinesses(row.businesses),
     category: row.category as ProductCategory,
     commercialLicenseStatus: row.commercial_license_status as CommercialLicenseStatus,
     createdAt: row.created_at,
@@ -304,6 +235,19 @@ function mapProductRow(row: ProductRow): ProductRecord {
     sourceLink: row.source_link,
     updatedAt: row.updated_at,
   };
+}
+
+function parseBusinesses(value: string | null): readonly ProductBusiness[] {
+  if (!value) return [];
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((business): business is ProductBusiness =>
+      typeof business === "string" && PRODUCT_BUSINESSES.includes(business as ProductBusiness),
+    );
+  } catch {
+    return [];
+  }
 }
 
 function toPersistedHueForgeFilament(
@@ -397,53 +341,6 @@ function normalizeAlternativeFilamentIds(filamentIds: readonly number[]): readon
   return [...new Set(
     filamentIds.filter((filamentId) => Number.isInteger(filamentId) && filamentId > 0),
   )];
-}
-
-async function addColumnIfMissing(
-  db: SqlDatabase,
-  tableName: string,
-  columnName: string,
-  definition: string,
-): Promise<void> {
-  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
-
-  if (!columns.some((column) => column.name === columnName)) {
-    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
-  }
-}
-
-async function clearShoppingListProductLinksIfPresent(db: SqlDatabase, productId: number): Promise<void> {
-  const tables = await db.select<Array<{ readonly name: string }>>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'shopping_list_items'",
-  );
-
-  if (tables.length === 0) {
-    return;
-  }
-
-  const columns = await db.select<Array<{ readonly name: string }>>("PRAGMA table_info(shopping_list_items)");
-
-  if (!columns.some((column) => column.name === "product_id")) {
-    return;
-  }
-
-  await db.execute(
-    `UPDATE shopping_list_items
-     SET product_id = NULL
-     WHERE product_id = $1`,
-    [productId],
-  );
-
-  const linkTables = await db.select<Array<{ readonly name: string }>>(
-    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'shopping_list_item_products'",
-  );
-
-  if (linkTables.length > 0) {
-    await db.execute(
-      "DELETE FROM shopping_list_item_products WHERE product_id = $1",
-      [productId],
-    );
-  }
 }
 
 export const productsRepository = createProductsRepository();

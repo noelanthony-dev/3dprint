@@ -1,6 +1,11 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  savePrintProfileNative,
+  type SavePrintProfileCommand,
+} from "@/data/db/nativeWorkflows";
+import {
   validatePrintProfileInput,
+  type PrintProfileAddOn,
   type PrintProfileInput,
   type PrintProfileRecord,
 } from "@/domain/costing";
@@ -40,7 +45,17 @@ interface PrintProfileRow {
   readonly wear_rate_per_hour: number;
 }
 
+interface PrintProfileAddOnRow {
+  readonly addon_id: number | null;
+  readonly description: string;
+  readonly print_profile_id: number;
+  readonly quantity: number;
+  readonly total_cost: number;
+  readonly unit_cost: number;
+}
+
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type ProfileSaver = (input: SavePrintProfileCommand) => Promise<number>;
 
 const PRINT_PROFILE_COLUMNS = `
   id,
@@ -69,20 +84,21 @@ const PRINT_PROFILE_COLUMNS = `
   updated_at
 `;
 
+const PRINT_PROFILE_ADDON_COLUMNS = `
+  print_profile_id,
+  addon_id,
+  description,
+  quantity,
+  unit_cost,
+  total_cost
+`;
+
 export function createPrintProfilesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  profileSaver: ProfileSaver = savePrintProfileNative,
 ): PrintProfilesRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensurePrintProfilesSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -93,40 +109,10 @@ export function createPrintProfilesRepository(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid print profile.");
       }
 
-      const db = await database();
-      const values = toPersistedValues(input);
-      const result = await db.execute(
-        `INSERT INTO print_profiles (
-          product_id,
-          profile_name,
-          sale_unit,
-          filament_grams,
-          support_grams,
-          filament_cost_per_kg,
-          add_on_id,
-          add_on_description,
-          add_on_quantity,
-          add_on_cost,
-          print_hours,
-          print_minutes,
-          electricity_rate_per_kwh,
-          printer_power_watts,
-          wear_rate_per_hour,
-          labor_minutes,
-          labor_rate_per_hour,
-          expected_good_units,
-          expected_failed_units,
-          target_markup,
-          notes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
-        values,
-      );
+      await database();
+      const insertedId = await profileSaver(toNativePrintProfile(null, input));
 
-      if (result.lastInsertId == null) {
-        throw new Error("SQLite did not return the inserted print profile id.");
-      }
-
-      const created = await this.get(result.lastInsertId);
+      const created = await this.get(insertedId);
 
       if (!created) {
         throw new Error("Inserted print profile could not be loaded.");
@@ -145,7 +131,9 @@ export function createPrintProfilesRepository(
         [id],
       );
 
-      return rows[0] ? mapPrintProfileRow(rows[0]) : null;
+      if (!rows[0]) return null;
+      const addOns = await getProfileAddOns(db, [id]);
+      return mapPrintProfileRow(rows[0], addOns.get(id) ?? []);
     },
 
     async list() {
@@ -156,7 +144,8 @@ export function createPrintProfilesRepository(
          ORDER BY product_id, profile_name COLLATE NOCASE`,
       );
 
-      return rows.map(mapPrintProfileRow);
+      const addOns = await getProfileAddOns(db, rows.map((row) => row.id));
+      return rows.map((row) => mapPrintProfileRow(row, addOns.get(row.id) ?? []));
     },
 
     async update(id, input) {
@@ -166,40 +155,8 @@ export function createPrintProfilesRepository(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid print profile.");
       }
 
-      const db = await database();
-      const values = toPersistedValues(input);
-      const result = await db.execute(
-        `UPDATE print_profiles
-         SET
-          product_id = $1,
-          profile_name = $2,
-          sale_unit = $3,
-          filament_grams = $4,
-          support_grams = $5,
-          filament_cost_per_kg = $6,
-          add_on_id = $7,
-          add_on_description = $8,
-          add_on_quantity = $9,
-          add_on_cost = $10,
-          print_hours = $11,
-          print_minutes = $12,
-          electricity_rate_per_kwh = $13,
-          printer_power_watts = $14,
-          wear_rate_per_hour = $15,
-          labor_minutes = $16,
-          labor_rate_per_hour = $17,
-          expected_good_units = $18,
-          expected_failed_units = $19,
-          target_markup = $20,
-          notes = $21,
-          updated_at = datetime('now')
-         WHERE id = $22`,
-        [...values, id],
-      );
-
-      if (result.rowsAffected === 0) {
-        throw new Error(`Print profile ${id} does not exist.`);
-      }
+      await database();
+      await profileSaver(toNativePrintProfile(id, input));
 
       const updated = await this.get(id);
 
@@ -212,84 +169,45 @@ export function createPrintProfilesRepository(
   };
 }
 
-async function ensurePrintProfilesSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS print_profiles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_id INTEGER NOT NULL,
-      profile_name TEXT NOT NULL,
-      sale_unit TEXT NOT NULL,
-      filament_grams REAL NOT NULL DEFAULT 0 CHECK (filament_grams >= 0),
-      support_grams REAL NOT NULL DEFAULT 0 CHECK (support_grams >= 0),
-      filament_cost_per_kg REAL NOT NULL DEFAULT 0 CHECK (filament_cost_per_kg >= 0),
-      add_on_id INTEGER,
-      add_on_description TEXT,
-      add_on_quantity REAL NOT NULL DEFAULT 0 CHECK (add_on_quantity >= 0),
-      add_on_cost REAL NOT NULL DEFAULT 0 CHECK (add_on_cost >= 0),
-      print_hours REAL NOT NULL DEFAULT 0 CHECK (print_hours >= 0),
-      print_minutes REAL NOT NULL DEFAULT 0 CHECK (print_minutes >= 0),
-      electricity_rate_per_kwh REAL NOT NULL DEFAULT 0 CHECK (electricity_rate_per_kwh >= 0),
-      printer_power_watts REAL NOT NULL DEFAULT 0 CHECK (printer_power_watts >= 0),
-      wear_rate_per_hour REAL NOT NULL DEFAULT 0 CHECK (wear_rate_per_hour >= 0),
-      labor_minutes REAL NOT NULL DEFAULT 0 CHECK (labor_minutes >= 0),
-      labor_rate_per_hour REAL NOT NULL DEFAULT 0 CHECK (labor_rate_per_hour >= 0),
-      expected_good_units INTEGER NOT NULL DEFAULT 1 CHECK (expected_good_units > 0),
-      expected_failed_units INTEGER NOT NULL DEFAULT 0 CHECK (expected_failed_units >= 0),
-      target_markup REAL NOT NULL DEFAULT 3 CHECK (target_markup >= 1),
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-      FOREIGN KEY (add_on_id) REFERENCES addons(id) ON DELETE SET NULL
-    )
-  `);
-
-  await addColumnIfMissing(db, "print_profiles", "add_on_id", "INTEGER");
-  await addColumnIfMissing(
-    db,
-    "print_profiles",
-    "add_on_quantity",
-    "REAL NOT NULL DEFAULT 0 CHECK (add_on_quantity >= 0)",
-  );
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_print_profiles_product
-    ON print_profiles (product_id, profile_name)
-  `);
-}
-
-function toPersistedValues(input: PrintProfileInput): readonly unknown[] {
-  return [
-    input.productId,
-    input.profileName.trim(),
-    input.saleUnit,
-    input.filamentGrams,
-    input.supportGrams,
-    input.filamentCostPerKg,
-    input.addOnId,
-    input.addOnDescription.trim(),
-    input.addOnQuantity,
-    input.addOnCost,
-    input.printHours,
-    input.printMinutes,
-    input.electricityRatePerKwh,
-    input.printerPowerWatts,
-    input.wearRatePerHour,
-    input.laborMinutes,
-    input.laborRatePerHour,
-    input.expectedGoodUnits,
-    input.expectedFailedUnits,
-    input.targetMarkup,
-    input.notes.trim(),
-  ];
-}
-
-function mapPrintProfileRow(row: PrintProfileRow): PrintProfileRecord {
+function toNativePrintProfile(
+  id: number | null,
+  input: PrintProfileInput,
+): SavePrintProfileCommand {
   return {
-    addOnCost: row.add_on_cost,
-    addOnDescription: row.add_on_description ?? "",
-    addOnId: row.add_on_id,
-    addOnQuantity: row.add_on_quantity ?? 0,
+    addOns: input.addOns.map((addOn) => ({
+      addOnId: addOn.addOnId,
+      description: addOn.description.trim(),
+      quantity: addOn.quantity,
+      totalCost: addOn.totalCost,
+      unitCost: addOn.unitCost,
+    })),
+    electricityRatePerKwh: input.electricityRatePerKwh,
+    expectedFailedUnits: input.expectedFailedUnits,
+    expectedGoodUnits: input.expectedGoodUnits,
+    filamentCostPerKg: input.filamentCostPerKg,
+    filamentGrams: input.filamentGrams,
+    id,
+    laborMinutes: input.laborMinutes,
+    laborRatePerHour: input.laborRatePerHour,
+    notes: input.notes.trim(),
+    printerPowerWatts: input.printerPowerWatts,
+    printHours: input.printHours,
+    printMinutes: input.printMinutes,
+    productId: input.productId,
+    profileName: input.profileName.trim(),
+    saleUnit: input.saleUnit,
+    supportGrams: input.supportGrams,
+    targetMarkup: input.targetMarkup,
+    wearRatePerHour: input.wearRatePerHour,
+  };
+}
+
+function mapPrintProfileRow(
+  row: PrintProfileRow,
+  addOns: readonly PrintProfileAddOn[],
+): PrintProfileRecord {
+  return {
+    addOns,
     createdAt: row.created_at,
     electricityRatePerKwh: row.electricity_rate_per_kwh,
     expectedFailedUnits: row.expected_failed_units,
@@ -313,17 +231,34 @@ function mapPrintProfileRow(row: PrintProfileRow): PrintProfileRecord {
   };
 }
 
-async function addColumnIfMissing(
+async function getProfileAddOns(
   db: SqlDatabase,
-  tableName: string,
-  columnName: string,
-  definition: string,
-): Promise<void> {
-  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
+  profileIds: readonly number[],
+): Promise<Map<number, PrintProfileAddOn[]>> {
+  const grouped = new Map<number, PrintProfileAddOn[]>();
+  if (profileIds.length === 0) return grouped;
 
-  if (!columns.some((column) => column.name === columnName)) {
-    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
-  }
+  const placeholders = profileIds.map((_, index) => `$${index + 1}`).join(", ");
+  const rows = await db.select<PrintProfileAddOnRow[]>(
+    `SELECT ${PRINT_PROFILE_ADDON_COLUMNS}
+     FROM print_profile_addons
+     WHERE print_profile_id IN (${placeholders})
+     ORDER BY print_profile_id, id`,
+    profileIds,
+  );
+
+  rows.forEach((row) => {
+    const current = grouped.get(row.print_profile_id) ?? [];
+    current.push({
+      addOnId: row.addon_id,
+      description: row.description,
+      quantity: row.quantity,
+      totalCost: row.total_cost,
+      unitCost: row.unit_cost,
+    });
+    grouped.set(row.print_profile_id, current);
+  });
+  return grouped;
 }
 
 export const printProfilesRepository = createPrintProfilesRepository();

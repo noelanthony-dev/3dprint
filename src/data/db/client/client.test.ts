@@ -1,54 +1,55 @@
-import Database from "@tauri-apps/plugin-sql";
+import { invoke } from "@tauri-apps/api/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { closeDatabase, getDatabase, type SqlDatabase } from "./index";
+import { closeDatabase, getDatabase } from "./index";
 
-vi.mock("@tauri-apps/plugin-sql", () => ({
-  default: {
-    load: vi.fn(),
-  },
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
 }));
 
-const loadDatabase = vi.mocked(Database.load);
+const invokeNative = vi.mocked(invoke);
 
 describe("database client", () => {
   beforeEach(async () => {
     await closeDatabase();
-    loadDatabase.mockReset();
+    invokeNative.mockReset();
   });
 
-  it("reuses the database promise until the pool is closed", async () => {
-    const firstClose = vi.fn().mockResolvedValue(true);
-    const secondClose = vi.fn().mockResolvedValue(true);
-    const firstDatabase = createFakeDatabase(firstClose);
-    const secondDatabase = createFakeDatabase(secondClose);
+  it("reuses one native database facade until it is reset", async () => {
+    const firstDatabase = await getDatabase();
+    const reusedDatabase = await getDatabase();
 
-    loadDatabase
-      .mockResolvedValueOnce(firstDatabase as Awaited<ReturnType<typeof Database.load>>)
-      .mockResolvedValueOnce(secondDatabase as Awaited<ReturnType<typeof Database.load>>);
+    expect(reusedDatabase).toBe(firstDatabase);
 
-    await expect(getDatabase()).resolves.toBe(firstDatabase);
-    await expect(getDatabase()).resolves.toBe(firstDatabase);
-    expect(loadDatabase).toHaveBeenCalledTimes(1);
-    expect(firstDatabase.execute).toHaveBeenCalledWith("PRAGMA busy_timeout = 5000");
+    await closeDatabase();
+    const secondDatabase = await getDatabase();
+    expect(secondDatabase).not.toBe(firstDatabase);
+  });
 
-    await expect(closeDatabase()).resolves.toBe(true);
-    expect(firstClose).toHaveBeenCalledTimes(1);
+  it("routes reads and single-statement writes to native commands", async () => {
+    invokeNative
+      .mockResolvedValueOnce({ lastInsertId: 4, rowsAffected: 1 })
+      .mockResolvedValueOnce([{ id: 4 }]);
+    const database = await getDatabase();
 
-    await expect(getDatabase()).resolves.toBe(secondDatabase);
-    expect(loadDatabase).toHaveBeenCalledTimes(2);
+    await expect(database.execute("UPDATE products SET notes = $1 WHERE id = $2", ["Ready", 4]))
+      .resolves.toEqual({ lastInsertId: 4, rowsAffected: 1 });
+    await expect(database.select("SELECT id FROM products WHERE id = $1", [4]))
+      .resolves.toEqual([{ id: 4 }]);
+
+    expect(invokeNative).toHaveBeenNthCalledWith(1, "db_execute", {
+      query: "UPDATE products SET notes = $1 WHERE id = $2",
+      values: ["Ready", 4],
+    });
+    expect(invokeNative).toHaveBeenNthCalledWith(2, "db_select", {
+      query: "SELECT id FROM products WHERE id = $1",
+      values: [4],
+    });
   });
 
   it("treats closing an unopened database as successful", async () => {
+    await closeDatabase();
     await expect(closeDatabase()).resolves.toBe(true);
-    expect(loadDatabase).not.toHaveBeenCalled();
+    expect(invokeNative).not.toHaveBeenCalled();
   });
 });
-
-function createFakeDatabase(close: () => Promise<boolean>): SqlDatabase {
-  return {
-    close,
-    execute: vi.fn(),
-    select: vi.fn(),
-  };
-}

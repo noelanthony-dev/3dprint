@@ -1,5 +1,9 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  adjustAddOnStockNative,
+  type DecimalStockAdjustmentCommand,
+} from "@/data/db/nativeWorkflows";
+import {
   validateAddOnStockAdjustmentInput,
   type AddOnCategory,
   type AddOnInput,
@@ -44,6 +48,7 @@ interface AddOnStockAdjustmentRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type StockAdjuster = (input: DecimalStockAdjustmentCommand) => Promise<void>;
 
 const ADD_ON_COLUMNS = `
   id,
@@ -72,18 +77,10 @@ const ADD_ON_ADJUSTMENT_COLUMNS = `
 
 export function createAddOnsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  stockAdjuster: StockAdjuster = adjustAddOnStockNative,
 ): AddOnsRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureAddOnsSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -94,7 +91,6 @@ export function createAddOnsRepository(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid add-on adjustment.");
       }
 
-      const db = await database();
       const current = await this.get(addOnId);
 
       if (!current) {
@@ -107,40 +103,14 @@ export function createAddOnsRepository(
         throw new Error("Adjustment cannot reduce add-on quantity below zero.");
       }
 
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        await db.execute(
-          `UPDATE addons
-           SET
-            quantity_on_hand = $1,
-            updated_at = datetime('now')
-           WHERE id = $2`,
-          [nextQuantity, addOnId],
-        );
-
-        await db.execute(
-          `INSERT INTO addon_stock_adjustments (
-            addon_id,
-            quantity_delta,
-            quantity_after,
-            reason,
-            notes
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            addOnId,
-            input.quantityDelta,
-            nextQuantity,
-            input.reason.trim(),
-            input.notes.trim(),
-          ],
-        );
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await db.execute("ROLLBACK");
-        throw error;
-      }
+      await stockAdjuster({
+        id: addOnId,
+        notes: input.notes.trim(),
+        quantityAfter: nextQuantity,
+        quantityBefore: current.quantityOnHand,
+        quantityDelta: input.quantityDelta,
+        reason: input.reason.trim(),
+      });
 
       const updated = await this.get(addOnId);
 
@@ -256,48 +226,6 @@ export function createAddOnsRepository(
       return updated;
     },
   };
-}
-
-async function ensureAddOnsSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS addons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      item_name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      unit TEXT NOT NULL,
-      quantity_on_hand REAL NOT NULL DEFAULT 0 CHECK (quantity_on_hand >= 0),
-      low_stock_threshold REAL NOT NULL DEFAULT 0 CHECK (low_stock_threshold >= 0),
-      unit_cost REAL NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
-      supplier TEXT,
-      notes TEXT,
-      is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_addons_active_category
-    ON addons (is_active, category, item_name)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS addon_stock_adjustments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      addon_id INTEGER NOT NULL,
-      quantity_delta REAL NOT NULL CHECK (quantity_delta != 0),
-      quantity_after REAL NOT NULL CHECK (quantity_after >= 0),
-      reason TEXT NOT NULL,
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_addon_stock_adjustments_item
-    ON addon_stock_adjustments (addon_id, created_at DESC)
-  `);
 }
 
 function toPersistedValues(input: AddOnInput): readonly unknown[] {

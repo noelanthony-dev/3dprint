@@ -54,14 +54,13 @@ const input: AddOnInput = {
 };
 
 describe("add-ons repository", () => {
-  it("creates the add-ons schema before the first query", async () => {
+  it("queries add-ons without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createAddOnsRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS addons");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_addons_active_category");
+    expect(fakeDb.executed).toEqual([]);
     expect(fakeDb.selected[0]?.query).toContain("FROM addons");
   });
 

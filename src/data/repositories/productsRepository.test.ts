@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
 import type { ProductInput } from "@/domain/products";
@@ -19,12 +19,14 @@ class FakeDatabase implements SqlDatabase {
       { name: "hueforge_filaments" },
       { name: "filament_mode" },
       { name: "can_print_with_inventory" },
+      { name: "businesses" },
     ],
     rowOverrides: Record<string, unknown> = {},
   ) {
     this.columns = columns;
     this.row = {
       author_name: "Studio_3D",
+      businesses: JSON.stringify(["Sincerely, Books", "Dear Reader"]),
       can_print_with_inventory: 1,
       category: "Bookmarks",
       commercial_license_status: "commercial-ok",
@@ -87,6 +89,7 @@ class FakeDatabase implements SqlDatabase {
 
 const input: ProductInput = {
   authorName: " Studio_3D ",
+  businesses: ["Sincerely, Books", "Dear Reader"],
   canPrintWithInventory: true,
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
@@ -115,24 +118,17 @@ const input: ProductInput = {
 };
 
 describe("products repository", () => {
-  it("creates the products schema before the first query", async () => {
+  it("queries products without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createProductsRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS products");
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("CREATE INDEX IF NOT EXISTS idx_products_category_design"),
-    )).toBe(true);
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("CREATE INDEX IF NOT EXISTS idx_products_license_status"),
-    )).toBe(true);
-    expect(fakeDb.selected[0]?.query).toContain("PRAGMA table_info");
-    expect(fakeDb.selected.at(-1)?.query).toContain("FROM products");
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected[0]?.query).toContain("FROM products");
   });
 
-  it("adds filament mode to existing product tables", async () => {
+  it("does not run legacy column upgrades from the repository", async () => {
     const fakeDb = new FakeDatabase([
       { name: "license_cost_amount" },
       { name: "license_billing_interval" },
@@ -142,12 +138,11 @@ describe("products repository", () => {
 
     await repository.list();
 
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE products ADD COLUMN filament_mode"),
-    )).toBe(true);
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected.some(({ query }) => query.includes("PRAGMA"))).toBe(false);
   });
 
-  it("adds inventory printable status to existing product tables", async () => {
+  it("leaves inventory column migration to native startup", async () => {
     const fakeDb = new FakeDatabase([
       { name: "license_cost_amount" },
       { name: "license_billing_interval" },
@@ -158,9 +153,8 @@ describe("products repository", () => {
 
     await repository.list();
 
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("ALTER TABLE products ADD COLUMN can_print_with_inventory"),
-    )).toBe(true);
+    expect(fakeDb.executed).toEqual([]);
+    expect(fakeDb.selected.some(({ query }) => query.includes("PRAGMA"))).toBe(false);
   });
 
   it("binds create values instead of interpolating design names", async () => {
@@ -196,6 +190,7 @@ describe("products repository", () => {
       },
     ]);
     expect(insert?.values[10]).toBe(1);
+    expect(JSON.parse(String(insert?.values[11]))).toEqual(["Sincerely, Books", "Dear Reader"]);
   });
 
   it("reloads created products by the returned insert id", async () => {
@@ -233,7 +228,7 @@ describe("products repository", () => {
 
     expect(update?.query).toContain("can_print_with_inventory = $11");
     expect(update?.values[10]).toBe(0);
-    expect(update?.values[13]).toBe(1);
+    expect(update?.values[14]).toBe(1);
     expect(JSON.parse(String(update?.values[9]))).toEqual([
       {
         alternativeFilamentIds: [2, 7],
@@ -332,19 +327,14 @@ describe("products repository", () => {
 
   it("deletes a product by id", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createProductsRepository(async () => fakeDb);
+    const productDeleter = vi.fn(async () => undefined);
+    const repository = createProductsRepository(async () => fakeDb, productDeleter);
 
     await repository.delete(7);
 
-    const shoppingCleanup = fakeDb.executed.find((statement) =>
-      statement.query.includes("UPDATE shopping_list_items"),
-    );
-    const deleteStatement = fakeDb.executed.find((statement) =>
-      statement.query.includes("DELETE FROM products"),
-    );
-
-    expect(shoppingCleanup?.values).toEqual([7]);
-    expect(deleteStatement?.values).toEqual([7]);
+    expect(productDeleter).toHaveBeenCalledOnce();
+    expect(productDeleter).toHaveBeenCalledWith(7);
+    expect(fakeDb.executed).toEqual([]);
   });
 
   it("preserves basic filament mode and grams-only rows", async () => {

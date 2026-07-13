@@ -1,4 +1,8 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
+import {
+  adjustFinishedGoodStockNative,
+  type FinishedGoodStockAdjustmentCommand,
+} from "@/data/db/nativeWorkflows";
 import type {
   FinishedGoodInput,
   FinishedGoodRecord,
@@ -45,6 +49,7 @@ interface FinishedGoodStockAdjustmentRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type StockAdjuster = (input: FinishedGoodStockAdjustmentCommand) => Promise<void>;
 
 const FINISHED_GOOD_COLUMNS = `
   id,
@@ -69,18 +74,10 @@ const FINISHED_GOOD_ADJUSTMENT_COLUMNS = `
 
 export function createFinishedGoodsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  stockAdjuster: StockAdjuster = adjustFinishedGoodStockNative,
 ): FinishedGoodsRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureFinishedGoodsSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -91,7 +88,6 @@ export function createFinishedGoodsRepository(
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid stock adjustment.");
       }
 
-      const db = await database();
       const current = await this.get(finishedGoodId);
 
       if (!current) {
@@ -108,40 +104,14 @@ export function createFinishedGoodsRepository(
         throw new Error("Adjustment cannot reduce ready quantity below reserved quantity.");
       }
 
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        await db.execute(
-          `UPDATE finished_goods
-           SET
-            quantity_ready = $1,
-            updated_at = datetime('now')
-           WHERE id = $2`,
-          [nextQuantity, finishedGoodId],
-        );
-
-        await db.execute(
-          `INSERT INTO finished_good_stock_adjustments (
-            finished_good_id,
-            quantity_delta,
-            quantity_after,
-            reason,
-            notes
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          [
-            finishedGoodId,
-            input.quantityDelta,
-            nextQuantity,
-            input.reason.trim(),
-            input.notes.trim(),
-          ],
-        );
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await db.execute("ROLLBACK");
-        throw error;
-      }
+      await stockAdjuster({
+        id: finishedGoodId,
+        notes: input.notes.trim(),
+        quantityAfter: nextQuantity,
+        quantityBefore: current.quantityReady,
+        quantityDelta: input.quantityDelta,
+        reason: input.reason.trim(),
+      });
 
       const updated = await this.get(finishedGoodId);
 
@@ -260,45 +230,6 @@ export function createFinishedGoodsRepository(
       return updated;
     },
   };
-}
-
-async function ensureFinishedGoodsSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS finished_goods (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_reference TEXT NOT NULL,
-      sale_unit TEXT NOT NULL,
-      quantity_ready INTEGER NOT NULL DEFAULT 0 CHECK (quantity_ready >= 0),
-      quantity_reserved INTEGER NOT NULL DEFAULT 0 CHECK (quantity_reserved >= 0),
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      CHECK (quantity_reserved <= quantity_ready)
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_finished_goods_product_reference
-    ON finished_goods (product_reference, sale_unit)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS finished_good_stock_adjustments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      finished_good_id INTEGER NOT NULL,
-      quantity_delta INTEGER NOT NULL CHECK (quantity_delta != 0),
-      quantity_after INTEGER NOT NULL CHECK (quantity_after >= 0),
-      reason TEXT NOT NULL,
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE CASCADE
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_finished_good_stock_adjustments_item
-    ON finished_good_stock_adjustments (finished_good_id, created_at DESC)
-  `);
 }
 
 function toPersistedValues(input: FinishedGoodInput): readonly unknown[] {

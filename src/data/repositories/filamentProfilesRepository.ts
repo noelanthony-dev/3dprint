@@ -1,5 +1,9 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  upsertFilamentProfilesNative,
+  type FilamentProfileCommand,
+} from "@/data/db/nativeWorkflows";
+import {
   normalizeFilamentProfileInput,
   validateFilamentProfileInput,
   type FilamentMaterial,
@@ -24,6 +28,7 @@ interface FilamentProfileRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type ProfileUpserter = (inputs: readonly FilamentProfileCommand[]) => Promise<void>;
 
 const FILAMENT_PROFILE_COLUMNS = `
   id,
@@ -38,18 +43,10 @@ const FILAMENT_PROFILE_COLUMNS = `
 
 export function createFilamentProfilesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  profileUpserter: ProfileUpserter = upsertFilamentProfilesNative,
 ): FilamentProfilesRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureFilamentProfilesSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -68,7 +65,6 @@ export function createFilamentProfilesRepository(
     },
 
     async upsertMany(inputs) {
-      const db = await database();
       const uniqueInputs = dedupeProfileInputs(inputs);
 
       for (const input of uniqueInputs) {
@@ -78,70 +74,11 @@ export function createFilamentProfilesRepository(
           throw new Error(Object.values(validation.errors)[0] ?? "Invalid filament profile.");
         }
 
-        const values = toPersistedValues(input);
-
-        await db.execute(
-          `INSERT OR IGNORE INTO filament_profiles (
-            brand,
-            material_type,
-            color_name,
-            hex_color,
-            transmission_distance
-          ) VALUES ($1, $2, $3, $4, $5)`,
-          values,
-        );
-
-        await db.execute(
-          `UPDATE filament_profiles
-           SET
-            brand = $1,
-            material_type = $2,
-            color_name = $3,
-            hex_color = $4,
-            transmission_distance = $5,
-            updated_at = datetime('now')
-           WHERE
-            lower(brand) = lower($1)
-            AND material_type = $2
-            AND lower(color_name) = lower($3)
-            AND hex_color = $4
-            AND COALESCE(transmission_distance, -1) = COALESCE($5, -1)`,
-          values,
-        );
       }
+
+      await profileUpserter(uniqueInputs.map(toNativeProfile));
     },
   };
-}
-
-async function ensureFilamentProfilesSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS filament_profiles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      brand TEXT NOT NULL,
-      material_type TEXT NOT NULL,
-      color_name TEXT NOT NULL,
-      hex_color TEXT NOT NULL,
-      transmission_distance REAL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await db.execute(`
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_filament_profiles_unique_normalized
-    ON filament_profiles (
-      lower(brand),
-      material_type,
-      lower(color_name),
-      hex_color,
-      COALESCE(transmission_distance, -1)
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_filament_profiles_lookup
-    ON filament_profiles (brand, material_type, color_name)
-  `);
 }
 
 function dedupeProfileInputs(
@@ -167,16 +104,16 @@ function getProfileKey(input: FilamentProfileInput): string {
   ].join("|");
 }
 
-function toPersistedValues(input: FilamentProfileInput): readonly unknown[] {
+function toNativeProfile(input: FilamentProfileInput): FilamentProfileCommand {
   const normalized = normalizeFilamentProfileInput(input);
 
-  return [
-    normalized.brand,
-    normalized.materialType,
-    normalized.colorName,
-    normalized.hexColor,
-    normalized.transmissionDistance,
-  ];
+  return {
+    brand: normalized.brand,
+    colorName: normalized.colorName,
+    hexColor: normalized.hexColor,
+    materialType: normalized.materialType,
+    transmissionDistance: normalized.transmissionDistance,
+  };
 }
 
 function mapFilamentProfileRow(row: FilamentProfileRow): FilamentProfileRecord {

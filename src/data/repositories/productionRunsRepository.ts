@@ -1,36 +1,11 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
-  validateProductionRunInput,
   type ProductionAddOnDeductionRecord,
   type ProductionFilamentDeductionRecord,
-  type ProductionRunInput,
   type ProductionRunRecord,
 } from "@/domain/production";
 
-export interface ProductionRunCreateInput extends ProductionRunInput {
-  readonly addOnDeduction: ProductionAddOnDeductionInput | null;
-  readonly addOnQuantityDeducted: number;
-  readonly filamentDeductions: readonly ProductionFilamentDeductionInput[];
-  readonly filamentGramsDeducted: number;
-  readonly finishedGoodId: number | null;
-}
-
-export interface ProductionFilamentDeductionInput {
-  readonly filamentId: number;
-  readonly gramsAfter: number;
-  readonly gramsBefore: number;
-  readonly gramsDeducted: number;
-}
-
-export interface ProductionAddOnDeductionInput {
-  readonly addOnId: number;
-  readonly quantityAfter: number;
-  readonly quantityBefore: number;
-  readonly quantityDeducted: number;
-}
-
 export interface ProductionRunsRepository {
-  create(input: ProductionRunCreateInput): Promise<ProductionRunRecord>;
   get(id: number): Promise<ProductionRunRecord | null>;
   list(): Promise<ProductionRunRecord[]>;
   listAddOnDeductions(productionRunId: number): Promise<ProductionAddOnDeductionRecord[]>;
@@ -120,129 +95,11 @@ const PRODUCTION_ADDON_DEDUCTION_COLUMNS = `
 export function createProductionRunsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
 ): ProductionRunsRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureProductionRunsSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
-    async create(input) {
-      const validation = validateProductionRunInput(input);
-
-      if (!validation.valid) {
-        throw new Error(Object.values(validation.errors)[0] ?? "Invalid production run.");
-      }
-
-      const db = await database();
-      let insertedId: number | null = null;
-
-      await db.execute("BEGIN IMMEDIATE");
-
-      try {
-        const result = await db.execute(
-          `INSERT INTO production_runs (
-            product_id,
-            print_profile_id,
-            filament_id,
-            addon_id,
-            run_date,
-            expected_pieces,
-            good_pieces,
-            failed_pieces,
-            failure_reason,
-            notes,
-            filament_grams_deducted,
-            addon_quantity_deducted,
-            finished_good_id
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
-          [
-            input.productId,
-            input.printProfileId,
-            input.filamentId,
-            input.addOnId,
-            input.runDate.trim(),
-            input.expectedPieces,
-            input.goodPieces,
-            input.failedPieces,
-            input.failureReason.trim(),
-            input.notes.trim(),
-            input.filamentGramsDeducted,
-            input.addOnQuantityDeducted,
-            input.finishedGoodId,
-          ],
-        );
-
-        if (result.lastInsertId == null) {
-          throw new Error("SQLite did not return the inserted production run id.");
-        }
-
-        insertedId = result.lastInsertId;
-
-        for (const filamentDeduction of input.filamentDeductions) {
-          await db.execute(
-            `INSERT INTO production_run_filaments (
-              production_run_id,
-              filament_id,
-              grams_deducted,
-              grams_before,
-              grams_after
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [
-              insertedId,
-              filamentDeduction.filamentId,
-              filamentDeduction.gramsDeducted,
-              filamentDeduction.gramsBefore,
-              filamentDeduction.gramsAfter,
-            ],
-          );
-        }
-
-        if (input.addOnDeduction) {
-          await db.execute(
-            `INSERT INTO production_run_addons (
-              production_run_id,
-              addon_id,
-              quantity_deducted,
-              quantity_before,
-              quantity_after
-            ) VALUES ($1, $2, $3, $4, $5)`,
-            [
-              insertedId,
-              input.addOnDeduction.addOnId,
-              input.addOnDeduction.quantityDeducted,
-              input.addOnDeduction.quantityBefore,
-              input.addOnDeduction.quantityAfter,
-            ],
-          );
-        }
-
-        await db.execute("COMMIT");
-      } catch (error) {
-        await rollbackIfActive(db);
-        throw error;
-      }
-
-      if (insertedId == null) {
-        throw new Error("Inserted production run id was not captured.");
-      }
-
-      const created = await this.get(insertedId);
-
-      if (!created) {
-        throw new Error("Inserted production run could not be loaded.");
-      }
-
-      return created;
-    },
-
     async get(id) {
       const db = await database();
       const rows = await db.select<ProductionRunRow[]>(
@@ -253,7 +110,9 @@ export function createProductionRunsRepository(
         [id],
       );
 
-      return rows[0] ? mapProductionRunRow(rows[0]) : null;
+      if (!rows[0]) return null;
+      const addOnDeductions = await getAddOnDeductionsForRuns(db, [id]);
+      return mapProductionRunRow(rows[0], addOnDeductions.get(id) ?? []);
     },
 
     async list() {
@@ -264,7 +123,8 @@ export function createProductionRunsRepository(
          ORDER BY run_date DESC, created_at DESC, id DESC`,
       );
 
-      return rows.map(mapProductionRunRow);
+      const addOnDeductions = await getAddOnDeductionsForRuns(db, rows.map((row) => row.id));
+      return rows.map((row) => mapProductionRunRow(row, addOnDeductions.get(row.id) ?? []));
     },
 
     async listAddOnDeductions(productionRunId) {
@@ -295,140 +155,12 @@ export function createProductionRunsRepository(
   };
 }
 
-async function ensureProductionRunsSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS production_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      product_id INTEGER NOT NULL,
-      print_profile_id INTEGER NOT NULL,
-      filament_id INTEGER NOT NULL,
-      addon_id INTEGER,
-      run_date TEXT NOT NULL,
-      expected_pieces INTEGER NOT NULL CHECK (expected_pieces > 0),
-      good_pieces INTEGER NOT NULL CHECK (good_pieces >= 0),
-      failed_pieces INTEGER NOT NULL CHECK (failed_pieces >= 0),
-      failure_reason TEXT,
-      notes TEXT,
-      filament_grams_deducted REAL NOT NULL DEFAULT 0 CHECK (filament_grams_deducted >= 0),
-      addon_quantity_deducted REAL NOT NULL DEFAULT 0 CHECK (addon_quantity_deducted >= 0),
-      finished_good_id INTEGER,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      CHECK (good_pieces + failed_pieces > 0),
-      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
-      FOREIGN KEY (print_profile_id) REFERENCES print_profiles(id) ON DELETE RESTRICT,
-      FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE RESTRICT,
-      FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE RESTRICT,
-      FOREIGN KEY (finished_good_id) REFERENCES finished_goods(id) ON DELETE SET NULL
-    )
-  `);
-
-  await addColumnIfMissing(db, "production_runs", "addon_id", "INTEGER");
-  await addColumnIfMissing(db, "production_runs", "failure_reason", "TEXT");
-  await addColumnIfMissing(db, "production_runs", "notes", "TEXT");
-  await addColumnIfMissing(
-    db,
-    "production_runs",
-    "filament_grams_deducted",
-    "REAL NOT NULL DEFAULT 0 CHECK (filament_grams_deducted >= 0)",
-  );
-  await addColumnIfMissing(
-    db,
-    "production_runs",
-    "addon_quantity_deducted",
-    "REAL NOT NULL DEFAULT 0 CHECK (addon_quantity_deducted >= 0)",
-  );
-  await addColumnIfMissing(db, "production_runs", "finished_good_id", "INTEGER");
-  await addColumnIfMissing(
-    db,
-    "production_runs",
-    "created_at",
-    "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
-  );
-  await addColumnIfMissing(
-    db,
-    "production_runs",
-    "updated_at",
-    "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'",
-  );
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_production_runs_date
-    ON production_runs (run_date DESC, created_at DESC)
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_production_runs_product
-    ON production_runs (product_id, print_profile_id)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS production_run_filaments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      production_run_id INTEGER NOT NULL,
-      filament_id INTEGER NOT NULL,
-      grams_deducted REAL NOT NULL CHECK (grams_deducted >= 0),
-      grams_before REAL NOT NULL CHECK (grams_before >= 0),
-      grams_after REAL NOT NULL CHECK (grams_after >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
-      FOREIGN KEY (filament_id) REFERENCES filaments(id) ON DELETE RESTRICT
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_production_run_filaments_run
-    ON production_run_filaments (production_run_id)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS production_run_addons (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      production_run_id INTEGER NOT NULL,
-      addon_id INTEGER NOT NULL,
-      quantity_deducted REAL NOT NULL CHECK (quantity_deducted >= 0),
-      quantity_before REAL NOT NULL CHECK (quantity_before >= 0),
-      quantity_after REAL NOT NULL CHECK (quantity_after >= 0),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,
-      FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE RESTRICT
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_production_run_addons_run
-    ON production_run_addons (production_run_id)
-  `);
-}
-
-async function addColumnIfMissing(
-  db: SqlDatabase,
-  tableName: string,
-  columnName: string,
-  definition: string,
-): Promise<void> {
-  const columns = await db.select<Array<{ readonly name: string }>>(`PRAGMA table_info(${tableName})`);
-
-  if (!columns.some((column) => column.name === columnName)) {
-    await db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
-  }
-}
-
-async function rollbackIfActive(db: SqlDatabase): Promise<void> {
-  try {
-    await db.execute("ROLLBACK");
-  } catch (rollbackError) {
-    const message = String(rollbackError);
-
-    if (!message.includes("no transaction is active")) {
-      throw rollbackError;
-    }
-  }
-}
-
-function mapProductionRunRow(row: ProductionRunRow): ProductionRunRecord {
+function mapProductionRunRow(
+  row: ProductionRunRow,
+  addOnDeductions: readonly ProductionAddOnDeductionRecord[],
+): ProductionRunRecord {
   return {
-    addOnId: row.addon_id,
+    addOnDeductions,
     addOnQuantityDeducted: row.addon_quantity_deducted,
     createdAt: row.created_at,
     expectedPieces: row.expected_pieces,
@@ -445,6 +177,30 @@ function mapProductionRunRow(row: ProductionRunRow): ProductionRunRecord {
     runDate: row.run_date,
     updatedAt: row.updated_at,
   };
+}
+
+async function getAddOnDeductionsForRuns(
+  db: SqlDatabase,
+  runIds: readonly number[],
+): Promise<Map<number, ProductionAddOnDeductionRecord[]>> {
+  const grouped = new Map<number, ProductionAddOnDeductionRecord[]>();
+  if (runIds.length === 0) return grouped;
+
+  const placeholders = runIds.map((_, index) => `$${index + 1}`).join(", ");
+  const rows = await db.select<ProductionAddOnDeductionRow[]>(
+    `SELECT ${PRODUCTION_ADDON_DEDUCTION_COLUMNS}
+     FROM production_run_addons
+     WHERE production_run_id IN (${placeholders})
+     ORDER BY production_run_id, id`,
+    runIds,
+  );
+
+  rows.forEach((row) => {
+    const current = grouped.get(row.production_run_id) ?? [];
+    current.push(mapProductionAddOnDeductionRow(row));
+    grouped.set(row.production_run_id, current);
+  });
+  return grouped;
 }
 
 function mapProductionFilamentDeductionRow(

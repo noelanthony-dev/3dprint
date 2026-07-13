@@ -7,8 +7,7 @@ import {
 } from "./index";
 
 const baseRun: ProductionRunInput = {
-  addOnId: null,
-  addOnQuantity: 0,
+  addOns: [],
   expectedPieces: 10,
   failedPieces: 1,
   failureReason: "Layer shift",
@@ -36,14 +35,14 @@ describe("production run validation", () => {
     });
   });
 
-  it("requires a selected add-on when add-on quantity is deducted", () => {
+  it("rejects invalid and duplicate add-on selections", () => {
     const validation = validateProductionRunInput({
       ...baseRun,
-      addOnQuantity: 6,
+      addOns: [{ addOnId: 0, quantity: 6 }],
     });
 
     expect(validation.valid).toBe(false);
-    expect(validation.errors.addOnId).toBe("Choose an add-on item before deducting add-on quantity.");
+    expect(validation.errors.addOns).toBe("Choose a valid item for add-on 1.");
   });
 
   it("requires at least one attempted piece", () => {
@@ -96,6 +95,17 @@ describe("production deduction plan", () => {
     });
 
     expect(plan.warnings).toContain("Failures were logged without a failure reason.");
+  });
+
+  it("plans every configured add-on deduction", () => {
+    const plan = calculateProductionDeductionPlan(profile, {
+      ...baseRun,
+      addOns: [{ addOnId: 3, quantity: 9 }, { addOnId: 4, quantity: 9 }],
+    });
+    expect(plan.addOnDeductions).toEqual([
+      { addOnId: 3, quantityToDeduct: 9 },
+      { addOnId: 4, quantityToDeduct: 9 },
+    ]);
   });
 
   it("deducts each selected filament requirement independently", () => {

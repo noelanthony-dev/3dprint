@@ -36,6 +36,7 @@ import {
   COMMERCIAL_LICENSE_STATUSES,
   LICENSE_BILLING_INTERVALS,
   PRODUCT_CATEGORIES,
+  PRODUCT_BUSINESSES,
   PRODUCT_SALE_UNITS,
   getLicensePaymentDisplay,
   getLicenseWarningDisplay,
@@ -45,6 +46,7 @@ import {
   type ProductFilamentMode,
   type LicenseBillingInterval,
   type ProductCategory,
+  type ProductBusiness,
   type ProductInput,
   type ProductHueForgeFilament,
   type ProductRecord,
@@ -78,6 +80,7 @@ export interface ProductNavigationState {
 
 interface ProductFormState {
   readonly authorName: string;
+  readonly businesses: readonly ProductBusiness[];
   readonly canPrintWithInventory: boolean;
   readonly category: ProductCategory;
   readonly commercialLicenseStatus: CommercialLicenseStatus;
@@ -107,6 +110,7 @@ interface ProductHueForgeFilamentForm {
 
 const emptyForm: ProductFormState = {
   authorName: "",
+  businesses: [],
   canPrintWithInventory: false,
   category: "Bookmarks",
   commercialLicenseStatus: "unknown",
@@ -857,6 +861,8 @@ function ProductDetail({
         <strong>{product.authorName}</strong>
         <span>Sale Unit</span>
         <strong>{product.saleUnit}</strong>
+        <span>Businesses</span>
+        <strong>{product.businesses.join(", ") || "--"}</strong>
         <span>Existing Colors</span>
         <strong>{product.canPrintWithInventory ? "Ready to print" : "Needs filament colors"}</strong>
         <span>Source</span>
@@ -950,6 +956,10 @@ function ProductSnapshot({
             <span>
               <small>Sale Unit</small>
               <strong>{product.saleUnit}</strong>
+            </span>
+            <span>
+              <small>Businesses</small>
+              <strong>{product.businesses.join(", ") || "--"}</strong>
             </span>
             <span>
               <small>Colors</small>
@@ -1452,6 +1462,34 @@ function ProductFormFields({
           ))}
         </select>
       </FormField>
+      <fieldset className="business-multiselect">
+        <legend>Businesses</legend>
+        <div className="business-multiselect__options">
+          {PRODUCT_BUSINESSES.map((business) => {
+            const checked = form.businesses.includes(business);
+
+            return (
+              <button
+                aria-pressed={checked}
+                data-selected={checked ? "true" : "false"}
+                key={business}
+                onClick={() =>
+                  setForm((current) => ({
+                    ...current,
+                    businesses: checked
+                      ? current.businesses.filter((item) => item !== business)
+                      : [...current.businesses, business],
+                  }))
+                }
+                type="button"
+              >
+                <span aria-hidden="true">{checked ? "✓" : "+"}</span>
+                {business}
+              </button>
+            );
+          })}
+        </div>
+      </fieldset>
       <FormField label="License">
         <select
           onChange={(event) =>
@@ -2436,6 +2474,7 @@ function removeHueForgeFilament(
 function toProductInput(form: ProductFormState): ProductInput {
   return {
     authorName: form.authorName,
+    businesses: form.businesses,
     canPrintWithInventory: form.canPrintWithInventory,
     category: form.category,
     commercialLicenseStatus: form.commercialLicenseStatus,
@@ -2458,6 +2497,7 @@ function toProductInput(form: ProductFormState): ProductInput {
 function toFormState(product: ProductRecord): ProductFormState {
   return {
     authorName: product.authorName,
+    businesses: product.businesses,
     canPrintWithInventory: product.canPrintWithInventory,
     category: product.category,
     commercialLicenseStatus: product.commercialLicenseStatus,

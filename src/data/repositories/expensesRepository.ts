@@ -84,17 +84,8 @@ const MEMBERSHIP_COLUMNS = `
 export function createExpensesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
 ): ExpensesRepository {
-  let schemaReady = false;
-
   async function database(): Promise<SqlDatabase> {
-    const db = await databaseFactory();
-
-    if (!schemaReady) {
-      await ensureExpensesSchema(db);
-      schemaReady = true;
-    }
-
-    return db;
+    return databaseFactory();
   }
 
   return {
@@ -243,67 +234,6 @@ export function createExpensesRepository(
       return rows.map(mapMembershipRow);
     },
   };
-}
-
-async function ensureExpensesSchema(db: SqlDatabase): Promise<void> {
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS expenses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      vendor TEXT NOT NULL,
-      category TEXT NOT NULL CHECK (
-        category IN (
-          'Filament',
-          'Equipment',
-          'Shipping',
-          'Packaging',
-          'Software',
-          'License',
-          'Membership',
-          'Utilities',
-          'Other'
-        )
-      ),
-      amount REAL NOT NULL CHECK (amount >= 0),
-      expense_date TEXT NOT NULL,
-      recurrence TEXT NOT NULL CHECK (recurrence IN ('one-time', 'monthly', 'annual')),
-      recurrence_month TEXT NOT NULL,
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_expenses_date
-    ON expenses (expense_date DESC, category)
-  `);
-
-  await db.execute(`
-    CREATE TABLE IF NOT EXISTS memberships (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      creator_name TEXT NOT NULL,
-      platform TEXT NOT NULL,
-      vendor TEXT NOT NULL,
-      amount REAL NOT NULL CHECK (amount >= 0),
-      recurrence TEXT NOT NULL CHECK (recurrence IN ('one-time', 'monthly', 'annual')),
-      recurrence_month TEXT NOT NULL,
-      membership_status TEXT NOT NULL CHECK (
-        membership_status IN ('active', 'needs-renewal', 'expired', 'cancelled')
-      ),
-      commercial_use_status TEXT NOT NULL CHECK (
-        commercial_use_status IN ('commercial-ok', 'missing', 'expired', 'unknown')
-      ),
-      license_notes TEXT,
-      notes TEXT,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  await db.execute(`
-    CREATE INDEX IF NOT EXISTS idx_memberships_status
-    ON memberships (membership_status, commercial_use_status, creator_name)
-  `);
 }
 
 function mapExpenseRow(row: ExpenseRow): ExpenseRecord {

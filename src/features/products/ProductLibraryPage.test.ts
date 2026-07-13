@@ -144,6 +144,7 @@ describe("product catalog helpers", () => {
 function makeProduct(overrides: Partial<ProductRecord>): ProductRecord {
   return {
     authorName: "Studio",
+    businesses: [],
     canPrintWithInventory: false,
     category: "Bookmarks",
     commercialLicenseStatus: "commercial-ok",

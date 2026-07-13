@@ -87,16 +87,13 @@ const membershipInput: MembershipInput = {
 };
 
 describe("expenses repository", () => {
-  it("creates expense and membership schema before the first query", async () => {
+  it("queries expenses without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createExpensesRepository(async () => fakeDb);
 
     await repository.listExpenses();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS expenses");
-    expect(fakeDb.executed.some((statement) =>
-      statement.query.includes("CREATE TABLE IF NOT EXISTS memberships"),
-    )).toBe(true);
+    expect(fakeDb.executed).toEqual([]);
     expect(fakeDb.selected[0]?.query).toContain("FROM expenses");
   });
 

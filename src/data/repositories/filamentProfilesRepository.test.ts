@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { QueryResult, SqlDatabase } from "@/data/db/client";
+import type { FilamentProfileCommand } from "@/data/db/nativeWorkflows";
 import type { FilamentProfileInput } from "@/domain/inventory";
 
 import { createFilamentProfilesRepository } from "./filamentProfilesRepository";
@@ -54,15 +55,13 @@ const profileInput: FilamentProfileInput = {
 };
 
 describe("filament profiles repository", () => {
-  it("creates the profile schema before the first query", async () => {
+  it("queries profiles without frontend schema writes", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createFilamentProfilesRepository(async () => fakeDb);
 
     await repository.list();
 
-    expect(fakeDb.executed[0]?.query).toContain("CREATE TABLE IF NOT EXISTS filament_profiles");
-    expect(fakeDb.executed[1]?.query).toContain("CREATE UNIQUE INDEX IF NOT EXISTS idx_filament_profiles_unique_normalized");
-    expect(fakeDb.executed[2]?.query).toContain("CREATE INDEX IF NOT EXISTS idx_filament_profiles_lookup");
+    expect(fakeDb.executed).toEqual([]);
     expect(fakeDb.selected[0]?.query).toContain("FROM filament_profiles");
     expect(fakeDb.selected[0]?.query).toContain("ORDER BY");
   });
@@ -84,24 +83,22 @@ describe("filament profiles repository", () => {
 
   it("inserts and updates normalized profile values", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createFilamentProfilesRepository(async () => fakeDb);
+    const upserter = vi.fn(async (_inputs: readonly FilamentProfileCommand[]) => undefined);
+    const repository = createFilamentProfilesRepository(async () => fakeDb, upserter);
 
     await repository.upsertMany([profileInput]);
 
-    const insert = fakeDb.executed.find((statement) =>
-      statement.query.includes("INSERT OR IGNORE INTO filament_profiles"),
-    );
-    const update = fakeDb.executed.find((statement) =>
-      statement.query.includes("UPDATE filament_profiles"),
-    );
-
-    expect(insert?.values).toEqual(["Jayo", "PLA", "Black", "#000000", 0.3]);
-    expect(update?.values).toEqual(["Jayo", "PLA", "Black", "#000000", 0.3]);
+    expect(upserter).toHaveBeenCalledOnce();
+    expect(upserter).toHaveBeenCalledWith([
+      { brand: "Jayo", colorName: "Black", hexColor: "#000000", materialType: "PLA", transmissionDistance: 0.3 },
+    ]);
+    expect(fakeDb.executed).toEqual([]);
   });
 
   it("dedupes equivalent inputs before writing", async () => {
     const fakeDb = new FakeDatabase();
-    const repository = createFilamentProfilesRepository(async () => fakeDb);
+    const upserter = vi.fn(async (_inputs: readonly FilamentProfileCommand[]) => undefined);
+    const repository = createFilamentProfilesRepository(async () => fakeDb, upserter);
 
     await repository.upsertMany([
       profileInput,
@@ -113,10 +110,7 @@ describe("filament profiles repository", () => {
       },
     ]);
 
-    const inserts = fakeDb.executed.filter((statement) =>
-      statement.query.includes("INSERT OR IGNORE INTO filament_profiles"),
-    );
-
-    expect(inserts).toHaveLength(1);
+    expect(upserter).toHaveBeenCalledOnce();
+    expect(upserter.mock.calls[0]?.[0]).toHaveLength(1);
   });
 });

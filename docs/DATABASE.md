@@ -2,7 +2,7 @@
 
 ## Direction
 
-All data will eventually live in a local SQLite database. The app uses the Tauri SQL plugin for native SQLite persistence, with no cloud database, no server, no Firebase, no authentication, and no automatic sync.
+Business data lives in a local SQLite database owned by one native Rust `DatabaseState`. One `SqliteConnection` is held behind an async mutex, so all access inside the app process is serialized. The connection uses WAL, foreign keys, normal synchronous mode, and a five-second busy timeout. There is no cloud database, server, Firebase, authentication, or automatic sync.
 
 The current implemented persistence slices are filament inventory, add-ons/hardware inventory, finished goods home stock, product/design library records, HueForge match snapshots, print profiles/costing, production runs with estimated stock movements, sales with finished goods stock movement, expenses/memberships with commercial-use warning fields, and shopping list items.
 
@@ -10,15 +10,15 @@ Local app settings are stored in `localStorage` under a versioned PrintOps key. 
 
 ## SQLite Location
 
-The frontend database client loads:
+The managed database path is:
 
 - `sqlite:printops-studio.db`
 
-For Tauri SQL, this path is relative to Tauri's app data directory. The database is not preloaded at app startup; it is opened when a persistence-backed repository is used.
+The path is relative to Tauri's app configuration directory, matching the location used by the retired SQL plugin so existing records are adopted in place. Native startup opens it, applies versioned migrations once, and only then exposes repository commands. A second desktop app process is redirected to the existing window by the single-instance plugin.
 
 ## Access Pattern
 
-All SQLite access must go through repository modules under `src/data/repositories`.
+Feature-facing SQLite access goes through repository modules under `src/data/repositories`. Repositories use `db_select` and restricted single-statement `db_execute` calls for simple operations, and typed native commands for compound workflows.
 
 Rules:
 
@@ -26,6 +26,8 @@ Rules:
 - No raw SQL inside shared UI components.
 - No database calls from pure domain modules.
 - Repositories map SQLite rows into application-friendly data shapes.
+- Repositories must not issue DDL or transaction-control statements.
+- Multi-row stock, Sales, Production, HueForge, profile, shopping-link, and deletion workflows run in one native `sqlx::Transaction`.
 - Feature modules call repositories; service or hook layers can be added later when workflows span multiple repositories.
 
 ## Filament Inventory Slice
@@ -54,7 +56,7 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The `filaments` schema is currently created by `src/data/repositories/filamentsRepository.ts` on first repository use. This keeps schema work out of React and avoids database work during application boot.
+The native versioned migration creates and upgrades the filament tables before repository access.
 
 `filament_stock_adjustments` records production-run deductions and future manual corrections through repository methods. Implemented fields:
 
@@ -88,7 +90,7 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The `addons` schema is currently created by `src/data/repositories/addOnsRepository.ts` on first repository use.
+The native versioned migration creates and upgrades the add-on tables before repository access.
 
 `addon_stock_adjustments` records production-run deductions and future manual corrections through repository methods. Implemented fields:
 
@@ -130,7 +132,7 @@ Implemented `finished_good_stock_adjustments` fields:
 - `notes`
 - `created_at`
 
-The `finished_goods` and `finished_good_stock_adjustments` schemas are currently created by `src/data/repositories/finishedGoodsRepository.ts` on first repository use. This slice tracks home stock only. Production runs add good pieces through stock adjustments, and sales reduce ready stock through stock adjustments. Cafe stock and product-library foreign keys are intentionally deferred.
+The native versioned migration creates and upgrades `finished_goods` and its ledger. This slice tracks home stock only. Production runs add good pieces and sales reduce ready stock inside their respective native transactions. Cafe stock and product-library foreign keys are intentionally deferred.
 
 ## Product / Design Library Slice
 
@@ -154,7 +156,7 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The `products` schema is currently created by `src/data/repositories/productsRepository.ts` on first repository use. The `image_reference` field stores one optional reference string only. Product records track warning-only commercial license status plus optional recurring license cost by monthly, quarterly, or yearly billing interval. There is no image upload, copying, resizing, gallery, HueForge matching, production automation, or sales integration in this slice.
+The native versioned migration creates and upgrades `products`. The `image_reference` field stores one optional reference string only. Product records track warning-only commercial license status plus optional recurring license cost by monthly, quarterly, or yearly billing interval.
 
 ## HueForge Match Slice
 
@@ -195,13 +197,14 @@ Implemented `author_filament_requirements` fields:
 - `warning`
 - `created_at`
 
-The HueForge schemas are currently created by `src/data/repositories/hueForgeRepository.ts` on first repository use. Saving from HueForge creates a product/design record, then stores the author requirements, suggested owned matches, missing warnings, and feasibility notes. It does not deduct filament inventory.
+The native versioned migration creates and upgrades the HueForge tables. Replacing an analysis and all requirement rows is one native transaction. It does not deduct filament inventory.
 
 ## Print Profiles and Costing Slice
 
 Implemented table:
 
 - `print_profiles`
+- `print_profile_addons`
 
 Implemented fields:
 
@@ -230,7 +233,18 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The `print_profiles` schema is currently created by `src/data/repositories/printProfilesRepository.ts` on first repository use. Profiles are linked to `products.id` and may reference one add-on/hardware item from `addons.id`; add-on cost is saved as a calculation snapshot and does not deduct stock. Electricity, printer watts, wear rate, and labor rate are sourced from local Settings in the Costing UI and saved into the profile as a snapshot. Profiles do not deduct filament, consume add-ons, log production runs, create sales, or allocate license subscriptions.
+Implemented `print_profile_addons` fields:
+
+- `id`
+- `print_profile_id`
+- `addon_id`
+- `description`
+- `quantity`
+- `unit_cost`
+- `total_cost`
+- `created_at`
+
+The native versioned migration creates and upgrades print-profile tables. A profile and all child add-ons are saved in one native transaction. Descriptions, quantities, unit costs, and total costs are calculation snapshots; setting an inventory item inactive does not alter a saved profile. Legacy singular add-on values are adopted into the child table once during migration. Costing does not deduct stock.
 
 ## Production Runs Slice
 
@@ -279,7 +293,7 @@ Implemented `production_run_addons` fields:
 - `quantity_after`
 - `created_at`
 
-The production run schema is currently created by `src/data/repositories/productionRunsRepository.ts` on first repository use. Production logging is coordinated by `src/data/services/productionRunsService.ts`: it validates the selected product/profile, calculates estimated deductions with `src/domain/production`, deducts filament and optional add-ons through inventory repository adjustment methods, records good pieces through finished goods stock adjustments, and saves the production run history. It does not create sales, monthly reports, or irreversible inventory movements.
+The native migration owns the production schema. `src/data/services/productionRunsService.ts` validates and prepares deductions, then passes every filament, add-on, and finished-good change to one native transaction with the run history. If any identity, stock, or consistency check fails, the complete run rolls back.
 
 ## Sales Slice
 
@@ -316,7 +330,7 @@ Implemented `sale_stock_movements` fields:
 - `quantity_after`
 - `created_at`
 
-The sales schema is currently created by `src/data/repositories/salesRepository.ts` on first repository use. Sales are recorded against finished goods home stock, snapshot the product reference and sale unit, calculate gross/net revenue in `src/domain/sales`, reduce ready stock through `src/data/services/salesService.ts`, and preserve sale stock movement rows. This slice does not implement online payments, channel integrations, full accounting, profit reporting, or monthly reports.
+The native migration owns the Sales schema. Each sale, finished-goods reduction, adjustment ledger row, and sale movement row is recorded by one native transaction after repeating identity, revenue, and stock checks. Existing sales can correct their date, channel, gross revenue, discounts/fees, and notes through a native command; product, quantity, and stock history remain immutable in the correction form.
 
 ## Expenses, Memberships, and Licenses Slice
 
@@ -354,7 +368,7 @@ Implemented `memberships` fields:
 - `created_at`
 - `updated_at`
 
-The expenses and memberships schema is currently created by `src/data/repositories/expensesRepository.ts` on first repository use. Recurrence helpers, monthly totals, monthly-equivalent estimates, and commercial-use warning display live in `src/domain/expenses`. Memberships and license subscriptions are tracked as monthly or recurring business expenses only; they are not allocated into product costing. License warnings are informational and do not block products, production, or sales.
+The native versioned migration creates and upgrades expense and membership tables. Recurrence helpers, monthly totals, monthly-equivalent estimates, and commercial-use warning display live in `src/domain/expenses`.
 
 ## Shopping List Slice
 
@@ -378,13 +392,11 @@ Implemented fields:
 - `created_at`
 - `updated_at`
 
-The shopping list schema is currently created by `src/data/repositories/shoppingListRepository.ts` on first repository use. Manual shopping items are persisted locally. Generated suggestions are calculated in `src/domain/shopping` from low-stock add-ons and missing HueForge filament requirements read through repository modules; suggestions are explainable and non-destructive until explicitly added as shopping list items. This slice does not implement online ordering, external APIs, automatic purchasing, reminders, or sync.
+The native versioned migration owns the shopping schema and legacy product-link backfill. Saving an item and replacing all product links is one native transaction. Generated suggestions remain explainable and non-destructive until explicitly added.
 
-## Migration Folder
+## Native Migrations
 
-Migrations live in `src/data/db/migrations`.
-
-The current `0000_scaffold_only.sql` file remains documentation-only and must not be treated as production schema. A fuller migration runner can replace the repository-local schema creation once more persisted modules exist.
+Production migrations live in `src-tauri/src/database/migrations.rs`. Existing unversioned databases are inspected and preserved, a consistent pre-migration snapshot is created, missing schema changes and child-row backfills run atomically, and the applied version is recorded in `_printops_schema_migrations`. The old `src/data/db/migrations/0000_scaffold_only.sql` file is documentation-only.
 
 ## Settings Slice
 
@@ -413,7 +425,7 @@ Implemented manual workflows:
 - export settings
 - import settings
 
-Full backups are JSON envelopes with PrintOps metadata, app version, backup format version, creation timestamp, settings, and the SQLite database bytes encoded as base64. Import validation checks the backup format, supported format version, SQLite file header, database byte count, and settings ranges before restore. Full restore closes the SQL plugin pool, writes the SQLite database back to Tauri app data, and saves included settings; the UI instructs the user to restart afterward so native SQLite handles reload cleanly.
+Full backups retain the existing JSON envelope and settings payload. Database bytes come from native `VACUUM INTO`, producing a consistent snapshot that includes committed WAL data. Restore validates the envelope, SQLite header, and native `quick_check`, closes the managed connection, replaces the database, removes stale WAL/SHM files, and blocks further database operations until restart.
 
 The native workflow uses the stable Tauri dialog and file-system plugins. Backups are explicit user-triggered files only. There is no background backup job, cloud storage, automatic sync, or authentication.
 
