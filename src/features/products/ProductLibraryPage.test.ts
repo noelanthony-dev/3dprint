@@ -150,6 +150,7 @@ function makeProduct(overrides: Partial<ProductRecord>): ProductRecord {
     commercialLicenseStatus: "commercial-ok",
     createdAt: "2026-07-10T00:00:00.000Z",
     designName: "Product",
+    estimatedPrintHours: null,
     filamentMode: "hueforge",
     hueForgeFilaments: [],
     id: 1,

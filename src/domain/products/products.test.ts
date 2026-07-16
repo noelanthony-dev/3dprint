@@ -19,6 +19,7 @@ const validInput: ProductInput = {
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
   designName: "Red Blossom Bookmark",
+  estimatedPrintHours: 1.5,
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
@@ -96,6 +97,22 @@ describe("product design helpers", () => {
     expect(result.errors.authorName).toBeDefined();
     expect(result.errors.designName).toBeDefined();
     expect(result.errors.sourceLink).toBeDefined();
+  });
+
+  it("accepts optional non-negative decimal print hours", () => {
+    expect(validateProductInput({ ...validInput, estimatedPrintHours: null }).valid).toBe(true);
+    expect(validateProductInput({ ...validInput, estimatedPrintHours: 0 }).valid).toBe(true);
+    expect(validateProductInput({ ...validInput, estimatedPrintHours: 1.75 }).valid).toBe(true);
+  });
+
+  it("rejects invalid print hours", () => {
+    const negative = validateProductInput({ ...validInput, estimatedPrintHours: -0.25 });
+    const malformed = validateProductInput({ ...validInput, estimatedPrintHours: Number.NaN });
+
+    expect(negative.valid).toBe(false);
+    expect(negative.errors.estimatedPrintHours).toBeDefined();
+    expect(malformed.valid).toBe(false);
+    expect(malformed.errors.estimatedPrintHours).toBeDefined();
   });
 
   it("requires a billing interval when license cost is paid", () => {

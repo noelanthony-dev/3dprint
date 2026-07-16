@@ -241,6 +241,7 @@ export function HueForgeMatchCheckerPage() {
         category: designForm.category,
         commercialLicenseStatus: selectedProduct?.commercialLicenseStatus ?? "unknown",
         designName: designForm.designName,
+        estimatedPrintHours: selectedProduct?.estimatedPrintHours ?? null,
         filamentMode: "hueforge",
         hueForgeFilaments: parsedRequirements.map((requirement) => ({
           alternativeFilamentIds: [],

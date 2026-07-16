@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const CURRENT_SCHEMA_VERSION: i64 = 1;
+const CURRENT_SCHEMA_VERSION: i64 = 2;
 
 pub(super) async fn migrate(
     connection: &mut SqliteConnection,
@@ -33,7 +33,7 @@ pub(super) async fn migrate(
 
     let mut transaction = connection.begin().await.map_err(super::map_sqlx_error)?;
     let migration_result = async {
-        apply_schema_v1(&mut transaction).await?;
+        apply_current_schema(&mut transaction).await?;
         sqlx::query(
             "CREATE TABLE IF NOT EXISTS _printops_schema_migrations (\
                version INTEGER PRIMARY KEY,\
@@ -121,10 +121,10 @@ async fn create_pre_migration_snapshot(
     Ok(())
 }
 
-async fn apply_schema_v1(
+async fn apply_current_schema(
     transaction: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
 ) -> Result<(), String> {
-    for statement in SCHEMA_V1_STATEMENTS
+    for statement in SCHEMA_STATEMENTS
         .iter()
         .filter(|statement| !statement.starts_with("CREATE INDEX"))
     {
@@ -142,7 +142,7 @@ async fn apply_schema_v1(
     add_legacy_columns(transaction).await?;
     migrate_sales_channel_constraint(transaction).await?;
 
-    for statement in SCHEMA_V1_STATEMENTS
+    for statement in SCHEMA_STATEMENTS
         .iter()
         .filter(|statement| statement.starts_with("CREATE INDEX"))
     {
@@ -170,6 +170,7 @@ async fn add_legacy_columns(connection: &mut SqliteConnection) -> Result<(), Str
         ("products", "filament_mode", "TEXT NOT NULL DEFAULT 'hueforge' CHECK (filament_mode IN ('hueforge', 'basic'))"),
         ("products", "can_print_with_inventory", "INTEGER NOT NULL DEFAULT 0"),
         ("products", "businesses", "TEXT NOT NULL DEFAULT '[]'"),
+        ("products", "estimated_print_hours", "REAL CHECK (estimated_print_hours >= 0)"),
         ("shopping_list_items", "product_id", "INTEGER"),
         ("shopping_list_items", "required_transmission_distance", "REAL"),
         ("shopping_list_items", "shopee_listing_name", "TEXT"),
@@ -344,7 +345,7 @@ async fn backfill_child_tables(connection: &mut SqliteConnection) -> Result<(), 
     Ok(())
 }
 
-const SCHEMA_V1_STATEMENTS: &[&str] = &[
+const SCHEMA_STATEMENTS: &[&str] = &[
     "CREATE TABLE IF NOT EXISTS products (\
        id INTEGER PRIMARY KEY AUTOINCREMENT, design_name TEXT NOT NULL, source_link TEXT NOT NULL,\
        author_name TEXT NOT NULL, category TEXT NOT NULL, sale_unit TEXT NOT NULL,\
@@ -353,7 +354,8 @@ const SCHEMA_V1_STATEMENTS: &[&str] = &[
        license_billing_interval TEXT NOT NULL DEFAULT 'none' CHECK (license_billing_interval IN ('none','monthly','quarterly','yearly')),\
        filament_mode TEXT NOT NULL DEFAULT 'hueforge' CHECK (filament_mode IN ('hueforge','basic')),\
        hueforge_filaments TEXT NOT NULL DEFAULT '[]', can_print_with_inventory INTEGER NOT NULL DEFAULT 0,\
-       businesses TEXT NOT NULL DEFAULT '[]', notes TEXT, image_reference TEXT,\
+       businesses TEXT NOT NULL DEFAULT '[]', estimated_print_hours REAL CHECK (estimated_print_hours >= 0),\
+       notes TEXT, image_reference TEXT,\
        created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\
      )",
     "CREATE INDEX IF NOT EXISTS idx_products_category_design ON products (category, design_name)",
@@ -600,6 +602,63 @@ mod tests {
 
         assert_eq!(row, ("Legacy Dragon".into(), "hueforge".into(), 0));
         assert!(snapshot_exists);
+    }
+
+    #[tokio::test]
+    async fn upgrades_v1_products_with_optional_print_hours_without_losing_data() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("v1.db");
+        let mut database = connection(&path).await;
+
+        for statement in SCHEMA_STATEMENTS {
+            let v1_statement = statement.replace(
+                ", estimated_print_hours REAL CHECK (estimated_print_hours >= 0)",
+                "",
+            );
+            sqlx::query(&v1_statement)
+                .execute(&mut database)
+                .await
+                .unwrap();
+        }
+        sqlx::query(
+            "CREATE TABLE _printops_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO _printops_schema_migrations (version) VALUES (1)")
+            .execute(&mut database)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO products (design_name,source_link,author_name,category,sale_unit,commercial_license_status) \
+             VALUES ('Legacy Bookmark','https://example.test','Noel','Bookmarks','piece','commercial-ok')",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+
+        migrate(&mut database, &path).await.unwrap();
+
+        let row: (String, Option<f64>) =
+            sqlx::query_as("SELECT design_name, estimated_print_hours FROM products WHERE id=1")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _printops_schema_migrations")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+
+        assert_eq!(row, ("Legacy Bookmark".into(), None));
+        assert_eq!(version, 2);
+        assert!(
+            sqlx::query("UPDATE products SET estimated_print_hours = -1 WHERE id=1")
+                .execute(&mut database)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]

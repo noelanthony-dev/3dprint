@@ -85,6 +85,7 @@ interface ProductFormState {
   readonly category: ProductCategory;
   readonly commercialLicenseStatus: CommercialLicenseStatus;
   readonly designName: string;
+  readonly estimatedPrintHours: string;
   readonly imageReference: string;
   readonly licenseBillingInterval: LicenseBillingInterval;
   readonly licenseCostAmount: string;
@@ -115,6 +116,7 @@ const emptyForm: ProductFormState = {
   category: "Bookmarks",
   commercialLicenseStatus: "unknown",
   designName: "",
+  estimatedPrintHours: "",
   imageReference: "",
   licenseBillingInterval: "none",
   licenseCostAmount: "0",
@@ -563,22 +565,26 @@ export function ProductLibraryPage() {
                 ),
               },
               {
+                key: "print-hours",
+                header: <span className="product-table-header__label">Print Hours</span>,
+              },
+              {
                 key: "existing-colors",
                 header: (
                   <ProductTableHeaderSelect
-                    label="Existing Colors"
+                    label="Colors"
                     onChange={(value) => setColorsFilter(value as ExistingColorsFilterValue)}
                     options={[
                       { label: "All", value: "all" },
-                      { label: "OK", value: "ready" },
-                      { label: "Not OK", value: "needs" },
+                      { label: "Ready", value: "ready" },
+                      { label: "Needs", value: "needs" },
                     ]}
                     value={colorsFilter}
                   />
                 ),
               },
             ]}
-            columnsTemplate="52px minmax(260px, 1.7fr) minmax(120px, 0.7fr) minmax(112px, 0.72fr) minmax(150px, 0.82fr)"
+            columnsTemplate="52px minmax(230px, 1.65fr) minmax(112px, 0.72fr) minmax(104px, 0.68fr) minmax(88px, 0.5fr) minmax(92px, 0.52fr)"
             density="dense"
             footer={
               isLoading
@@ -598,13 +604,13 @@ export function ProductLibraryPage() {
                 <ProductThumb product={product} />,
                 <span className="row-title">
                   <strong>{product.designName}</strong>
-                  <small>{product.sourceLink}</small>
                 </span>,
                 <Badge {...(currentCategoryTone ? { tone: currentCategoryTone } : {})}>
                   {product.category}
                 </Badge>,
                 product.authorName,
-                <InventoryReadyBadge canPrintWithInventory={product.canPrintWithInventory} />,
+                formatCompactPrintHours(product.estimatedPrintHours),
+                <InventoryReadyIndicator canPrintWithInventory={product.canPrintWithInventory} />,
               ];
             })}
             selectedRowIndex={selectedRowIndex >= 0 ? selectedRowIndex : null}
@@ -861,6 +867,8 @@ function ProductDetail({
         <strong>{product.authorName}</strong>
         <span>Sale Unit</span>
         <strong>{product.saleUnit}</strong>
+        <span>Print Hours</span>
+        <strong>{formatEstimatedPrintHours(product.estimatedPrintHours)}</strong>
         <span>Businesses</span>
         <strong>{product.businesses.join(", ") || "--"}</strong>
         <span>Existing Colors</span>
@@ -956,6 +964,10 @@ function ProductSnapshot({
             <span>
               <small>Sale Unit</small>
               <strong>{product.saleUnit}</strong>
+            </span>
+            <span>
+              <small>Print Hours</small>
+              <strong>{formatEstimatedPrintHours(product.estimatedPrintHours)}</strong>
             </span>
             <span>
               <small>Businesses</small>
@@ -1204,6 +1216,26 @@ function InventoryReadyBadge({
     <Badge tone="success">Colors Ready</Badge>
   ) : (
     <Badge tone="warning">Needs Colors</Badge>
+  );
+}
+
+function InventoryReadyIndicator({
+  canPrintWithInventory,
+}: {
+  readonly canPrintWithInventory: boolean;
+}) {
+  const label = canPrintWithInventory ? "Colors ready" : "Needs colors";
+
+  return (
+    <span
+      aria-label={label}
+      className="inventory-ready-indicator"
+      data-ready={canPrintWithInventory ? "true" : "false"}
+      role="img"
+      title={label}
+    >
+      {canPrintWithInventory ? "✓" : "×"}
+    </span>
   );
 }
 
@@ -1461,6 +1493,16 @@ function ProductFormFields({
             </option>
           ))}
         </select>
+      </FormField>
+      <FormField label="Print Hours">
+        <input
+          min="0"
+          onChange={(event) => setFormValue("estimatedPrintHours", event.target.value, setForm)}
+          placeholder="Unknown"
+          step="0.25"
+          type="number"
+          value={form.estimatedPrintHours}
+        />
       </FormField>
       <fieldset className="business-multiselect">
         <legend>Businesses</legend>
@@ -2479,6 +2521,7 @@ function toProductInput(form: ProductFormState): ProductInput {
     category: form.category,
     commercialLicenseStatus: form.commercialLicenseStatus,
     designName: form.designName,
+    estimatedPrintHours: parseOptionalNumber(form.estimatedPrintHours),
     filamentMode: form.filamentMode,
     hueForgeFilaments: form.hueForgeFilaments.map((filament) =>
       form.filamentMode === "basic"
@@ -2502,6 +2545,7 @@ function toFormState(product: ProductRecord): ProductFormState {
     category: product.category,
     commercialLicenseStatus: product.commercialLicenseStatus,
     designName: product.designName,
+    estimatedPrintHours: product.estimatedPrintHours == null ? "" : String(product.estimatedPrintHours),
     filamentMode: product.filamentMode,
     hueForgeFilaments: product.hueForgeFilaments.map(toHueForgeFilamentForm),
     imageReference: product.imageReference,
@@ -2596,6 +2640,22 @@ function formatBillingInterval(interval: LicenseBillingInterval): string {
   }
 
   return interval;
+}
+
+function parseOptionalNumber(value: string): number | null {
+  return value.trim() ? Number(value) : null;
+}
+
+function formatEstimatedPrintHours(hours: number | null): string {
+  if (hours == null) {
+    return "--";
+  }
+
+  return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+}
+
+function formatCompactPrintHours(hours: number | null): string {
+  return hours == null ? "--" : `${hours}h`;
 }
 
 function formatProductId(id: number): string {

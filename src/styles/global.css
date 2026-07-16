@@ -1156,6 +1156,29 @@ textarea {
   outline: none;
 }
 
+.inventory-ready-indicator {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.inventory-ready-indicator[data-ready="true"] {
+  background: var(--color-primary-dim);
+  color: var(--color-primary-bright);
+}
+
+.inventory-ready-indicator[data-ready="false"] {
+  background: var(--color-warning-dim);
+  color: var(--color-warning);
+}
+
 .table-link {
   border: 0;
   background: transparent;
@@ -1377,6 +1400,10 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+}
+
+.detail-stack {
+  min-width: 0;
 }
 
 .spec-list__item,
@@ -1980,17 +2007,23 @@ textarea {
 
 .key-value-list {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(84px, 0.32fr) minmax(0, 1fr);
   gap: var(--space-2) var(--space-4);
 }
 
 .key-value-list strong {
+  max-width: 100%;
   min-width: 0;
   color: var(--color-text);
   font-family: var(--mono);
   font-size: 0.82rem;
+  overflow: hidden;
   overflow-wrap: anywhere;
-  text-align: right;
+  text-align: left;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .settings-checkbox {

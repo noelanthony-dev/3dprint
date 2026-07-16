@@ -286,6 +286,7 @@ const product: ProductRecord = {
   commercialLicenseStatus: "commercial-ok",
   createdAt: "2026-07-08T00:00:00.000Z",
   designName: "Tancho Koi",
+  estimatedPrintHours: null,
   filamentMode: "hueforge",
   hueForgeFilaments: [],
   id: 2,

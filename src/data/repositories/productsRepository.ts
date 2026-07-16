@@ -29,6 +29,7 @@ interface ProductRow {
   readonly commercial_license_status: string;
   readonly created_at: string;
   readonly design_name: string;
+  readonly estimated_print_hours: number | null;
   readonly id: number;
   readonly filament_mode: string | null;
   readonly hueforge_filaments: string | null;
@@ -49,6 +50,7 @@ const PRODUCT_COLUMNS = `
   can_print_with_inventory,
   businesses,
   design_name,
+  estimated_print_hours,
   source_link,
   author_name,
   category,
@@ -85,6 +87,7 @@ export function createProductsRepository(
       const result = await db.execute(
         `INSERT INTO products (
           design_name,
+          estimated_print_hours,
           source_link,
           author_name,
           category,
@@ -98,7 +101,7 @@ export function createProductsRepository(
           businesses,
           notes,
           image_reference
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
         values,
       );
 
@@ -151,21 +154,22 @@ export function createProductsRepository(
         `UPDATE products
          SET
           design_name = $1,
-          source_link = $2,
-          author_name = $3,
-          category = $4,
-          sale_unit = $5,
-          commercial_license_status = $6,
-          license_cost_amount = $7,
-          license_billing_interval = $8,
-          filament_mode = $9,
-          hueforge_filaments = $10,
-          can_print_with_inventory = $11,
-          businesses = $12,
-          notes = $13,
-          image_reference = $14,
+          estimated_print_hours = $2,
+          source_link = $3,
+          author_name = $4,
+          category = $5,
+          sale_unit = $6,
+          commercial_license_status = $7,
+          license_cost_amount = $8,
+          license_billing_interval = $9,
+          filament_mode = $10,
+          hueforge_filaments = $11,
+          can_print_with_inventory = $12,
+          businesses = $13,
+          notes = $14,
+          image_reference = $15,
           updated_at = datetime('now')
-         WHERE id = $15`,
+         WHERE id = $16`,
         [...values, id],
       );
 
@@ -199,6 +203,7 @@ async function getProductById(db: SqlDatabase, id: number): Promise<ProductRecor
 function toPersistedValues(input: ProductInput): readonly unknown[] {
   return [
     input.designName.trim(),
+    input.estimatedPrintHours,
     input.sourceLink.trim(),
     input.authorName.trim(),
     input.category,
@@ -224,6 +229,7 @@ function mapProductRow(row: ProductRow): ProductRecord {
     commercialLicenseStatus: row.commercial_license_status as CommercialLicenseStatus,
     createdAt: row.created_at,
     designName: row.design_name,
+    estimatedPrintHours: row.estimated_print_hours,
     filamentMode: row.filament_mode === "basic" ? "basic" : "hueforge",
     id: row.id,
     hueForgeFilaments: parseHueForgeFilaments(row.hueforge_filaments),

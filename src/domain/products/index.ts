@@ -64,6 +64,7 @@ export interface ProductRecord {
   readonly canPrintWithInventory: boolean;
   readonly businesses: readonly ProductBusiness[];
   readonly designName: string;
+  readonly estimatedPrintHours: number | null;
   readonly sourceLink: string;
   readonly authorName: string;
   readonly category: ProductCategory;
@@ -83,6 +84,7 @@ export interface ProductInput {
   readonly canPrintWithInventory: boolean;
   readonly businesses: readonly ProductBusiness[];
   readonly designName: string;
+  readonly estimatedPrintHours: number | null;
   readonly sourceLink: string;
   readonly authorName: string;
   readonly category: ProductCategory;
@@ -201,6 +203,13 @@ export function validateProductInput(input: ProductInput): ProductValidationResu
 
   if (!input.designName.trim()) {
     errors.designName = "Design name is required.";
+  }
+
+  if (
+    input.estimatedPrintHours != null &&
+    (!Number.isFinite(input.estimatedPrintHours) || input.estimatedPrintHours < 0)
+  ) {
+    errors.estimatedPrintHours = "Print hours must be zero or more.";
   }
 
   if (!input.sourceLink.trim()) {

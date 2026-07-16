@@ -32,6 +32,7 @@ class FakeDatabase implements SqlDatabase {
       commercial_license_status: "commercial-ok",
       created_at: "2026-07-01T00:00:00.000Z",
       design_name: "Red Blossom Bookmark",
+      estimated_print_hours: 1.5,
       filament_mode: "hueforge",
       hueforge_filaments: JSON.stringify([
         {
@@ -94,6 +95,7 @@ const input: ProductInput = {
   category: "Bookmarks",
   commercialLicenseStatus: "commercial-ok",
   designName: " Red Blossom Bookmark ",
+  estimatedPrintHours: 1.5,
   filamentMode: "hueforge",
   hueForgeFilaments: [
     {
@@ -170,12 +172,13 @@ describe("products repository", () => {
     expect(insert?.query).toContain("VALUES ($1, $2, $3");
     expect(insert?.query).not.toContain("Red Blossom Bookmark");
     expect(insert?.values[0]).toBe("Red Blossom Bookmark");
-    expect(insert?.values[2]).toBe("Studio_3D");
-    expect(insert?.values[5]).toBe("commercial-ok");
-    expect(insert?.values[6]).toBe(350);
-    expect(insert?.values[7]).toBe("monthly");
-    expect(insert?.values[8]).toBe("hueforge");
-    expect(JSON.parse(String(insert?.values[9]))).toEqual([
+    expect(insert?.values[1]).toBe(1.5);
+    expect(insert?.values[3]).toBe("Studio_3D");
+    expect(insert?.values[6]).toBe("commercial-ok");
+    expect(insert?.values[7]).toBe(350);
+    expect(insert?.values[8]).toBe("monthly");
+    expect(insert?.values[9]).toBe("hueforge");
+    expect(JSON.parse(String(insert?.values[10]))).toEqual([
       {
         alternativeFilamentIds: [2, 4],
         brand: "Jayo",
@@ -189,8 +192,20 @@ describe("products repository", () => {
         transmissionDistance: 0.3,
       },
     ]);
-    expect(insert?.values[10]).toBe(1);
-    expect(JSON.parse(String(insert?.values[11]))).toEqual(["Sincerely, Books", "Dear Reader"]);
+    expect(insert?.values[11]).toBe(1);
+    expect(JSON.parse(String(insert?.values[12]))).toEqual(["Sincerely, Books", "Dear Reader"]);
+  });
+
+  it("persists unknown print hours as null", async () => {
+    const fakeDb = new FakeDatabase(undefined, { estimated_print_hours: null });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    await repository.create({ ...input, estimatedPrintHours: null });
+
+    const insert = fakeDb.executed.find((statement) =>
+      statement.query.includes("INSERT INTO products"),
+    );
+    expect(insert?.values[1]).toBeNull();
   });
 
   it("reloads created products by the returned insert id", async () => {
@@ -226,10 +241,10 @@ describe("products repository", () => {
       statement.query.includes("UPDATE products"),
     );
 
-    expect(update?.query).toContain("can_print_with_inventory = $11");
-    expect(update?.values[10]).toBe(0);
-    expect(update?.values[14]).toBe(1);
-    expect(JSON.parse(String(update?.values[9]))).toEqual([
+    expect(update?.query).toContain("can_print_with_inventory = $12");
+    expect(update?.values[11]).toBe(0);
+    expect(update?.values[15]).toBe(1);
+    expect(JSON.parse(String(update?.values[10]))).toEqual([
       {
         alternativeFilamentIds: [2, 7],
         brand: "Jayo",
@@ -264,6 +279,15 @@ describe("products repository", () => {
     const products = await repository.list();
 
     expect(products[0]?.canPrintWithInventory).toBe(false);
+  });
+
+  it("loads products with unknown print hours as null", async () => {
+    const fakeDb = new FakeDatabase(undefined, { estimated_print_hours: null });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.estimatedPrintHours).toBeNull();
   });
 
   it("loads malformed filament JSON as no product color specs", async () => {
@@ -364,8 +388,8 @@ describe("products repository", () => {
       statement.query.includes("INSERT INTO products"),
     );
 
-    expect(insert?.values[8]).toBe("basic");
-    expect(JSON.parse(String(insert?.values[9]))).toEqual([
+    expect(insert?.values[9]).toBe("basic");
+    expect(JSON.parse(String(insert?.values[10]))).toEqual([
       {
         alternativeFilamentIds: [],
         brand: "",
