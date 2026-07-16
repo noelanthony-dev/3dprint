@@ -60,7 +60,7 @@ const emptyForm: FilamentFormState = {
   transmissionDistance: "",
 };
 
-const FILAMENT_BRANDS = ["Bambu", "eSun", "Polymaker"] as const;
+const FILAMENT_BRANDS = ["Bambu", "eSun", "Polymaker", "SUNLU", "ELEGOO"] as const;
 const FILAMENT_SOURCES = ["Makerlabs", "Shopee"] as const;
 const HEX_COLOR_INPUT_PATTERN = /^#[0-9a-f]{6}$/i;
 
