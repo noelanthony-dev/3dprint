@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const CURRENT_SCHEMA_VERSION: i64 = 2;
+const CURRENT_SCHEMA_VERSION: i64 = 4;
 
 pub(super) async fn migrate(
     connection: &mut SqliteConnection,
@@ -22,7 +22,7 @@ pub(super) async fn migrate(
         return Ok(());
     }
 
-    if version == 0 && has_business_tables(connection).await? {
+    if has_business_tables(connection).await? {
         create_pre_migration_snapshot(connection, database_path).await?;
     }
 
@@ -126,7 +126,7 @@ async fn apply_current_schema(
 ) -> Result<(), String> {
     for statement in SCHEMA_STATEMENTS
         .iter()
-        .filter(|statement| !statement.starts_with("CREATE INDEX"))
+        .filter(|statement| !is_index_statement(statement))
     {
         sqlx::query(statement)
             .execute(&mut **transaction)
@@ -141,10 +141,11 @@ async fn apply_current_schema(
 
     add_legacy_columns(transaction).await?;
     migrate_sales_channel_constraint(transaction).await?;
+    migrate_expenses_constraint(transaction).await?;
 
     for statement in SCHEMA_STATEMENTS
         .iter()
-        .filter(|statement| statement.starts_with("CREATE INDEX"))
+        .filter(|statement| is_index_statement(statement))
     {
         sqlx::query(statement)
             .execute(&mut **transaction)
@@ -158,8 +159,14 @@ async fn apply_current_schema(
     }
 
     backfill_child_tables(transaction).await?;
+    backfill_production_addon_allocations(transaction).await?;
+    backfill_production_expenses(transaction).await?;
 
     Ok(())
+}
+
+fn is_index_statement(statement: &str) -> bool {
+    statement.starts_with("CREATE INDEX") || statement.starts_with("CREATE UNIQUE INDEX")
 }
 
 async fn add_legacy_columns(connection: &mut SqliteConnection) -> Result<(), String> {
@@ -184,6 +191,7 @@ async fn add_legacy_columns(connection: &mut SqliteConnection) -> Result<(), Str
         ("production_runs", "finished_good_id", "INTEGER"),
         ("production_runs", "created_at", "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'"),
         ("production_runs", "updated_at", "TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'"),
+        ("expenses", "production_run_id", "INTEGER REFERENCES production_runs(id) ON DELETE CASCADE"),
         ("hueforge_design_analyses", "product_id", "INTEGER NOT NULL DEFAULT 0"),
         ("hueforge_design_analyses", "feasibility_status", "TEXT NOT NULL DEFAULT 'missing' CHECK (feasibility_status IN ('ready', 'needs-test', 'missing'))"),
         ("hueforge_design_analyses", "feasibility_notes", "TEXT NOT NULL DEFAULT ''"),
@@ -272,6 +280,56 @@ async fn migrate_sales_channel_constraint(connection: &mut SqliteConnection) -> 
     Ok(())
 }
 
+async fn migrate_expenses_constraint(connection: &mut SqliteConnection) -> Result<(), String> {
+    let create_sql: Option<String> = sqlx::query_scalar(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'expenses' LIMIT 1",
+    )
+    .fetch_optional(&mut *connection)
+    .await
+    .map_err(super::map_sqlx_error)?;
+    let create_sql = create_sql.unwrap_or_default();
+
+    if create_sql.contains("'Production'") && create_sql.contains("production_run_id") {
+        return Ok(());
+    }
+
+    sqlx::query("DROP TABLE IF EXISTS expenses_migration")
+        .execute(&mut *connection)
+        .await
+        .map_err(super::map_sqlx_error)?;
+    sqlx::query(
+        "CREATE TABLE expenses_migration (\
+           id INTEGER PRIMARY KEY AUTOINCREMENT, vendor TEXT NOT NULL,\
+           category TEXT NOT NULL CHECK (category IN ('Filament','Equipment','Shipping','Packaging','Software','License','Membership','Utilities','Production','Other')),\
+           amount REAL NOT NULL CHECK (amount >= 0), expense_date TEXT NOT NULL,\
+           recurrence TEXT NOT NULL CHECK (recurrence IN ('one-time','monthly','annual')), recurrence_month TEXT NOT NULL, notes TEXT,\
+           production_run_id INTEGER UNIQUE REFERENCES production_runs(id) ON DELETE CASCADE,\
+           created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\
+         )",
+    )
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| format!("Expense migration table creation failed: {}", super::map_sqlx_error(error)))?;
+    sqlx::query(
+        "INSERT INTO expenses_migration (\
+           id,vendor,category,amount,expense_date,recurrence,recurrence_month,notes,production_run_id,created_at,updated_at\
+         ) SELECT id,vendor,category,amount,expense_date,recurrence,recurrence_month,notes,production_run_id,created_at,updated_at FROM expenses",
+    )
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| format!("Expense data migration failed: {}", super::map_sqlx_error(error)))?;
+    sqlx::query("DROP TABLE expenses")
+        .execute(&mut *connection)
+        .await
+        .map_err(super::map_sqlx_error)?;
+    sqlx::query("ALTER TABLE expenses_migration RENAME TO expenses")
+        .execute(connection)
+        .await
+        .map_err(super::map_sqlx_error)?;
+
+    Ok(())
+}
+
 async fn add_column_if_missing(
     connection: &mut SqliteConnection,
     table: &str,
@@ -341,6 +399,70 @@ async fn backfill_child_tables(connection: &mut SqliteConnection) -> Result<(), 
             super::map_sqlx_error(error)
         )
     })?;
+
+    Ok(())
+}
+
+async fn backfill_production_addon_allocations(
+    connection: &mut SqliteConnection,
+) -> Result<(), String> {
+    sqlx::query(
+        r#"INSERT OR IGNORE INTO production_run_addon_allocations (
+             production_run_id, addon_id, quantity_deducted, sort_order
+           )
+           SELECT detail.production_run_id, detail.addon_id, SUM(detail.quantity_deducted),
+             MIN(detail.id)
+           FROM production_run_addons AS detail
+           GROUP BY detail.production_run_id, detail.addon_id
+           HAVING SUM(detail.quantity_deducted) > 0"#,
+    )
+    .execute(&mut *connection)
+    .await
+    .map_err(|error| {
+        format!(
+            "Production add-on allocation backfill failed: {}",
+            super::map_sqlx_error(error)
+        )
+    })?;
+
+    sqlx::query(
+        r#"INSERT OR IGNORE INTO production_run_addon_allocations (
+             production_run_id, addon_id, quantity_deducted, sort_order
+           )
+           SELECT run.id, run.addon_id, run.addon_quantity_deducted, 0
+           FROM production_runs AS run
+           WHERE run.addon_id IS NOT NULL AND run.addon_quantity_deducted > 0
+             AND NOT EXISTS (
+               SELECT 1 FROM production_run_addon_allocations AS allocation
+               WHERE allocation.production_run_id = run.id
+             )"#,
+    )
+    .execute(connection)
+    .await
+    .map_err(|error| {
+        format!(
+            "Legacy production add-on allocation backfill failed: {}",
+            super::map_sqlx_error(error)
+        )
+    })?;
+
+    Ok(())
+}
+
+async fn backfill_production_expenses(connection: &mut SqliteConnection) -> Result<(), String> {
+    let run_ids: Vec<i64> = sqlx::query_scalar(
+        "SELECT run.id FROM production_runs AS run \
+         WHERE NOT EXISTS (SELECT 1 FROM expenses WHERE production_run_id = run.id) \
+         ORDER BY run.id",
+    )
+    .fetch_all(&mut *connection)
+    .await
+    .map_err(super::map_sqlx_error)?;
+
+    for run_id in run_ids {
+        let expense = super::production_cost::calculate(connection, run_id).await?;
+        super::production_cost::insert(connection, &expense).await?;
+    }
 
     Ok(())
 }
@@ -471,6 +593,29 @@ const SCHEMA_STATEMENTS: &[&str] = &[
        FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE, FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE RESTRICT\
      )",
     "CREATE INDEX IF NOT EXISTS idx_production_run_addons_run ON production_run_addons (production_run_id)",
+    "CREATE TABLE IF NOT EXISTS production_run_addon_allocations (\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, production_run_id INTEGER NOT NULL, addon_id INTEGER NOT NULL,\
+       quantity_deducted REAL NOT NULL CHECK (quantity_deducted > 0), sort_order INTEGER NOT NULL DEFAULT 0 CHECK (sort_order >= 0),\
+       created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')),\
+       UNIQUE (production_run_id, addon_id), FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE,\
+       FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE RESTRICT\
+     )",
+    "CREATE INDEX IF NOT EXISTS idx_production_run_addon_allocations_run ON production_run_addon_allocations (production_run_id, sort_order, id)",
+    "CREATE TABLE IF NOT EXISTS production_run_corrections (\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, production_run_id INTEGER NOT NULL, correction_type TEXT NOT NULL CHECK (correction_type IN ('addons')),\
+       reason TEXT NOT NULL CHECK (length(trim(reason)) > 0), created_at TEXT NOT NULL DEFAULT (datetime('now')),\
+       FOREIGN KEY (production_run_id) REFERENCES production_runs(id) ON DELETE CASCADE\
+     )",
+    "CREATE INDEX IF NOT EXISTS idx_production_run_corrections_run ON production_run_corrections (production_run_id, created_at DESC, id DESC)",
+    "CREATE TABLE IF NOT EXISTS production_run_addon_correction_items (\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, correction_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, quantity_delta REAL NOT NULL CHECK (quantity_delta <> 0),\
+       run_quantity_before REAL NOT NULL CHECK (run_quantity_before >= 0), run_quantity_after REAL NOT NULL CHECK (run_quantity_after >= 0),\
+       stock_quantity_before REAL NOT NULL CHECK (stock_quantity_before >= 0), stock_quantity_after REAL NOT NULL CHECK (stock_quantity_after >= 0),\
+       created_at TEXT NOT NULL DEFAULT (datetime('now')), UNIQUE (correction_id, addon_id),\
+       FOREIGN KEY (correction_id) REFERENCES production_run_corrections(id) ON DELETE CASCADE,\
+       FOREIGN KEY (addon_id) REFERENCES addons(id) ON DELETE RESTRICT\
+     )",
+    "CREATE INDEX IF NOT EXISTS idx_production_run_addon_correction_items_event ON production_run_addon_correction_items (correction_id, id)",
     "CREATE TABLE IF NOT EXISTS sales (\
        id INTEGER PRIMARY KEY AUTOINCREMENT, finished_good_id INTEGER NOT NULL, product_reference TEXT NOT NULL, sale_date TEXT NOT NULL,\
        quantity INTEGER NOT NULL CHECK (quantity > 0), sale_unit TEXT NOT NULL, channel TEXT NOT NULL, gross_revenue REAL NOT NULL DEFAULT 0 CHECK (gross_revenue >= 0),\
@@ -489,11 +634,13 @@ const SCHEMA_STATEMENTS: &[&str] = &[
      )",
     "CREATE INDEX IF NOT EXISTS idx_sale_stock_movements_sale ON sale_stock_movements (sale_id)",
     "CREATE TABLE IF NOT EXISTS expenses (\
-       id INTEGER PRIMARY KEY AUTOINCREMENT, vendor TEXT NOT NULL, category TEXT NOT NULL CHECK (category IN ('Filament','Equipment','Shipping','Packaging','Software','License','Membership','Utilities','Other')),\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, vendor TEXT NOT NULL, category TEXT NOT NULL CHECK (category IN ('Filament','Equipment','Shipping','Packaging','Software','License','Membership','Utilities','Production','Other')),\
        amount REAL NOT NULL CHECK (amount >= 0), expense_date TEXT NOT NULL, recurrence TEXT NOT NULL CHECK (recurrence IN ('one-time','monthly','annual')),\
-       recurrence_month TEXT NOT NULL, notes TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\
+       recurrence_month TEXT NOT NULL, notes TEXT, production_run_id INTEGER UNIQUE REFERENCES production_runs(id) ON DELETE CASCADE,\
+       created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))\
      )",
     "CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses (expense_date DESC, category)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_expenses_production_run ON expenses (production_run_id) WHERE production_run_id IS NOT NULL",
     "CREATE TABLE IF NOT EXISTS memberships (\
        id INTEGER PRIMARY KEY AUTOINCREMENT, creator_name TEXT NOT NULL, platform TEXT NOT NULL, vendor TEXT NOT NULL, amount REAL NOT NULL CHECK (amount >= 0),\
        recurrence TEXT NOT NULL CHECK (recurrence IN ('one-time','monthly','annual')), recurrence_month TEXT NOT NULL,\
@@ -652,13 +799,273 @@ mod tests {
                 .unwrap();
 
         assert_eq!(row, ("Legacy Bookmark".into(), None));
-        assert_eq!(version, 2);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert!(
             sqlx::query("UPDATE products SET estimated_print_hours = -1 WHERE id=1")
                 .execute(&mut database)
                 .await
                 .is_err()
         );
+    }
+
+    #[tokio::test]
+    async fn upgrades_v2_and_backfills_linked_production_expenses_once() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("v2-production.db");
+        let mut database = connection(&path).await;
+
+        for statement in SCHEMA_STATEMENTS {
+            if statement.contains("idx_expenses_production_run") {
+                continue;
+            }
+
+            let v2_statement = statement
+                .replace(",'Production'", "")
+                .replace(", production_run_id INTEGER UNIQUE REFERENCES production_runs(id) ON DELETE CASCADE", "");
+            sqlx::query(&v2_statement)
+                .execute(&mut database)
+                .await
+                .unwrap();
+        }
+        sqlx::query(
+            "CREATE TABLE _printops_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO _printops_schema_migrations (version) VALUES (2)")
+            .execute(&mut database)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO products (id,design_name,source_link,author_name,category,sale_unit,commercial_license_status) \
+             VALUES (1,'Costed Dragon','https://example.test','Noel','Models','piece','commercial-ok')",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO filaments (id,brand,name,material_type,color_name,hex_color,spool_status,starting_grams,estimated_grams_left,spool_cost) \
+             VALUES (2,'Brand','Black','PLA','Black','#000000','open',1000,900,1000)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO addons (id,item_name,category,unit,quantity_on_hand,unit_cost) \
+             VALUES (3,'Clasp','Hardware','pcs',20,3)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO print_profiles (\
+               id,product_id,profile_name,sale_unit,filament_grams,support_grams,filament_cost_per_kg,\
+               print_hours,print_minutes,electricity_rate_per_kwh,printer_power_watts,wear_rate_per_hour,\
+               labor_minutes,labor_rate_per_hour,expected_good_units,expected_failed_units,target_markup\
+             ) VALUES (4,1,'Standard','piece',10,0,1000,1,0,10,100,4,30,20,1,0,3)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        for (id, grams, addon_quantity, run_date) in [
+            (5_i64, 10.0_f64, 2.0_f64, "2026-07-10"),
+            (6_i64, 5.0_f64, 1.0_f64, "2026-07-11"),
+        ] {
+            sqlx::query(
+                "INSERT INTO production_runs (\
+                   id,product_id,print_profile_id,filament_id,addon_id,run_date,expected_pieces,good_pieces,failed_pieces,\
+                   filament_grams_deducted,addon_quantity_deducted\
+                 ) VALUES ($1,1,4,2,3,$2,1,1,0,$3,$4)",
+            )
+            .bind(id)
+            .bind(run_date)
+            .bind(grams)
+            .bind(addon_quantity)
+            .execute(&mut database)
+            .await
+                .unwrap();
+        }
+        sqlx::query(
+            "UPDATE production_runs SET addon_id=NULL, addon_quantity_deducted=0 WHERE id=6",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO production_run_filaments (production_run_id,filament_id,grams_deducted,grams_before,grams_after) \
+             VALUES (5,2,10,100,90)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO production_run_addons (production_run_id,addon_id,quantity_deducted,quantity_before,quantity_after) \
+             VALUES (5,3,2,20,18)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO expenses (vendor,category,amount,expense_date,recurrence,recurrence_month,notes) \
+             VALUES ('Manual Vendor','Other',5,'2026-07-01','one-time','2026-07','keep me')",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+
+        migrate(&mut database, &path).await.unwrap();
+        migrate(&mut database, &path).await.unwrap();
+
+        let expenses: Vec<(String, f64, Option<i64>)> =
+            sqlx::query_as("SELECT vendor,amount,production_run_id FROM expenses ORDER BY id")
+                .fetch_all(&mut database)
+                .await
+                .unwrap();
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _printops_schema_migrations")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let snapshot_exists = std::fs::read_dir(directory.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("printops-studio.pre-migration-")
+            });
+
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
+        assert_eq!(
+            expenses,
+            vec![
+                ("Manual Vendor".into(), 5.0, None),
+                ("Costed Dragon".into(), 31.0, Some(5)),
+                ("Costed Dragon".into(), 20.0, Some(6)),
+            ]
+        );
+        assert!(snapshot_exists);
+
+        sqlx::query("DELETE FROM production_runs WHERE id=6")
+            .execute(&mut database)
+            .await
+            .unwrap();
+        let remaining_expenses: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM expenses")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        assert_eq!(remaining_expenses, 2);
+    }
+
+    #[tokio::test]
+    async fn upgrades_v3_and_backfills_current_addon_allocations_without_rewriting_history() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("v3-production-corrections.db");
+        let mut database = connection(&path).await;
+
+        for statement in SCHEMA_STATEMENTS.iter().filter(|statement| {
+            !statement.contains("production_run_addon_allocations")
+                && !statement.contains("production_run_corrections")
+                && !statement.contains("production_run_addon_correction_items")
+        }) {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+        sqlx::query(
+            "CREATE TABLE _printops_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO _printops_schema_migrations (version) VALUES (3)")
+            .execute(&mut database)
+            .await
+            .unwrap();
+        sqlx::query(
+            "INSERT INTO products (id,design_name,source_link,author_name,category,sale_unit,commercial_license_status) \
+             VALUES (1,'Allocation Test','https://example.test','Noel','Models','piece','commercial-ok')",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO filaments (id,brand,name,material_type,color_name,hex_color,spool_status,starting_grams,estimated_grams_left,spool_cost) \
+             VALUES (2,'Brand','Black','PLA','Black','#000000','open',1000,900,0)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO addons (id,item_name,category,unit,quantity_on_hand,unit_cost) \
+             VALUES (3,'Clasp','Hardware','pcs',20,2)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query(
+            "INSERT INTO print_profiles (\
+               id,product_id,profile_name,sale_unit,filament_grams,support_grams,filament_cost_per_kg,\
+               print_hours,print_minutes,electricity_rate_per_kwh,printer_power_watts,wear_rate_per_hour,\
+               labor_minutes,labor_rate_per_hour,expected_good_units,expected_failed_units,target_markup\
+             ) VALUES (4,1,'Standard','piece',0,0,0,0,0,0,0,0,0,0,1,0,1)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        for (id, quantity) in [(5_i64, 2.0_f64), (6_i64, 3.0_f64)] {
+            sqlx::query(
+                "INSERT INTO production_runs (\
+                   id,product_id,print_profile_id,filament_id,addon_id,run_date,expected_pieces,good_pieces,failed_pieces,\
+                   filament_grams_deducted,addon_quantity_deducted\
+                 ) VALUES ($1,1,4,2,3,'2026-07-17',1,1,0,0,$2)",
+            )
+            .bind(id)
+            .bind(quantity)
+            .execute(&mut database)
+            .await
+            .unwrap();
+        }
+        sqlx::query(
+            "INSERT INTO production_run_addons (production_run_id,addon_id,quantity_deducted,quantity_before,quantity_after) \
+             VALUES (5,3,2,20,18)",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+
+        migrate(&mut database, &path).await.unwrap();
+        migrate(&mut database, &path).await.unwrap();
+
+        let allocations: Vec<(i64, i64, f64)> = sqlx::query_as(
+            "SELECT production_run_id,addon_id,quantity_deducted FROM production_run_addon_allocations ORDER BY production_run_id",
+        )
+        .fetch_all(&mut database)
+        .await
+        .unwrap();
+        let original_rows: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM production_run_addons")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _printops_schema_migrations")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let snapshot_exists = std::fs::read_dir(directory.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                entry
+                    .file_name()
+                    .to_string_lossy()
+                    .starts_with("printops-studio.pre-migration-")
+            });
+
+        assert_eq!(allocations, vec![(5, 3, 2.0), (6, 3, 3.0)]);
+        assert_eq!(original_rows, 1);
+        assert_eq!(version, CURRENT_SCHEMA_VERSION);
+        assert!(snapshot_exists);
     }
 
     #[tokio::test]

@@ -1,4 +1,6 @@
 mod migrations;
+pub(crate) mod production_corrections;
+pub(crate) mod production_cost;
 pub(crate) mod workflows;
 
 use serde::Serialize;

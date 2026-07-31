@@ -176,6 +176,33 @@ export function ShoppingListPage() {
     }
   }
 
+  async function deleteShoppingItem(item: ShoppingListItemRecord): Promise<void> {
+    const shouldDelete = window.confirm(
+      `Delete "${item.itemName}" from the shopping list? This cannot be undone.`,
+    );
+
+    if (!shouldDelete) {
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    setValidationMessage(null);
+
+    try {
+      await shoppingListRepository.delete(item.id);
+      if (editingId === item.id) {
+        resetForm();
+      }
+      await loadShoppingData();
+      setValidationMessage("Shopping item deleted.");
+    } catch (deleteError) {
+      setError(formatRepositoryError(deleteError));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   function startEdit(item: ShoppingListItemRecord): void {
     setEditingId(item.id);
     setProductPickerId("");
@@ -237,8 +264,8 @@ export function ShoppingListPage() {
         </div>
       ) : null}
       {validationMessage ? (
-        <div className={validationMessage.includes("saved") || validationMessage.includes("added") ? "callout" : "callout callout--warning"}>
-          <Badge tone={validationMessage.includes("saved") || validationMessage.includes("added") ? "success" : "warning"}>
+        <div className={isShoppingSuccessMessage(validationMessage) ? "callout" : "callout callout--warning"}>
+          <Badge tone={isShoppingSuccessMessage(validationMessage) ? "success" : "warning"}>
             Shopping
           </Badge>
           <p>{validationMessage}</p>
@@ -266,32 +293,44 @@ export function ShoppingListPage() {
                 <ProductLinksSummary productIds={item.productIds} productNames={productNames} />,
                 <Badge>{item.category}</Badge>,
                 <Badge tone={item.status === "open" ? "success" : "neutral"}>{item.status}</Badge>,
-                item.status === "open" ? (
-                  <span className="table-actions">
-                    <button
-                      disabled={isSaving}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void updateStatus(item.id, "purchased");
-                      }}
-                      type="button"
-                    >
-                      Bought
-                    </button>
-                    <button
-                      disabled={isSaving}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void updateStatus(item.id, "ignored");
-                      }}
-                      type="button"
-                    >
-                      Ignore
-                    </button>
-                  </span>
-                ) : (
-                  "--"
-                ),
+                <span className="table-actions">
+                  {item.status === "open" ? (
+                    <>
+                      <button
+                        disabled={isSaving}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void updateStatus(item.id, "purchased");
+                        }}
+                        type="button"
+                      >
+                        Bought
+                      </button>
+                      <button
+                        disabled={isSaving}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void updateStatus(item.id, "ignored");
+                        }}
+                        type="button"
+                      >
+                        Ignore
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    aria-label={`Delete ${item.itemName}`}
+                    data-tone="danger"
+                    disabled={isSaving}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void deleteShoppingItem(item);
+                    }}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                </span>,
               ])}
               selectedRowIndex={items.findIndex((item) => item.id === editingId)}
             />
@@ -434,6 +473,10 @@ function setFormValue<K extends keyof ShoppingFormState>(
   setForm: Dispatch<SetStateAction<ShoppingFormState>>,
 ): void {
   setForm((current) => ({ ...current, [key]: value }));
+}
+
+function isShoppingSuccessMessage(message: string): boolean {
+  return ["saved", "added", "updated", "deleted"].some((keyword) => message.includes(keyword));
 }
 
 function toShoppingListItemInput(form: ShoppingFormState): ShoppingListItemInput {

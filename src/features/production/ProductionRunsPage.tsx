@@ -29,7 +29,10 @@ import {
 import type { ProductHueForgeFilament, ProductRecord } from "@/domain/products";
 import {
   calculateProductionDeductionPlan,
+  validateProductionAddOnCorrectionInput,
   validateProductionRunInput,
+  type ProductionAddOnCorrectionInput,
+  type ProductionAddOnCorrectionRecord,
   type ProductionDeductionPlan,
   type ProductionRunInput,
   type ProductionRunRecord,
@@ -53,6 +56,19 @@ interface RunAddOnFormState {
   readonly key: string;
   readonly addOnId: string;
   readonly quantity: string;
+}
+
+interface AddOnCorrectionFormState {
+  readonly addOns: readonly RunAddOnFormState[];
+  readonly reason: string;
+}
+
+export interface ProductionAddOnCorrectionPreviewItem {
+  readonly addOnId: number;
+  readonly quantityDelta: number;
+  readonly runQuantityAfter: number;
+  readonly runQuantityBefore: number;
+  readonly stockQuantityAfter: number;
 }
 
 const emptyForm: RunFormState = {
@@ -87,6 +103,9 @@ const emptyPlan: ProductionDeductionPlan = {
 export function ProductionRunsPage() {
   const [addOns, setAddOns] = useState<AddOnRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [editingRun, setEditingRun] = useState<ProductionRunRecord | null>(null);
+  const [correctionForm, setCorrectionForm] = useState<AddOnCorrectionFormState>({ addOns: [], reason: "" });
+  const [correctionHistory, setCorrectionHistory] = useState<ProductionAddOnCorrectionRecord[]>([]);
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
   const [form, setForm] = useState<RunFormState>(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,6 +210,15 @@ export function ProductionRunsPage() {
     totalGoodPieces + totalFailedPieces > 0
       ? totalGoodPieces / (totalGoodPieces + totalFailedPieces)
       : 0;
+  const correctionInput = editingRun
+    ? toProductionAddOnCorrectionInput(editingRun.id, correctionForm)
+    : null;
+  const correctionValidation = correctionInput
+    ? validateProductionAddOnCorrectionInput(correctionInput)
+    : null;
+  const correctionPreview = editingRun
+    ? calculateProductionAddOnCorrectionPreview(editingRun, correctionForm.addOns, addOns)
+    : [];
 
   function handleProductChange(productId: string): void {
     const nextProduct = products.find((product) => String(product.id) === productId);
@@ -273,6 +301,101 @@ export function ProductionRunsPage() {
       ...current,
       addOns: current.addOns.filter((addOn) => addOn.key !== key),
     }));
+  }
+
+  function addCorrectionAddOnRow(): void {
+    setCorrectionForm((current) => ({
+      ...current,
+      addOns: [...current.addOns, createRunAddOnRow()],
+    }));
+  }
+
+  function updateCorrectionAddOnRow(
+    key: string,
+    field: "addOnId" | "quantity",
+    value: string,
+  ): void {
+    setCorrectionForm((current) => ({
+      ...current,
+      addOns: current.addOns.map((addOn) =>
+        addOn.key === key ? { ...addOn, [field]: value } : addOn,
+      ),
+    }));
+  }
+
+  function removeCorrectionAddOnRow(key: string): void {
+    setCorrectionForm((current) => ({
+      ...current,
+      addOns: current.addOns.filter((addOn) => addOn.key !== key),
+    }));
+  }
+
+  async function openCorrectionModal(run: ProductionRunRecord): Promise<void> {
+    setValidationMessage(null);
+    setError(null);
+    setEditingRun(run);
+    setCorrectionForm({
+      addOns: run.addOnDeductions.map((deduction, index) => ({
+        addOnId: String(deduction.addOnId),
+        key: `correction-${run.id}-${deduction.addOnId}-${index}`,
+        quantity: String(deduction.quantityDeducted),
+      })),
+      reason: "",
+    });
+    setCorrectionHistory([]);
+
+    try {
+      setCorrectionHistory(await productionRunsRepository.listAddOnCorrections(run.id));
+    } catch (historyError) {
+      setError(formatRepositoryError(historyError));
+    }
+  }
+
+  function closeCorrectionModal(): void {
+    if (!isSaving) {
+      setEditingRun(null);
+      setCorrectionHistory([]);
+    }
+  }
+
+  async function handleCorrectionSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    setValidationMessage(null);
+
+    if (!editingRun || !correctionInput || !correctionValidation?.valid) {
+      setValidationMessage(
+        correctionValidation
+          ? Object.values(correctionValidation.errors)[0] ?? "Check the correction fields."
+          : "Choose a production run to correct.",
+      );
+      return;
+    }
+
+    const previewError = getProductionAddOnCorrectionPreviewError(
+      editingRun,
+      correctionForm.addOns,
+      addOns,
+      correctionPreview,
+    );
+    if (previewError) {
+      setValidationMessage(previewError);
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      await productionRunsService.correctAddOns(correctionInput);
+      await loadProductionData();
+      setEditingRun(null);
+      setCorrectionHistory([]);
+      setValidationMessage("Production add-ons corrected. Inventory and the linked expense were updated.");
+    } catch (saveError) {
+      setError(formatRepositoryError(saveError));
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function handleOpenRunModal(): void {
@@ -366,8 +489,8 @@ export function ProductionRunsPage() {
       <div className="side-stack">
         <Panel title="Production History" actions={<Badge>{runs.length} runs</Badge>}>
           <DataTable
-            columns={["Date", "Product", "Profile", "Yield", "Filament", "Add-on"]}
-            columnsTemplate="0.72fr minmax(145px, 1.25fr) minmax(120px, 1fr) 0.5fr 0.55fr 0.72fr"
+            columns={["Date", "Product", "Profile", "Yield", "Filament", "Add-on", "Actions"]}
+            columnsTemplate="0.68fr minmax(145px, 1.2fr) minmax(120px, 0.95fr) 0.46fr 0.5fr minmax(145px, 0.9fr) 0.46fr"
             density="dense"
             footer={runs.length === 0 ? "No production runs logged yet." : `Showing ${runs.length} production runs.`}
             rows={runs.map((run) => [
@@ -378,15 +501,175 @@ export function ProductionRunsPage() {
                 <strong>{run.goodPieces}</strong> / {run.failedPieces}
               </span>,
               formatGramsLeft(run.filamentGramsDeducted),
-              run.addOnDeductions.length > 0
-                ? run.addOnDeductions
-                    .map((deduction) => `${formatQuantity(deduction.quantityDeducted, "")} ${addOnNames.get(deduction.addOnId) ?? "add-on"}`)
-                    .join(", ")
-                : "--",
+              <span className="production-addon-summary">
+                <span>
+                  {run.addOnDeductions.length > 0
+                    ? run.addOnDeductions
+                        .map((deduction) => `${formatQuantity(deduction.quantityDeducted, "")} ${addOnNames.get(deduction.addOnId) ?? "add-on"}`)
+                        .join(", ")
+                    : "--"}
+                </span>
+                {run.addOnCorrectionCount > 0 ? <Badge tone="warning">Corrected</Badge> : null}
+              </span>,
+              <span className="table-actions">
+                <button disabled={isSaving} onClick={() => void openCorrectionModal(run)} type="button">
+                  Correct Add-ons
+                </button>
+              </span>,
             ])}
           />
         </Panel>
       </div>
+
+      {editingRun ? (
+        <div className="modal-backdrop" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) closeCorrectionModal();
+        }} role="presentation">
+          <section
+            aria-labelledby="production-correction-modal-title"
+            aria-modal="true"
+            className="modal production-correction-modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <div className="modal__title-stack">
+                <h2 id="production-correction-modal-title">Correct Production Add-ons</h2>
+                <span className="modal__position">RUN-{editingRun.id}</span>
+              </div>
+              <button aria-label="Close production correction" disabled={isSaving} onClick={closeCorrectionModal} type="button">x</button>
+            </header>
+            <div className="modal__body">
+              <div className="production-correction-modal__grid">
+                <form className="inventory-form" onSubmit={(event) => void handleCorrectionSubmit(event)}>
+                  <div className="callout callout--warning" data-wide="true">
+                    <Badge tone="warning">Audited Correction</Badge>
+                    <p>Only add-ons can change. Stock is adjusted by the difference and the original production movements remain preserved.</p>
+                  </div>
+                  <div className="production-correction-locked" data-wide="true">
+                    <span>Product</span>
+                    <strong>{productNames.get(editingRun.productId) ?? `Product ${editingRun.productId}`}</strong>
+                    <span>Date</span>
+                    <strong>{editingRun.runDate}</strong>
+                    <span>Yield</span>
+                    <strong>{editingRun.goodPieces} good / {editingRun.failedPieces} failed</strong>
+                    <span>Filament</span>
+                    <strong>{formatGramsLeft(editingRun.filamentGramsDeducted)}</strong>
+                  </div>
+                  <div className="addon-editor" data-wide="true">
+                    <div className="addon-editor__header">
+                      <span>Corrected Add-on Deductions</span>
+                      <ToolbarButton onClick={addCorrectionAddOnRow} type="button">Add Add-on</ToolbarButton>
+                    </div>
+                    {correctionForm.addOns.length === 0 ? (
+                      <p className="addon-editor__empty">No add-ons will remain assigned to this run.</p>
+                    ) : correctionForm.addOns.map((row, index) => {
+                      const original = editingRun.addOnDeductions.find(
+                        (deduction) => deduction.addOnId === Number(row.addOnId),
+                      );
+                      return (
+                        <div className="addon-editor__row" key={row.key}>
+                          <FormField label={`Add-on ${index + 1}`}>
+                            <select
+                              onChange={(event) => updateCorrectionAddOnRow(row.key, "addOnId", event.target.value)}
+                              value={row.addOnId}
+                            >
+                              <option value="">Choose an add-on</option>
+                              {addOns
+                                .filter((addOn) => addOn.isActive || original?.addOnId === addOn.id)
+                                .map((addOn) => (
+                                  <option
+                                    disabled={correctionForm.addOns.some((selected) => selected.key !== row.key && selected.addOnId === String(addOn.id))}
+                                    key={addOn.id}
+                                    value={addOn.id}
+                                  >
+                                    {addOn.itemName} ({formatQuantity(addOn.quantityOnHand, addOn.unit)}){addOn.isActive ? "" : " - inactive"}
+                                  </option>
+                                ))}
+                            </select>
+                          </FormField>
+                          <FormField label="Quantity">
+                            <input
+                              inputMode="decimal"
+                              onChange={(event) => updateCorrectionAddOnRow(row.key, "quantity", event.target.value)}
+                              value={row.quantity}
+                            />
+                          </FormField>
+                          <ToolbarButton onClick={() => removeCorrectionAddOnRow(row.key)} type="button">Remove</ToolbarButton>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <FormField label="Correction Reason" wide>
+                    <textarea
+                      maxLength={500}
+                      onChange={(event) => setCorrectionForm((current) => ({ ...current, reason: event.target.value }))}
+                      placeholder="Why is this production history being corrected?"
+                      value={correctionForm.reason}
+                    />
+                  </FormField>
+                  {validationMessage ? (
+                    <div className="form-message" role="alert">
+                      {validationMessage}
+                    </div>
+                  ) : null}
+                  {error ? (
+                    <div className="callout callout--warning" data-wide="true" role="alert">
+                      <Badge tone="warning">Correction</Badge>
+                      <p>{error}</p>
+                    </div>
+                  ) : null}
+                  <div className="form-actions">
+                    <ToolbarButton disabled={isSaving} onClick={closeCorrectionModal} type="button">Cancel</ToolbarButton>
+                    <ToolbarButton isLoading={isSaving} loadingLabel="Saving" tone="primary" type="submit">
+                      Save Correction
+                    </ToolbarButton>
+                  </div>
+                </form>
+
+                <aside className="side-stack" aria-label="Correction preview">
+                  <Panel title="Inventory Delta" actions={<Badge>{correctionPreview.length || "No changes"}</Badge>}>
+                    {correctionPreview.length === 0 ? (
+                      <p className="muted-copy">Change an add-on or quantity to preview its stock impact.</p>
+                    ) : (
+                      <div className="production-correction-preview">
+                        {correctionPreview.map((item) => {
+                          const addOn = addOns.find((candidate) => candidate.id === item.addOnId);
+                          return (
+                            <div key={item.addOnId}>
+                              <span>{addOn?.itemName ?? `Add-on ${item.addOnId}`}</span>
+                              <strong>{item.quantityDelta > 0 ? "Deduct" : "Return"} {formatQuantity(Math.abs(item.quantityDelta), addOn?.unit ?? "")}</strong>
+                              <small>Run {formatQuantity(item.runQuantityBefore, "")} → {formatQuantity(item.runQuantityAfter, "")} · Stock after {formatQuantity(item.stockQuantityAfter, addOn?.unit ?? "")}</small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Panel>
+                  <Panel title="Correction History" actions={<Badge>{correctionHistory.length}</Badge>}>
+                    {correctionHistory.length === 0 ? (
+                      <p className="muted-copy">No prior corrections for this run.</p>
+                    ) : (
+                      <div className="production-correction-history">
+                        {correctionHistory.map((correction) => (
+                          <div key={correction.id}>
+                            <strong>{correction.reason}</strong>
+                            <small>{formatCorrectionTimestamp(correction.createdAt)}</small>
+                            <span>{correction.items.map((item) => {
+                              const name = addOnNames.get(item.addOnId) ?? `Add-on ${item.addOnId}`;
+                              const sign = item.quantityDelta > 0 ? "+" : "";
+                              return `${name} ${sign}${formatQuantity(item.quantityDelta, "")}`;
+                            }).join(", ")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
+                </aside>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {isRunModalOpen ? (
         <div className="modal-backdrop" onMouseDown={(event) => {
@@ -750,7 +1033,7 @@ function getSuggestedInventoryFilaments(
   return sortFilamentsForProduction(openEnoughFilaments);
 }
 
-function getSuggestedInventoryFilamentsForRequirement(
+export function getSuggestedInventoryFilamentsForRequirement(
   requirement: ProductHueForgeFilament,
   filaments: readonly FilamentRecord[],
   requiredGrams: number,
@@ -761,25 +1044,35 @@ function getSuggestedInventoryFilamentsForRequirement(
   const exactMatches = openEnoughFilaments.filter((filament) =>
     doesFilamentMatchRequirement(filament, requirement),
   );
+  const rankedIds = new Set(exactMatches.map((filament) => filament.id));
+  const alternativeMatches: FilamentRecord[] = [];
+
+  requirement.alternativeFilamentIds.forEach((filamentId) => {
+    const alternative = openEnoughFilaments.find((filament) => filament.id === filamentId);
+
+    if (alternative && !rankedIds.has(alternative.id)) {
+      alternativeMatches.push(alternative);
+      rankedIds.add(alternative.id);
+    }
+  });
+
   const materialMatches = openEnoughFilaments.filter(
     (filament) =>
       filament.materialType === requirement.materialType &&
-      !exactMatches.some((match) => match.id === filament.id),
+      !rankedIds.has(filament.id),
   );
-  const otherMatches = openEnoughFilaments.filter(
-    (filament) =>
-      !exactMatches.some((match) => match.id === filament.id) &&
-      !materialMatches.some((match) => match.id === filament.id),
-  );
+  materialMatches.forEach((filament) => rankedIds.add(filament.id));
+  const otherMatches = openEnoughFilaments.filter((filament) => !rankedIds.has(filament.id));
 
   return [
     ...sortFilamentsForProduction(exactMatches),
+    ...alternativeMatches,
     ...sortFilamentsForProduction(materialMatches),
     ...sortFilamentsForProduction(otherMatches),
   ];
 }
 
-function chooseRecommendedFilamentSelections(
+export function chooseRecommendedFilamentSelections(
   product: ProductRecord | null,
   filaments: readonly FilamentRecord[],
   attemptedPieces: number,
@@ -927,6 +1220,99 @@ function toProductionRunInput(
     productId: Number(form.productId),
     runDate: form.runDate,
   };
+}
+
+function toProductionAddOnCorrectionInput(
+  productionRunId: number,
+  form: AddOnCorrectionFormState,
+): ProductionAddOnCorrectionInput {
+  return {
+    addOns: form.addOns.map((addOn) => ({
+      addOnId: Number(addOn.addOnId),
+      quantity: toNumber(addOn.quantity),
+    })),
+    productionRunId,
+    reason: form.reason,
+  };
+}
+
+export function calculateProductionAddOnCorrectionPreview(
+  run: Pick<ProductionRunRecord, "addOnDeductions">,
+  rows: readonly Pick<RunAddOnFormState, "addOnId" | "quantity">[],
+  addOns: readonly Pick<AddOnRecord, "id" | "quantityOnHand">[],
+): ProductionAddOnCorrectionPreviewItem[] {
+  const current = new Map(
+    run.addOnDeductions.map((deduction) => [deduction.addOnId, deduction.quantityDeducted] as const),
+  );
+  const desired = new Map<number, number>();
+  rows.forEach((row) => {
+    const addOnId = Number(row.addOnId);
+    const quantity = roundCorrectionQuantity(toNumber(row.quantity));
+    if (Number.isInteger(addOnId) && addOnId > 0 && quantity > 0) {
+      desired.set(addOnId, quantity);
+    }
+  });
+  const affectedIds = [...new Set([...current.keys(), ...desired.keys()])].sort(
+    (left, right) => left - right,
+  );
+
+  return affectedIds.flatMap((addOnId) => {
+    const runQuantityBefore = current.get(addOnId) ?? 0;
+    const runQuantityAfter = desired.get(addOnId) ?? 0;
+    const quantityDelta = roundCorrectionQuantity(runQuantityAfter - runQuantityBefore);
+    if (Math.abs(quantityDelta) < 0.000001) return [];
+    const stockQuantity = addOns.find((addOn) => addOn.id === addOnId)?.quantityOnHand ?? 0;
+
+    return [{
+      addOnId,
+      quantityDelta,
+      runQuantityAfter,
+      runQuantityBefore,
+      stockQuantityAfter: roundCorrectionQuantity(stockQuantity - quantityDelta),
+    }];
+  });
+}
+
+function getProductionAddOnCorrectionPreviewError(
+  run: ProductionRunRecord,
+  rows: readonly RunAddOnFormState[],
+  addOns: readonly AddOnRecord[],
+  preview: readonly ProductionAddOnCorrectionPreviewItem[],
+): string | null {
+  if (preview.length === 0) {
+    return "Change at least one add-on quantity before saving a correction.";
+  }
+
+  for (const item of preview) {
+    const addOn = addOns.find((candidate) => candidate.id === item.addOnId);
+    if (!addOn) return `Add-on ${item.addOnId} does not exist.`;
+    if (item.quantityDelta > 0 && !addOn.isActive) {
+      return `${addOn.itemName} is inactive and cannot be added or increased.`;
+    }
+    if (item.stockQuantityAfter < 0) {
+      return `${addOn.itemName} does not have enough stock for this correction.`;
+    }
+  }
+
+  const originalInactiveIds = new Set(
+    run.addOnDeductions
+      .filter((deduction) => !addOns.find((addOn) => addOn.id === deduction.addOnId)?.isActive)
+      .map((deduction) => deduction.addOnId),
+  );
+  const selectedIds = new Set(rows.map((row) => Number(row.addOnId)));
+  if ([...selectedIds].some((id) => id > 0 && !originalInactiveIds.has(id) && !addOns.find((addOn) => addOn.id === id)?.isActive)) {
+    return "Inactive add-ons cannot be newly selected.";
+  }
+
+  return null;
+}
+
+function roundCorrectionQuantity(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function formatCorrectionTimestamp(value: string): string {
+  return value.replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
 }
 
 let nextRunAddOnRowId = 1;

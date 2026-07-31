@@ -7,6 +7,24 @@ import {
 } from "./index";
 
 describe("settings domain", () => {
+  it("uses the configured costing defaults", () => {
+    expect(DEFAULT_APP_SETTINGS).toMatchObject({
+      electricityRatePerKwh: 15,
+      expectedFailureRatePercent: 5,
+      laborRateHourly: 35,
+      machineLifeHours: 5_000,
+      printerPowerWatts: 120,
+      productCategories: [
+        "Bookmarks",
+        "Magnets",
+        "Figure/Miniatures",
+        "Clickers",
+        "Others",
+      ],
+      wearRatePerHour: 8.5,
+    });
+  });
+
   it("normalizes unknown settings to safe local defaults", () => {
     expect(normalizeAppSettings(null)).toEqual(DEFAULT_APP_SETTINGS);
     expect(
@@ -50,5 +68,14 @@ describe("settings domain", () => {
       errors: {},
       valid: true,
     });
+  });
+
+  it("normalizes saved custom product categories", () => {
+    expect(
+      normalizeAppSettings({
+        ...DEFAULT_APP_SETTINGS,
+        productCategories: [" Keychains ", "keychains", "Desk Organizers"],
+      }).productCategories,
+    ).toEqual(["Keychains", "Desk Organizers"]);
   });
 });

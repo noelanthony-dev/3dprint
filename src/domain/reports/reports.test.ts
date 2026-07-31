@@ -36,6 +36,7 @@ const expense: ExpenseRecord = {
   expenseDate: "2026-07-02",
   id: 1,
   notes: "",
+  productionRunId: null,
   recurrence: "one-time",
   recurrenceMonth: "2026-07",
   updatedAt: "2026-07-02T00:00:00.000Z",
@@ -59,14 +60,13 @@ const membership: MembershipRecord = {
 };
 
 const productionRun: ProductionRunRecord = {
+  addOnCorrectionCount: 0,
   addOnDeductions: [{
     addOnId: 2,
-    createdAt: "2026-07-02T00:00:00.000Z",
     id: 1,
     productionRunId: 1,
-    quantityAfter: 4,
-    quantityBefore: 10,
     quantityDeducted: 6,
+    sortOrder: 0,
   }],
   addOnQuantityDeducted: 6,
   createdAt: "2026-07-02T00:00:00.000Z",
@@ -78,6 +78,7 @@ const productionRun: ProductionRunRecord = {
   finishedGoodId: 1,
   goodPieces: 9,
   id: 1,
+  lastAddOnCorrectionAt: null,
   notes: "",
   printProfileId: 3,
   productId: 5,
@@ -150,6 +151,32 @@ describe("monthly reports", () => {
 
     expect(summary.attemptedPieces).toBe(10);
     expect(summary.yieldRate).toBe(0.9);
+  });
+
+  it("includes linked production expenses in expense totals and profit", () => {
+    const productionExpense: ExpenseRecord = {
+      ...expense,
+      amount: 31,
+      category: "Production",
+      id: 2,
+      productionRunId: productionRun.id,
+      vendor: "Dragon",
+    };
+    const report = buildMonthlyReport({
+      expenses: [expense, productionExpense],
+      memberships: [],
+      month: "2026-07",
+      productionRuns: [productionRun],
+      sales: [sale],
+    });
+
+    expect(report.expenseSummary.totalExpenses).toBe(56);
+    expect(report.expenseSummary.categoryBreakdown).toContainEqual({
+      label: "Production",
+      percent: 55.36,
+      value: 31,
+    });
+    expect(report.profitSummary.simpleProfit).toBe(39);
   });
 
   it("handles month helpers", () => {

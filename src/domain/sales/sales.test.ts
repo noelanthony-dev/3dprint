@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateSaleTotals,
+  getSaleStockReconciliationQuantity,
   getSaleStockStatus,
+  getSaleStockWarning,
   validateSaleAgainstStock,
   validateSaleDetailsInput,
   validateSaleInput,
@@ -42,6 +44,11 @@ describe("sales validation", () => {
       errors: {},
       valid: true,
     });
+
+    expect(validateSaleInput({ ...saleInput, channel: "Stomping" })).toEqual({
+      errors: {},
+      valid: true,
+    });
   });
 
   it("rejects invalid sale units and channels", () => {
@@ -68,7 +75,7 @@ describe("sales validation", () => {
 
   it("validates editable sale details without requiring stock fields", () => {
     expect(validateSaleDetailsInput({
-      channel: "Flora",
+      channel: "Stomping",
       discountsFees: 10,
       grossRevenue: 150,
       notes: "Corrected price",
@@ -87,25 +94,37 @@ describe("sales validation", () => {
 
 describe("sales stock validation", () => {
   it("reports finished goods availability for sale quantity", () => {
-    expect(getSaleStockStatus({ quantityReady: 5 }, 3)).toBe("available");
-    expect(getSaleStockStatus({ quantityReady: 5 }, 7)).toBe("insufficient");
-    expect(getSaleStockStatus({ quantityReady: 0 }, 1)).toBe("out");
+    expect(getSaleStockStatus({ quantityReady: 5, quantityReserved: 1 }, 3)).toBe("available");
+    expect(getSaleStockStatus({ quantityReady: 5, quantityReserved: 1 }, 7)).toBe("insufficient");
+    expect(getSaleStockStatus({ quantityReady: 1, quantityReserved: 1 }, 1)).toBe("out");
   });
 
-  it("blocks sale quantity that exceeds stock", () => {
+  it("allows insufficient stock and reports the automatic reconciliation", () => {
     expect(
       validateSaleAgainstStock(
         { quantity: 8, saleUnit: "piece" },
-        { quantityReady: 5, saleUnit: "piece" },
+        { quantityReady: 5, quantityReserved: 1, saleUnit: "piece" },
       ),
-    ).toBe("Finished goods stock is too low for this sale quantity.");
+    ).toBeNull();
+    expect(
+      getSaleStockReconciliationQuantity(
+        { quantity: 8 },
+        { quantityReady: 5, quantityReserved: 1 },
+      ),
+    ).toBe(4);
+    expect(
+      getSaleStockWarning(
+        { quantity: 8 },
+        { quantityReady: 5, quantityReserved: 1 },
+      ),
+    ).toContain("4 missing finished-good units");
   });
 
   it("blocks sale unit mismatch", () => {
     expect(
       validateSaleAgainstStock(
         { quantity: 1, saleUnit: "set" },
-        { quantityReady: 5, saleUnit: "piece" },
+        { quantityReady: 5, quantityReserved: 0, saleUnit: "piece" },
       ),
     ).toBe("Sale unit does not match the finished goods stock unit.");
   });

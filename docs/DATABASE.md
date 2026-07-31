@@ -8,6 +8,8 @@ The current implemented persistence slices are filament inventory, add-ons/hardw
 
 Local app settings are stored in `localStorage` under a versioned PrintOps key. They are not SQLite business records, but full backup exports include them alongside the SQLite database payload.
 
+Product category configuration is stored in that settings payload. Existing product rows keep their category text in SQLite, while the Categories page controls the names offered by the Product form and catalog filter.
+
 ## SQLite Location
 
 The managed database path is:
@@ -330,7 +332,7 @@ Implemented `sale_stock_movements` fields:
 - `quantity_after`
 - `created_at`
 
-The native migration owns the Sales schema. Each sale, finished-goods reduction, adjustment ledger row, and sale movement row is recorded by one native transaction after repeating identity, revenue, and stock checks. Existing sales can correct their date, channel, gross revenue, discounts/fees, and notes through a native command; product, quantity, and stock history remain immutable in the correction form.
+The native migration owns the Sales schema. Each sale, finished-goods reduction, adjustment ledger row, and sale movement row is recorded by one native transaction after repeating identity, revenue, and stock checks. When unreserved ready stock is below the sale quantity, that same transaction first adds the exact missing quantity as a `sale stock reconciliation` adjustment, then records the full sale reduction without consuming reserved units or allowing negative stock. Existing sales can correct their date, channel, gross revenue, discounts/fees, and notes through a native command; product, quantity, and stock history remain immutable while editing. Deleting a misentered sale runs as a separate native transaction that adds the sold quantity back to the current finished-goods balance, records a `sale deletion` reversal adjustment, and removes the sale and its linked movement.
 
 ## Expenses, Memberships, and Licenses Slice
 

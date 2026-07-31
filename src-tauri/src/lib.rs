@@ -19,8 +19,6 @@ struct RecordSaleInput {
     discounts_fees: f64,
     net_revenue: f64,
     notes: String,
-    stock_quantity_before: i64,
-    stock_quantity_after: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -97,7 +95,7 @@ async fn record_sale_with_stock_movement(
         || !database::is_sale_unit(&input.sale_unit)
         || !matches!(
             input.channel.as_str(),
-            "Direct" | "Sincerely" | "Dear Reader" | "Flora"
+            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Stomping"
         )
         || !input.gross_revenue.is_finite()
         || !input.discounts_fees.is_finite()
@@ -108,16 +106,6 @@ async fn record_sale_with_stock_movement(
         || (input.net_revenue - expected_net).abs() > 0.005
     {
         return Err("Sale values are invalid or inconsistent.".into());
-    }
-
-    if input.stock_quantity_before < 0
-        || input.stock_quantity_after != input.stock_quantity_before - input.quantity
-    {
-        return Err("Sale stock movement does not match the sale quantity.".into());
-    }
-
-    if input.stock_quantity_after < 0 {
-        return Err("Sale cannot reduce ready quantity below zero.".into());
     }
 
     let mut runtime = state.lock().await?;
@@ -134,6 +122,67 @@ async fn record_sale_on_connection(
 ) -> Result<RecordSaleOutput, String> {
     let mut transaction = connection.begin().await.map_err(database::map_sqlx_error)?;
 
+    let stock: Option<(i64, i64)> = sqlx::query_as(
+        r#"SELECT quantity_ready, quantity_reserved
+           FROM finished_goods
+           WHERE id = $1 AND product_reference = $2 AND sale_unit = $3"#,
+    )
+    .bind(input.finished_good_id)
+    .bind(input.product_reference.trim())
+    .bind(input.sale_unit.trim())
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(database::map_sqlx_error)?;
+    let (quantity_ready, quantity_reserved) = stock.ok_or_else(|| {
+        "The selected finished good no longer matches this sale. Refresh and try again.".to_string()
+    })?;
+    let minimum_ready = quantity_reserved
+        .checked_add(input.quantity)
+        .ok_or_else(|| "Sale quantity is too large.".to_string())?;
+    let stock_quantity_before = quantity_ready.max(minimum_ready);
+    let reconciliation_quantity = stock_quantity_before - quantity_ready;
+    let stock_quantity_after = stock_quantity_before - input.quantity;
+
+    if reconciliation_quantity > 0 {
+        let reconciliation_result = sqlx::query(
+            r#"UPDATE finished_goods
+               SET quantity_ready = $1, updated_at = datetime('now')
+               WHERE id = $2 AND quantity_ready = $3"#,
+        )
+        .bind(stock_quantity_before)
+        .bind(input.finished_good_id)
+        .bind(quantity_ready)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database::map_sqlx_error)?;
+
+        if reconciliation_result.rows_affected() == 0 {
+            return Err("Finished goods stock changed before the sale could be reconciled.".into());
+        }
+
+        sqlx::query(
+            r#"INSERT INTO finished_good_stock_adjustments (
+              finished_good_id,
+              quantity_delta,
+              quantity_after,
+              reason,
+              notes
+            ) VALUES ($1, $2, $3, $4, $5)"#,
+        )
+        .bind(input.finished_good_id)
+        .bind(reconciliation_quantity)
+        .bind(stock_quantity_before)
+        .bind("sale stock reconciliation")
+        .bind(format!(
+            "Automatically added {reconciliation_quantity} {} before sale {} because finished-goods inventory was not recorded.",
+            input.sale_unit.trim(),
+            input.sale_date.trim()
+        ))
+        .execute(&mut *transaction)
+        .await
+        .map_err(database::map_sqlx_error)?;
+    }
+
     let stock_result = sqlx::query(
         r#"UPDATE finished_goods
          SET
@@ -145,9 +194,9 @@ async fn record_sale_on_connection(
           AND product_reference = $4
           AND sale_unit = $5"#,
     )
-    .bind(input.stock_quantity_after)
+    .bind(stock_quantity_after)
     .bind(input.finished_good_id)
-    .bind(input.stock_quantity_before)
+    .bind(stock_quantity_before)
     .bind(input.product_reference.trim())
     .bind(input.sale_unit.trim())
     .execute(&mut *transaction)
@@ -173,7 +222,7 @@ async fn record_sale_on_connection(
     )
     .bind(input.finished_good_id)
     .bind(-input.quantity)
-    .bind(input.stock_quantity_after)
+    .bind(stock_quantity_after)
     .bind("sale")
     .bind(sale_adjustment_note(input))
     .execute(&mut *transaction)
@@ -206,8 +255,8 @@ async fn record_sale_on_connection(
     .bind(input.discounts_fees)
     .bind(input.net_revenue)
     .bind(input.notes.trim())
-    .bind(input.stock_quantity_before)
-    .bind(input.stock_quantity_after)
+    .bind(stock_quantity_before)
+    .bind(stock_quantity_after)
     .execute(&mut *transaction)
     .await
     .map_err(database::map_sqlx_error)?;
@@ -225,8 +274,8 @@ async fn record_sale_on_connection(
     .bind(sale_id)
     .bind(input.finished_good_id)
     .bind(-input.quantity)
-    .bind(input.stock_quantity_before)
-    .bind(input.stock_quantity_after)
+    .bind(stock_quantity_before)
+    .bind(stock_quantity_after)
     .execute(&mut *transaction)
     .await
     .map_err(database::map_sqlx_error)?;
@@ -570,6 +619,24 @@ async fn record_production_run_on_connection(
         .map_err(database::map_sqlx_error)?;
     }
 
+    for (sort_order, deduction) in input.add_on_deductions.iter().enumerate() {
+        sqlx::query(
+            r#"INSERT INTO production_run_addon_allocations (
+                 production_run_id, addon_id, quantity_deducted, sort_order
+               ) VALUES ($1, $2, $3, $4)"#,
+        )
+        .bind(run_id)
+        .bind(deduction.add_on_id)
+        .bind(deduction.quantity_deducted)
+        .bind(sort_order as i64)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database::map_sqlx_error)?;
+    }
+
+    let production_expense = database::production_cost::calculate(&mut transaction, run_id).await?;
+    database::production_cost::insert(&mut transaction, &production_expense).await?;
+
     transaction
         .commit()
         .await
@@ -637,11 +704,14 @@ pub fn run() {
             database::workflows::adjust_filament_stock,
             database::workflows::adjust_finished_good_stock,
             database::workflows::delete_product,
+            database::workflows::delete_sale,
+            database::workflows::delete_shopping_item,
             database::workflows::save_hueforge_analysis,
             database::workflows::save_print_profile,
             database::workflows::save_shopping_item,
             database::workflows::update_sale_details,
             database::workflows::upsert_filament_profiles,
+            database::production_corrections::correct_production_run_addons,
             record_sale_with_stock_movement,
             record_production_run
         ])
@@ -664,7 +734,7 @@ mod workflow_tests {
             "CREATE TABLE finished_good_stock_adjustments (id INTEGER PRIMARY KEY, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_after INTEGER NOT NULL, reason TEXT NOT NULL, notes TEXT)",
             "CREATE TABLE sales (id INTEGER PRIMARY KEY AUTOINCREMENT, finished_good_id INTEGER NOT NULL, product_reference TEXT NOT NULL, sale_date TEXT NOT NULL, quantity INTEGER NOT NULL, sale_unit TEXT NOT NULL, channel TEXT NOT NULL, gross_revenue REAL NOT NULL, discounts_fees REAL NOT NULL, net_revenue REAL NOT NULL, notes TEXT, stock_quantity_before INTEGER NOT NULL, stock_quantity_after INTEGER NOT NULL)",
             "CREATE TABLE sale_stock_movements (id INTEGER PRIMARY KEY, sale_id INTEGER NOT NULL, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_before INTEGER NOT NULL, quantity_after INTEGER NOT NULL)",
-            "INSERT INTO finished_goods VALUES (1, 'Dragon', 'piece', 5, 0, '2026-01-01')",
+            "INSERT INTO finished_goods VALUES (1, 'Dragon', 'piece', 1, 0, '2026-01-01')",
             "CREATE TRIGGER fail_sale BEFORE INSERT ON sales BEGIN SELECT RAISE(ABORT, 'injected sale failure'); END",
         ] {
             sqlx::query(statement).execute(&mut database).await.unwrap();
@@ -680,8 +750,6 @@ mod workflow_tests {
             discounts_fees: 0.0,
             net_revenue: 100.0,
             notes: String::new(),
-            stock_quantity_before: 5,
-            stock_quantity_after: 3,
         };
 
         assert!(record_sale_on_connection(&mut database, &input)
@@ -698,8 +766,74 @@ mod workflow_tests {
                 .fetch_one(&mut database)
                 .await
                 .unwrap();
-        assert_eq!(quantity, 5);
+        assert_eq!(quantity, 1);
         assert_eq!(adjustments, 0);
+    }
+
+    #[tokio::test]
+    async fn sale_reconciles_missing_stock_without_consuming_reserved_units() {
+        let mut database = SqliteConnection::connect("sqlite::memory:").await.unwrap();
+        for statement in [
+            "CREATE TABLE finished_goods (id INTEGER PRIMARY KEY, product_reference TEXT NOT NULL, sale_unit TEXT NOT NULL, quantity_ready INTEGER NOT NULL, quantity_reserved INTEGER NOT NULL, updated_at TEXT)",
+            "CREATE TABLE finished_good_stock_adjustments (id INTEGER PRIMARY KEY, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_after INTEGER NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE sales (id INTEGER PRIMARY KEY AUTOINCREMENT, finished_good_id INTEGER NOT NULL, product_reference TEXT NOT NULL, sale_date TEXT NOT NULL, quantity INTEGER NOT NULL, sale_unit TEXT NOT NULL, channel TEXT NOT NULL, gross_revenue REAL NOT NULL, discounts_fees REAL NOT NULL, net_revenue REAL NOT NULL, notes TEXT, stock_quantity_before INTEGER NOT NULL, stock_quantity_after INTEGER NOT NULL)",
+            "CREATE TABLE sale_stock_movements (id INTEGER PRIMARY KEY, sale_id INTEGER NOT NULL, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_before INTEGER NOT NULL, quantity_after INTEGER NOT NULL)",
+            "INSERT INTO finished_goods VALUES (1, 'Dragon', 'piece', 1, 1, '2026-01-01')",
+        ] {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+        let input = RecordSaleInput {
+            finished_good_id: 1,
+            product_reference: "Dragon".into(),
+            sale_date: "2026-07-19".into(),
+            quantity: 3,
+            sale_unit: "piece".into(),
+            channel: "Direct".into(),
+            gross_revenue: 300.0,
+            discounts_fees: 0.0,
+            net_revenue: 300.0,
+            notes: String::new(),
+        };
+
+        let output = record_sale_on_connection(&mut database, &input)
+            .await
+            .unwrap();
+
+        let ready: i64 = sqlx::query_scalar("SELECT quantity_ready FROM finished_goods WHERE id=1")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let sale: (i64, i64) = sqlx::query_as(
+            "SELECT stock_quantity_before, stock_quantity_after FROM sales WHERE id=$1",
+        )
+        .bind(output.sale_id)
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+        let adjustments: Vec<(i64, i64, String)> = sqlx::query_as(
+            "SELECT quantity_delta, quantity_after, reason FROM finished_good_stock_adjustments ORDER BY id",
+        )
+        .fetch_all(&mut database)
+        .await
+        .unwrap();
+        let movement: (i64, i64, i64) = sqlx::query_as(
+            "SELECT quantity_delta, quantity_before, quantity_after FROM sale_stock_movements WHERE sale_id=$1",
+        )
+        .bind(output.sale_id)
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+
+        assert_eq!(ready, 1);
+        assert_eq!(sale, (4, 1));
+        assert_eq!(
+            adjustments,
+            vec![
+                (3, 4, "sale stock reconciliation".into()),
+                (-3, 1, "sale".into()),
+            ]
+        );
+        assert_eq!(movement, (-3, 4, 1));
     }
 
     #[tokio::test]
@@ -760,5 +894,165 @@ mod workflow_tests {
                 .unwrap();
         assert_eq!(grams, 100.0);
         assert_eq!(adjustments, 0);
+    }
+
+    #[tokio::test]
+    async fn production_creates_one_linked_full_cost_expense() {
+        let mut database = production_cost_database().await;
+        let input = costed_production_input();
+
+        let result = record_production_run_on_connection(&mut database, &input)
+            .await
+            .unwrap();
+
+        let expense: (String, String, f64, i64, String) =
+            sqlx::query_as("SELECT vendor,category,amount,production_run_id,notes FROM expenses")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let grams: f64 =
+            sqlx::query_scalar("SELECT estimated_grams_left FROM filaments WHERE id=3")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let add_ons: f64 = sqlx::query_scalar("SELECT quantity_on_hand FROM addons WHERE id=4")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+
+        assert_eq!(expense.0, "Costed Dragon");
+        assert_eq!(expense.1, "Production");
+        assert_eq!(expense.2, 46.0);
+        assert_eq!(expense.3, result.run_id);
+        assert!(expense.4.contains("filament 10.00"));
+        assert!(expense.4.contains("add-ons 6.00"));
+        assert!(expense.4.contains("electricity 2.00"));
+        assert!(expense.4.contains("wear 8.00"));
+        assert!(expense.4.contains("labor 20.00"));
+        assert_eq!(grams, 90.0);
+        assert_eq!(add_ons, 18.0);
+    }
+
+    #[tokio::test]
+    async fn production_rolls_back_everything_when_expense_insert_fails() {
+        let mut database = production_cost_database().await;
+        sqlx::query(
+            "CREATE TRIGGER fail_production_expense BEFORE INSERT ON expenses \
+             BEGIN SELECT RAISE(ABORT, 'injected expense failure'); END",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+
+        assert!(
+            record_production_run_on_connection(&mut database, &costed_production_input())
+                .await
+                .is_err()
+        );
+
+        let grams: f64 =
+            sqlx::query_scalar("SELECT estimated_grams_left FROM filaments WHERE id=3")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let add_ons: f64 = sqlx::query_scalar("SELECT quantity_on_hand FROM addons WHERE id=4")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let runs: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM production_runs")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let adjustments: i64 = sqlx::query_scalar(
+            "SELECT (SELECT COUNT(*) FROM filament_stock_adjustments) + \
+                    (SELECT COUNT(*) FROM addon_stock_adjustments)",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+
+        assert_eq!(grams, 100.0);
+        assert_eq!(add_ons, 20.0);
+        assert_eq!(runs, 0);
+        assert_eq!(adjustments, 0);
+    }
+
+    #[tokio::test]
+    async fn zero_cost_production_still_creates_a_linked_expense() {
+        let mut database = production_cost_database().await;
+        for statement in [
+            "UPDATE filaments SET spool_cost=0 WHERE id=3",
+            "UPDATE addons SET unit_cost=0 WHERE id=4",
+            "UPDATE print_profiles SET electricity_rate_per_kwh=0,wear_rate_per_hour=0,labor_rate_per_hour=0 WHERE id=2",
+        ] {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+
+        record_production_run_on_connection(&mut database, &costed_production_input())
+            .await
+            .unwrap();
+
+        let amount: f64 = sqlx::query_scalar("SELECT amount FROM expenses")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        assert_eq!(amount, 0.0);
+    }
+
+    async fn production_cost_database() -> SqliteConnection {
+        let mut database = SqliteConnection::connect("sqlite::memory:").await.unwrap();
+        for statement in [
+            "CREATE TABLE products (id INTEGER PRIMARY KEY, design_name TEXT NOT NULL)",
+            "CREATE TABLE print_profiles (id INTEGER PRIMARY KEY, product_id INTEGER NOT NULL, filament_cost_per_kg REAL NOT NULL, print_hours REAL NOT NULL, print_minutes REAL NOT NULL, electricity_rate_per_kwh REAL NOT NULL, printer_power_watts REAL NOT NULL, wear_rate_per_hour REAL NOT NULL, labor_minutes REAL NOT NULL, labor_rate_per_hour REAL NOT NULL, expected_good_units INTEGER NOT NULL, expected_failed_units INTEGER NOT NULL)",
+            "CREATE TABLE filaments (id INTEGER PRIMARY KEY, estimated_grams_left REAL NOT NULL, starting_grams REAL NOT NULL, spool_cost REAL NOT NULL, updated_at TEXT)",
+            "CREATE TABLE filament_stock_adjustments (id INTEGER PRIMARY KEY, filament_id INTEGER NOT NULL, grams_delta REAL NOT NULL, grams_after REAL NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE addons (id INTEGER PRIMARY KEY, quantity_on_hand REAL NOT NULL, unit_cost REAL NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, updated_at TEXT)",
+            "CREATE TABLE addon_stock_adjustments (id INTEGER PRIMARY KEY, addon_id INTEGER NOT NULL, quantity_delta REAL NOT NULL, quantity_after REAL NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE production_runs (id INTEGER PRIMARY KEY AUTOINCREMENT, product_id INTEGER NOT NULL, print_profile_id INTEGER NOT NULL, filament_id INTEGER NOT NULL, addon_id INTEGER, run_date TEXT NOT NULL, expected_pieces INTEGER NOT NULL, good_pieces INTEGER NOT NULL, failed_pieces INTEGER NOT NULL, failure_reason TEXT, notes TEXT, filament_grams_deducted REAL NOT NULL, addon_quantity_deducted REAL NOT NULL, finished_good_id INTEGER, created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "CREATE TABLE production_run_filaments (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL, filament_id INTEGER NOT NULL, grams_deducted REAL NOT NULL, grams_before REAL NOT NULL, grams_after REAL NOT NULL)",
+            "CREATE TABLE production_run_addons (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, quantity_deducted REAL NOT NULL, quantity_before REAL NOT NULL, quantity_after REAL NOT NULL)",
+            "CREATE TABLE production_run_addon_allocations (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, quantity_deducted REAL NOT NULL, sort_order INTEGER NOT NULL, created_at TEXT, updated_at TEXT)",
+            "CREATE TABLE production_run_corrections (id INTEGER PRIMARY KEY AUTOINCREMENT, production_run_id INTEGER NOT NULL, correction_type TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "CREATE TABLE production_run_addon_correction_items (id INTEGER PRIMARY KEY AUTOINCREMENT, correction_id INTEGER NOT NULL, addon_id INTEGER NOT NULL, quantity_delta REAL NOT NULL, run_quantity_before REAL NOT NULL, run_quantity_after REAL NOT NULL, stock_quantity_before REAL NOT NULL, stock_quantity_after REAL NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))",
+            "CREATE TABLE expenses (id INTEGER PRIMARY KEY AUTOINCREMENT, vendor TEXT NOT NULL, category TEXT NOT NULL, amount REAL NOT NULL, expense_date TEXT NOT NULL, recurrence TEXT NOT NULL, recurrence_month TEXT NOT NULL, notes TEXT, production_run_id INTEGER UNIQUE, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+            "INSERT INTO products VALUES (1,'Costed Dragon')",
+            "INSERT INTO print_profiles VALUES (2,1,1000,1,0,10,100,4,30,20,1,0)",
+            "INSERT INTO filaments VALUES (3,100,1000,1000,'2026-01-01')",
+            "INSERT INTO addons VALUES (4,20,3,1,'2026-01-01')",
+        ] {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+        database
+    }
+
+    fn costed_production_input() -> RecordProductionRunInput {
+        RecordProductionRunInput {
+            add_on_deductions: vec![ProductionAddOnDeductionInput {
+                add_on_id: 4,
+                quantity_after: 18.0,
+                quantity_before: 20.0,
+                quantity_deducted: 2.0,
+            }],
+            add_on_id: Some(4),
+            add_on_quantity_deducted: 2.0,
+            expected_pieces: 2,
+            failed_pieces: 2,
+            failure_reason: "test failure".into(),
+            filament_deductions: vec![ProductionFilamentDeductionInput {
+                filament_id: 3,
+                grams_after: 90.0,
+                grams_before: 100.0,
+                grams_deducted: 10.0,
+                notes: String::new(),
+            }],
+            filament_grams_deducted: 10.0,
+            filament_id: 3,
+            finished_good_output: None,
+            good_pieces: 0,
+            notes: String::new(),
+            print_profile_id: 2,
+            product_id: 1,
+            run_date: "2026-07-13".into(),
+        }
     }
 }

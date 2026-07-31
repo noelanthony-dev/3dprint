@@ -3,6 +3,8 @@ import type { ProductionRunRecord } from "@/domain/production";
 import type { SaleRecord } from "@/domain/sales";
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
+export * from "./analytics";
+
 export interface MonthlyReportInput {
   readonly expenses: readonly ExpenseRecord[];
   readonly memberships: readonly MembershipRecord[];

@@ -1,4 +1,9 @@
 import { createScaffoldModuleStatus } from "@/domain/shared";
+import {
+  PRODUCT_CATEGORIES,
+  normalizeProductCategories,
+  type ProductCategory,
+} from "@/domain/products";
 
 export const CURRENCY_OPTIONS = ["PHP (₱)", "USD ($)", "EUR (EUR)", "GBP (GBP)"] as const;
 
@@ -14,6 +19,7 @@ export interface AppSettings {
   readonly machineLifeHours: number;
   readonly metricUnits: boolean;
   readonly printerPowerWatts: number;
+  readonly productCategories: readonly ProductCategory[];
   readonly wearRatePerHour: number;
 }
 
@@ -30,11 +36,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hueForgeAcceptableDeltaE: 0.5,
   hueForgeMaxTransmissionDistance: 100,
   hueForgeMinTransmissionDistance: 0.1,
-  laborRateHourly: 25,
+  laborRateHourly: 35,
   machineLifeHours: 5_000,
   metricUnits: true,
-  printerPowerWatts: 100,
-  wearRatePerHour: 0.1,
+  printerPowerWatts: 120,
+  productCategories: PRODUCT_CATEGORIES,
+  wearRatePerHour: 8.5,
 };
 
 export function normalizeAppSettings(value: unknown): AppSettings {
@@ -78,12 +85,14 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       value.printerPowerWatts,
       DEFAULT_APP_SETTINGS.printerPowerWatts,
     ),
+    productCategories: normalizeProductCategories(value.productCategories),
     wearRatePerHour: normalizeNumber(value.wearRatePerHour, DEFAULT_APP_SETTINGS.wearRatePerHour),
   };
 }
 
 export function validateAppSettings(settings: AppSettings): SettingsValidationResult {
   const errors: Partial<Record<keyof AppSettings, string>> = {};
+  const normalizedProductCategories = normalizeProductCategories(settings.productCategories);
 
   if (!isCurrencyOption(settings.currencySymbol)) {
     errors.currencySymbol = "Choose a supported currency display.";
@@ -103,6 +112,15 @@ export function validateAppSettings(settings: AppSettings): SettingsValidationRe
 
   if (settings.printerPowerWatts < 0) {
     errors.printerPowerWatts = "Printer watts cannot be negative.";
+  }
+
+  if (
+    normalizedProductCategories.length !== settings.productCategories.length ||
+    normalizedProductCategories.some(
+      (category, index) => category !== settings.productCategories[index],
+    )
+  ) {
+    errors.productCategories = "Product categories must be unique, named, and 60 characters or fewer.";
   }
 
   if (settings.wearRatePerHour < 0) {

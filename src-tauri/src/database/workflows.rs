@@ -95,7 +95,7 @@ pub(crate) struct SavePrintProfileInput {
     labor_minutes: f64,
     labor_rate_per_hour: f64,
     expected_good_units: i64,
-    expected_failed_units: i64,
+    expected_failed_units: f64,
     target_markup: f64,
     notes: String,
     add_ons: Vec<PrintProfileAddOnInput>,
@@ -129,6 +129,12 @@ pub(crate) struct UpdateSaleDetailsInput {
     discounts_fees: f64,
     net_revenue: f64,
     notes: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeleteSaleInput {
+    sale_id: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -671,6 +677,43 @@ async fn save_shopping_item_on_connection(
 }
 
 #[tauri::command]
+pub(crate) async fn delete_shopping_item(
+    state: State<'_, DatabaseState>,
+    id: i64,
+) -> Result<(), String> {
+    if id <= 0 {
+        return Err("Shopping list item id is invalid.".into());
+    }
+    let mut runtime = state.lock().await?;
+    let connection = runtime
+        .connection
+        .as_mut()
+        .expect("connection checked by lock");
+    delete_shopping_item_on_connection(connection, id).await
+}
+
+async fn delete_shopping_item_on_connection(
+    connection: &mut sqlx::SqliteConnection,
+    id: i64,
+) -> Result<(), String> {
+    let mut transaction = connection.begin().await.map_err(map_sqlx_error)?;
+    sqlx::query("DELETE FROM shopping_list_item_products WHERE shopping_item_id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+    let result = sqlx::query("DELETE FROM shopping_list_items WHERE id = $1")
+        .bind(id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+    if result.rows_affected() == 0 {
+        return Err(format!("Shopping list item {id} does not exist."));
+    }
+    transaction.commit().await.map_err(map_sqlx_error)
+}
+
+#[tauri::command]
 pub(crate) async fn delete_product(state: State<'_, DatabaseState>, id: i64) -> Result<(), String> {
     if id <= 0 {
         return Err("Product id is invalid.".into());
@@ -697,6 +740,22 @@ pub(crate) async fn update_sale_details(
     update_sale_details_on_connection(connection, &input).await
 }
 
+#[tauri::command]
+pub(crate) async fn delete_sale(
+    state: State<'_, DatabaseState>,
+    input: DeleteSaleInput,
+) -> Result<(), String> {
+    if input.sale_id <= 0 {
+        return Err("Sale id is invalid.".into());
+    }
+    let mut runtime = state.lock().await?;
+    let connection = runtime
+        .connection
+        .as_mut()
+        .expect("connection checked by lock");
+    delete_sale_on_connection(connection, input.sale_id).await
+}
+
 async fn update_sale_details_on_connection(
     connection: &mut sqlx::SqliteConnection,
     input: &UpdateSaleDetailsInput,
@@ -719,6 +778,83 @@ async fn update_sale_details_on_connection(
 
     if result.rows_affected() == 0 {
         return Err(format!("Sale {} does not exist.", input.sale_id));
+    }
+
+    transaction.commit().await.map_err(map_sqlx_error)
+}
+
+async fn delete_sale_on_connection(
+    connection: &mut sqlx::SqliteConnection,
+    sale_id: i64,
+) -> Result<(), String> {
+    let mut transaction = connection.begin().await.map_err(map_sqlx_error)?;
+    let sale: Option<(i64, String, i64, String)> = sqlx::query_as(
+        "SELECT finished_good_id, product_reference, quantity, sale_unit \
+         FROM sales WHERE id=$1",
+    )
+    .bind(sale_id)
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(map_sqlx_error)?;
+    let (finished_good_id, product_reference, quantity, sale_unit) =
+        sale.ok_or_else(|| format!("Sale {sale_id} does not exist."))?;
+    let quantity_ready: Option<i64> =
+        sqlx::query_scalar("SELECT quantity_ready FROM finished_goods WHERE id=$1")
+            .bind(finished_good_id)
+            .fetch_optional(&mut *transaction)
+            .await
+            .map_err(map_sqlx_error)?;
+    let quantity_ready = quantity_ready.ok_or_else(|| {
+        "The sale's finished-good inventory record no longer exists. The sale was not deleted."
+            .to_string()
+    })?;
+    let quantity_after = quantity_ready
+        .checked_add(quantity)
+        .ok_or_else(|| "Restored finished-goods quantity is too large.".to_string())?;
+
+    let stock_result = sqlx::query(
+        "UPDATE finished_goods SET quantity_ready=$1, updated_at=datetime('now') \
+         WHERE id=$2 AND quantity_ready=$3",
+    )
+    .bind(quantity_after)
+    .bind(finished_good_id)
+    .bind(quantity_ready)
+    .execute(&mut *transaction)
+    .await
+    .map_err(map_sqlx_error)?;
+
+    if stock_result.rows_affected() == 0 {
+        return Err("Finished-goods stock changed before the sale could be deleted.".into());
+    }
+
+    sqlx::query(
+        "INSERT INTO finished_good_stock_adjustments (\
+           finished_good_id, quantity_delta, quantity_after, reason, notes\
+         ) VALUES ($1, $2, $3, 'sale deletion', $4)",
+    )
+    .bind(finished_good_id)
+    .bind(quantity)
+    .bind(quantity_after)
+    .bind(format!(
+        "Restored {quantity} {sale_unit} after deleting misentered sale {sale_id} for {product_reference}."
+    ))
+    .execute(&mut *transaction)
+    .await
+    .map_err(map_sqlx_error)?;
+
+    sqlx::query("DELETE FROM sale_stock_movements WHERE sale_id=$1")
+        .bind(sale_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+    let delete_result = sqlx::query("DELETE FROM sales WHERE id=$1")
+        .bind(sale_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+
+    if delete_result.rows_affected() == 0 {
+        return Err(format!("Sale {sale_id} no longer exists."));
     }
 
     transaction.commit().await.map_err(map_sqlx_error)
@@ -802,7 +938,8 @@ fn validate_print_profile(input: &SavePrintProfileInput) -> Result<(), String> {
         || !non_negative
         || !add_ons_valid
         || input.expected_good_units <= 0
-        || input.expected_failed_units < 0
+        || input.expected_failed_units < 0.0
+        || !input.expected_failed_units.is_finite()
         || !input.target_markup.is_finite()
         || input.target_markup < 1.0
     {
@@ -845,7 +982,7 @@ fn validate_sale_details(input: &UpdateSaleDetailsInput) -> Result<(), String> {
         || input.sale_date.trim().is_empty()
         || !matches!(
             input.channel.as_str(),
-            "Direct" | "Sincerely" | "Dear Reader" | "Flora"
+            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Stomping"
         )
         || !input.gross_revenue.is_finite()
         || !input.discounts_fees.is_finite()
@@ -881,6 +1018,35 @@ mod tests {
     use super::*;
     use std::sync::Arc;
     use tempfile::tempdir;
+
+    #[test]
+    fn print_profile_command_accepts_fractional_expected_failures() {
+        let input: SavePrintProfileInput = serde_json::from_value(serde_json::json!({
+            "addOns": [],
+            "electricityRatePerKwh": 15,
+            "expectedFailedUnits": 0.5,
+            "expectedGoodUnits": 1,
+            "filamentCostPerKg": 750,
+            "filamentGrams": 22.5,
+            "id": 5,
+            "laborMinutes": 5,
+            "laborRatePerHour": 35,
+            "notes": "",
+            "printerPowerWatts": 120,
+            "printHours": 2,
+            "printMinutes": 36,
+            "productId": 1,
+            "profileName": "0.4mm Standard",
+            "saleUnit": "piece",
+            "supportGrams": 2,
+            "targetMarkup": 2.36,
+            "wearRatePerHour": 8.5
+        }))
+        .unwrap();
+
+        assert_eq!(input.expected_failed_units, 0.5);
+        assert!(validate_print_profile(&input).is_ok());
+    }
 
     #[tokio::test]
     async fn serialized_state_handles_rapid_cross_feature_stock_saves() {
@@ -1009,7 +1175,7 @@ mod tests {
         let input = UpdateSaleDetailsInput {
             sale_id: 1,
             sale_date: "2026-07-09".into(),
-            channel: "Sincerely".into(),
+            channel: "Stomping".into(),
             gross_revenue: 150.0,
             discounts_fees: 10.0,
             net_revenue: 140.0,
@@ -1035,9 +1201,101 @@ mod tests {
 
         assert_eq!(
             sale,
-            ("2026-07-09".into(), "Sincerely".into(), 150.0, 140.0, 3, 2)
+            ("2026-07-09".into(), "Stomping".into(), 150.0, 140.0, 3, 2)
         );
         assert_eq!(movement, (-1, 3, 2));
+    }
+
+    #[tokio::test]
+    async fn sale_deletion_restores_current_stock_and_keeps_a_reversal_audit() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("sale-deletion.db");
+        let mut connection = super::super::open_connection(&path).await.unwrap();
+        for statement in [
+            "CREATE TABLE finished_goods (id INTEGER PRIMARY KEY, quantity_ready INTEGER NOT NULL, quantity_reserved INTEGER NOT NULL, updated_at TEXT)",
+            "CREATE TABLE finished_good_stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_after INTEGER NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE sales (id INTEGER PRIMARY KEY, finished_good_id INTEGER NOT NULL, product_reference TEXT NOT NULL, quantity INTEGER NOT NULL, sale_unit TEXT NOT NULL)",
+            "CREATE TABLE sale_stock_movements (id INTEGER PRIMARY KEY, sale_id INTEGER NOT NULL)",
+            "INSERT INTO finished_goods VALUES (4, 2, 1, '2026-07-24')",
+            "INSERT INTO sales VALUES (9, 4, 'Dragon', 3, 'piece')",
+            "INSERT INTO sale_stock_movements VALUES (7, 9)",
+        ] {
+            sqlx::query(statement).execute(&mut connection).await.unwrap();
+        }
+
+        delete_sale_on_connection(&mut connection, 9).await.unwrap();
+
+        let ready: i64 = sqlx::query_scalar("SELECT quantity_ready FROM finished_goods WHERE id=4")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let sales: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sales")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let movements: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sale_stock_movements")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let adjustment: (i64, i64, String, String) = sqlx::query_as(
+            "SELECT quantity_delta, quantity_after, reason, notes \
+             FROM finished_good_stock_adjustments",
+        )
+        .fetch_one(&mut connection)
+        .await
+        .unwrap();
+
+        assert_eq!(ready, 5);
+        assert_eq!(sales, 0);
+        assert_eq!(movements, 0);
+        assert_eq!(adjustment.0, 3);
+        assert_eq!(adjustment.1, 5);
+        assert_eq!(adjustment.2, "sale deletion");
+        assert!(adjustment.3.contains("misentered sale 9"));
+    }
+
+    #[tokio::test]
+    async fn sale_deletion_rolls_back_stock_and_audit_when_delete_fails() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("sale-deletion-rollback.db");
+        let mut connection = super::super::open_connection(&path).await.unwrap();
+        for statement in [
+            "CREATE TABLE finished_goods (id INTEGER PRIMARY KEY, quantity_ready INTEGER NOT NULL, quantity_reserved INTEGER NOT NULL, updated_at TEXT)",
+            "CREATE TABLE finished_good_stock_adjustments (id INTEGER PRIMARY KEY AUTOINCREMENT, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_after INTEGER NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE sales (id INTEGER PRIMARY KEY, finished_good_id INTEGER NOT NULL, product_reference TEXT NOT NULL, quantity INTEGER NOT NULL, sale_unit TEXT NOT NULL)",
+            "CREATE TABLE sale_stock_movements (id INTEGER PRIMARY KEY, sale_id INTEGER NOT NULL)",
+            "INSERT INTO finished_goods VALUES (4, 2, 1, '2026-07-24')",
+            "INSERT INTO sales VALUES (9, 4, 'Dragon', 3, 'piece')",
+            "INSERT INTO sale_stock_movements VALUES (7, 9)",
+            "CREATE TRIGGER fail_sale_delete BEFORE DELETE ON sales BEGIN SELECT RAISE(ABORT, 'injected sale delete failure'); END",
+        ] {
+            sqlx::query(statement).execute(&mut connection).await.unwrap();
+        }
+
+        assert!(delete_sale_on_connection(&mut connection, 9).await.is_err());
+
+        let ready: i64 = sqlx::query_scalar("SELECT quantity_ready FROM finished_goods WHERE id=4")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let sales: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sales")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let movements: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM sale_stock_movements")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let adjustments: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM finished_good_stock_adjustments")
+                .fetch_one(&mut connection)
+                .await
+                .unwrap();
+
+        assert_eq!(ready, 2);
+        assert_eq!(sales, 1);
+        assert_eq!(movements, 1);
+        assert_eq!(adjustments, 0);
     }
 
     #[tokio::test]
@@ -1290,7 +1548,7 @@ mod tests {
             labor_minutes: 0.0,
             labor_rate_per_hour: 0.0,
             expected_good_units: 1,
-            expected_failed_units: 0,
+            expected_failed_units: 0.0,
             target_markup: 3.0,
             notes: String::new(),
             add_ons: vec![PrintProfileAddOnInput {
@@ -1366,5 +1624,35 @@ mod tests {
             .unwrap();
         assert_eq!(item_product, 7);
         assert_eq!(links, 1);
+    }
+
+    #[tokio::test]
+    async fn shopping_item_delete_removes_the_item_and_product_links() {
+        let mut connection = sqlx::SqliteConnection::connect("sqlite::memory:")
+            .await
+            .unwrap();
+        for statement in [
+            "CREATE TABLE shopping_list_items (id INTEGER PRIMARY KEY)",
+            "CREATE TABLE shopping_list_item_products (shopping_item_id INTEGER NOT NULL, product_id INTEGER NOT NULL)",
+            "INSERT INTO shopping_list_items VALUES (1)",
+            "INSERT INTO shopping_list_item_products VALUES (1, 7)",
+        ] {
+            sqlx::query(statement).execute(&mut connection).await.unwrap();
+        }
+
+        delete_shopping_item_on_connection(&mut connection, 1)
+            .await
+            .unwrap();
+
+        let items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shopping_list_items")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        let links: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM shopping_list_item_products")
+            .fetch_one(&mut connection)
+            .await
+            .unwrap();
+        assert_eq!(items, 0);
+        assert_eq!(links, 0);
     }
 }

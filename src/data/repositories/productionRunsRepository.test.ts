@@ -24,11 +24,24 @@ class FakeDatabase implements SqlDatabase {
       return [addOnDeductionRow] as T;
     }
 
+    if (query.includes("FROM production_run_addon_allocations")) {
+      return [addOnAllocationRow] as T;
+    }
+
+    if (query.includes("FROM production_run_addon_correction_items")) {
+      return [correctionItemRow] as T;
+    }
+
+    if (query.includes("FROM production_run_corrections\n         WHERE")) {
+      return [correctionRow] as T;
+    }
+
     return [runRow] as T;
   }
 }
 
 const runRow = {
+  addon_correction_count: 0,
   addon_id: 3,
   addon_quantity_deducted: 12,
   created_at: "2026-07-02T00:00:00.000Z",
@@ -40,11 +53,37 @@ const runRow = {
   finished_good_id: 4,
   good_pieces: 9,
   id: 1,
+  last_addon_correction_at: null,
   notes: "Nozzle cleaned after run",
   print_profile_id: 6,
   product_id: 2,
   run_date: "2026-07-02",
   updated_at: "2026-07-02T00:00:00.000Z",
+};
+
+const addOnAllocationRow = {
+  addon_id: 3,
+  id: 2,
+  production_run_id: 1,
+  quantity_deducted: 12,
+  sort_order: 0,
+};
+
+const correctionRow = {
+  created_at: "2026-07-17 12:00:00",
+  id: 7,
+  production_run_id: 1,
+  reason: "Forgot the clasp",
+};
+
+const correctionItemRow = {
+  addon_id: 3,
+  correction_id: 7,
+  quantity_delta: 2,
+  run_quantity_after: 14,
+  run_quantity_before: 12,
+  stock_quantity_after: 86,
+  stock_quantity_before: 88,
 };
 
 const filamentDeductionRow = {
@@ -95,5 +134,24 @@ describe("production runs repository", () => {
       expect.objectContaining({ addOnId: 3, quantityAfter: 88, quantityDeducted: 12 }),
     ]);
     expect(fakeDb.executed).toEqual([]);
+  });
+
+  it("loads grouped add-on correction history", async () => {
+    const repository = createProductionRunsRepository(async () => new FakeDatabase());
+
+    await expect(repository.listAddOnCorrections(1)).resolves.toEqual([{
+      createdAt: "2026-07-17 12:00:00",
+      id: 7,
+      items: [{
+        addOnId: 3,
+        quantityDelta: 2,
+        runQuantityAfter: 14,
+        runQuantityBefore: 12,
+        stockQuantityAfter: 86,
+        stockQuantityBefore: 88,
+      }],
+      productionRunId: 1,
+      reason: "Forgot the clasp",
+    }]);
   });
 });

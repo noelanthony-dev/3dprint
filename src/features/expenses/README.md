@@ -8,6 +8,7 @@ Implemented scope:
 - Records amount, category, vendor, recurrence, recurrence month, and notes.
 - Tracks memberships with platform, creator, status, commercial-use warning status, and license notes.
 - Calculates current-month totals and recurring monthly-equivalent overhead.
+- Includes one linked full-cost expense for every production run.
 - Shows commercial license warnings only.
 
 Non-goals for this module:
@@ -15,4 +16,5 @@ Non-goals for this module:
 - No full accounting or tax logic.
 - No cloud reminders or automatic sync.
 - No subscription allocation into product costing.
+- No deduplication between production consumption costs and manually logged purchases.
 - No hard blocking products, sales, or production based on license status.

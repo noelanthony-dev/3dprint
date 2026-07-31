@@ -102,6 +102,23 @@ export interface UpdateSaleDetailsCommand {
   readonly saleId: number;
 }
 
+export interface DeleteSaleCommand {
+  readonly saleId: number;
+}
+
+export interface CorrectProductionRunAddOnsCommand {
+  readonly addOns: readonly {
+    readonly addOnId: number;
+    readonly quantity: number;
+  }[];
+  readonly productionRunId: number;
+  readonly reason: string;
+}
+
+interface ProductionCorrectionOutput {
+  readonly correctionId: number;
+}
+
 interface RecordIdOutput {
   readonly id: number;
 }
@@ -136,10 +153,24 @@ export async function saveShoppingItemNative(input: SaveShoppingItemCommand): Pr
   return result.id;
 }
 
+export function deleteShoppingItemNative(id: number): Promise<void> {
+  return invoke("delete_shopping_item", { id });
+}
+
 export function deleteProductNative(id: number): Promise<void> {
   return invoke("delete_product", { id });
 }
 
 export function updateSaleDetailsNative(input: UpdateSaleDetailsCommand): Promise<void> {
   return invoke("update_sale_details", { input });
+}
+
+export function deleteSaleNative(input: DeleteSaleCommand): Promise<void> {
+  return invoke("delete_sale", { input });
+}
+
+export function correctProductionRunAddOnsNative(
+  input: CorrectProductionRunAddOnsCommand,
+): Promise<ProductionCorrectionOutput> {
+  return invoke("correct_production_run_addons", { input });
 }

@@ -28,6 +28,7 @@ interface ExpenseRow {
   readonly expense_date: string;
   readonly id: number;
   readonly notes: string | null;
+  readonly production_run_id: number | null;
   readonly recurrence: string;
   readonly recurrence_month: string;
   readonly updated_at: string;
@@ -61,6 +62,7 @@ const EXPENSE_COLUMNS = `
   recurrence,
   recurrence_month,
   notes,
+  production_run_id,
   created_at,
   updated_at
 `;
@@ -244,6 +246,7 @@ function mapExpenseRow(row: ExpenseRow): ExpenseRecord {
     expenseDate: row.expense_date,
     id: row.id,
     notes: row.notes ?? "",
+    productionRunId: row.production_run_id,
     recurrence: row.recurrence as RecurrenceType,
     recurrenceMonth: row.recurrence_month,
     updatedAt: row.updated_at,

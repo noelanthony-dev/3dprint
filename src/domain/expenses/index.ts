@@ -9,6 +9,7 @@ export const EXPENSE_CATEGORIES = [
   "License",
   "Membership",
   "Utilities",
+  "Production",
   "Other",
 ] as const;
 
@@ -35,6 +36,7 @@ export interface ExpenseInput {
 export interface ExpenseRecord extends ExpenseInput {
   readonly createdAt: string;
   readonly id: number;
+  readonly productionRunId: number | null;
   readonly updatedAt: string;
 }
 

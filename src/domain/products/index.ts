@@ -15,6 +15,8 @@ export const PRODUCT_CATEGORIES = [
   "Others",
 ] as const;
 
+export const MAX_PRODUCT_CATEGORY_LENGTH = 60;
+
 export const PRODUCT_SALE_UNITS = ["piece", "pair", "set", "bundle", "pack"] as const;
 
 export const PRODUCT_BUSINESSES = [
@@ -38,7 +40,7 @@ export const LICENSE_BILLING_INTERVALS = [
   "yearly",
 ] as const;
 
-export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
+export type ProductCategory = string;
 export type ProductSaleUnit = (typeof PRODUCT_SALE_UNITS)[number];
 export type ProductBusiness = (typeof PRODUCT_BUSINESSES)[number];
 export type CommercialLicenseStatus = (typeof COMMERCIAL_LICENSE_STATUSES)[number];
@@ -121,6 +123,41 @@ const PRODUCT_FILAMENT_MODES: readonly ProductFilamentMode[] = ["hueforge", "bas
 
 export function isProductSaleUnit(value: string): value is ProductSaleUnit {
   return PRODUCT_SALE_UNITS.includes(value as ProductSaleUnit);
+}
+
+export function normalizeProductCategoryName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+export function isValidProductCategoryName(value: string): boolean {
+  const normalized = normalizeProductCategoryName(value);
+
+  return normalized.length > 0 && normalized.length <= MAX_PRODUCT_CATEGORY_LENGTH;
+}
+
+export function normalizeProductCategories(value: unknown): readonly ProductCategory[] {
+  if (!Array.isArray(value)) {
+    return PRODUCT_CATEGORIES;
+  }
+
+  const categories: ProductCategory[] = [];
+  const normalizedNames = new Set<string>();
+
+  value.forEach((candidate) => {
+    if (typeof candidate !== "string" || !isValidProductCategoryName(candidate)) {
+      return;
+    }
+
+    const category = normalizeProductCategoryName(candidate);
+    const normalizedName = category.toLocaleLowerCase();
+
+    if (!normalizedNames.has(normalizedName)) {
+      normalizedNames.add(normalizedName);
+      categories.push(category);
+    }
+  });
+
+  return categories.length > 0 ? categories : PRODUCT_CATEGORIES;
 }
 
 export function isLicenseBillingInterval(value: string): value is LicenseBillingInterval {
@@ -222,8 +259,8 @@ export function validateProductInput(input: ProductInput): ProductValidationResu
     errors.authorName = "Author or designer is required.";
   }
 
-  if (!PRODUCT_CATEGORIES.includes(input.category)) {
-    errors.category = "Choose a valid product category.";
+  if (!isValidProductCategoryName(input.category)) {
+    errors.category = `Category is required and must be ${MAX_PRODUCT_CATEGORY_LENGTH} characters or fewer.`;
   }
 
   if (!isProductSaleUnit(input.saleUnit)) {

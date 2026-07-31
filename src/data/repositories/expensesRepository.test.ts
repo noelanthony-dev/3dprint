@@ -16,6 +16,7 @@ class FakeDatabase implements SqlDatabase {
     expense_date: "2026-07-02",
     id: 1,
     notes: "Bambu PETG",
+    production_run_id: 8,
     recurrence: "one-time",
     recurrence_month: "2026-07",
     updated_at: "2026-07-02T00:00:00.000Z",
@@ -111,6 +112,7 @@ describe("expenses repository", () => {
     expect(insert?.query).not.toContain("Bambu PETG");
     expect(insert?.values[0]).toBe("Bambu Lab");
     expect(insert?.values[6]).toBe("Bambu PETG");
+    expect((await repository.getExpense(1))?.productionRunId).toBe(8);
   });
 
   it("binds membership values and maps warning fields", async () => {

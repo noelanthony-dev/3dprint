@@ -24,6 +24,7 @@ describe("production runs service", () => {
         atomicInputs.push(input);
         return productionRun.id;
       },
+      correctionRecorder: async () => undefined,
       filaments: {
         create: async () => blackFilament,
         get: async () => blackFilament,
@@ -40,6 +41,7 @@ describe("production runs service", () => {
       productionRuns: {
         get: async () => productionRun,
         list: async () => [],
+        listAddOnCorrections: async () => [],
         listAddOnDeductions: async () => [],
         listFilamentDeductions: async () => [],
       },
@@ -125,12 +127,14 @@ describe("production runs service", () => {
         atomicInputs.push(atomicInput);
         return productionRun.id;
       },
+      correctionRecorder: async () => undefined,
       filaments,
       finishedGoods,
       printProfiles,
       productionRuns: {
         get: async () => productionRun,
         list: async () => [],
+        listAddOnCorrections: async () => [],
         listAddOnDeductions: async () => [],
         listFilamentDeductions: async () => [],
       },
@@ -177,6 +181,7 @@ describe("production runs service", () => {
         atomicInputs.push(input);
         return productionRun.id;
       },
+      correctionRecorder: async () => undefined,
       filaments: {
         adjustStock: async () => blackFilament,
         create: async () => blackFilament,
@@ -190,6 +195,7 @@ describe("production runs service", () => {
       productionRuns: {
         get: async () => productionRun,
         list: async () => [],
+        listAddOnCorrections: async () => [],
         listAddOnDeductions: async () => [],
         listFilamentDeductions: async () => [],
       },
@@ -242,12 +248,14 @@ describe("production runs service", () => {
         atomicCallCount += 1;
         return productionRun.id;
       },
+      correctionRecorder: async () => undefined,
       filaments,
       finishedGoods,
       printProfiles,
       productionRuns: {
         get: async () => productionRun,
         list: async () => [],
+        listAddOnCorrections: async () => [],
         listAddOnDeductions: async () => [],
         listFilamentDeductions: async () => [],
       },
@@ -275,6 +283,50 @@ describe("production runs service", () => {
 
     expect(adjustedFilaments).toEqual([]);
     expect(atomicCallCount).toBe(0);
+  });
+
+  it("validates and records an add-on correction before reloading the run", async () => {
+    const correctionInputs: unknown[] = [];
+    const correctedRun = {
+      ...productionRun,
+      addOnCorrectionCount: 1,
+      addOnQuantityDeducted: 2,
+      lastAddOnCorrectionAt: "2026-07-17 12:00:00",
+    };
+    let loadCount = 0;
+    const service = createProductionRunsService({
+      addOns: emptyAddOns,
+      atomicRecorder: async () => productionRun.id,
+      correctionRecorder: async (input) => {
+        correctionInputs.push(input);
+      },
+      filaments: {
+        adjustStock: async () => blackFilament,
+        create: async () => blackFilament,
+        get: async () => blackFilament,
+        list: async () => [blackFilament],
+        listAdjustments: async () => [],
+        update: async () => blackFilament,
+      },
+      finishedGoods,
+      printProfiles,
+      productionRuns: {
+        get: async () => (loadCount++ === 0 ? productionRun : correctedRun),
+        list: async () => [],
+        listAddOnCorrections: async () => [],
+        listAddOnDeductions: async () => [],
+        listFilamentDeductions: async () => [],
+      },
+      products,
+    });
+    const input = {
+      addOns: [{ addOnId: 3, quantity: 2 }],
+      productionRunId: productionRun.id,
+      reason: "Forgot the tassels",
+    };
+
+    await expect(service.correctAddOns(input)).resolves.toEqual(correctedRun);
+    expect(correctionInputs).toEqual([input]);
   });
 });
 
@@ -349,6 +401,7 @@ function makeFilament(id: number, brand: string, colorName: string): FilamentRec
 }
 
 const productionRun: ProductionRunRecord = {
+  addOnCorrectionCount: 0,
   addOnDeductions: [],
   addOnQuantityDeducted: 0,
   createdAt: "2026-07-08T00:00:00.000Z",
@@ -360,6 +413,7 @@ const productionRun: ProductionRunRecord = {
   finishedGoodId: null,
   goodPieces: 1,
   id: 1,
+  lastAddOnCorrectionAt: null,
   notes: "",
   printProfileId: profile.id,
   productId: product.id,

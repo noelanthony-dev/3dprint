@@ -18,11 +18,13 @@ describe("routeConfig", () => {
       expect.arrayContaining([
         "Dashboard",
         "Products",
+        "Categories",
         "HueForge",
         "Inventory",
         "Costing",
         "Production",
         "Sales",
+        "Analytics",
         "Expenses",
         "Reports",
         "Shopping List",

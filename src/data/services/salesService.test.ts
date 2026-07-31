@@ -45,16 +45,13 @@ describe("sales service", () => {
     };
 
     const sales: SalesRepository = {
+      delete: async () => undefined,
       get: async () => saleRecord,
       list: async () => [saleRecord],
       listStockMovements: async () => [],
       recordSaleWithStockMovement: async (input) => {
         recordedInput = input;
-        return {
-          ...saleRecord,
-          stockQuantityAfter: input.stockQuantityAfter,
-          stockQuantityBefore: input.stockQuantityBefore,
-        };
+        return saleRecord;
       },
       updateDetails: async () => saleRecord,
     };
@@ -78,10 +75,46 @@ describe("sales service", () => {
       productReference: "Articulated Dragon",
       quantity: 3,
       saleUnit: "piece",
-      stockQuantityAfter: 7,
-      stockQuantityBefore: 10,
     });
     expect(result.sale.stockQuantityAfter).toBe(7);
+  });
+
+  it("allows a sale when stock is short and delegates reconciliation to native storage", async () => {
+    const lowStock = { ...finishedGood, quantityReady: 1, quantityReserved: 0 };
+    let recorded = false;
+    const finishedGoods: FinishedGoodsRepository = {
+      adjustStock: async () => lowStock,
+      create: async () => lowStock,
+      get: async () => lowStock,
+      list: async () => [lowStock],
+      listAdjustments: async () => [],
+      update: async () => lowStock,
+    };
+    const sales: SalesRepository = {
+      delete: async () => undefined,
+      get: async () => saleRecord,
+      list: async () => [],
+      listStockMovements: async () => [],
+      recordSaleWithStockMovement: async () => {
+        recorded = true;
+        return { ...saleRecord, quantity: 3, stockQuantityBefore: 3, stockQuantityAfter: 0 };
+      },
+      updateDetails: async () => saleRecord,
+    };
+
+    await createSalesService({ finishedGoods, sales }).recordSale({
+      channel: "Direct",
+      discountsFees: 0,
+      finishedGoodId: lowStock.id,
+      grossRevenue: 300,
+      notes: "",
+      productReference: lowStock.productReference,
+      quantity: 3,
+      saleDate: "2026-07-19",
+      saleUnit: lowStock.saleUnit,
+    });
+
+    expect(recorded).toBe(true);
   });
 });
 

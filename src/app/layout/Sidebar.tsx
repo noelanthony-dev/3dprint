@@ -12,7 +12,9 @@ interface SidebarProps {
 type SidebarIcon = (props: SVGProps<SVGSVGElement>) => ReactElement;
 
 const routeIcons: Record<RouteId, SidebarIcon> = {
+  analytics: AnalyticsIcon,
   backup: BackupIcon,
+  categories: CategoryIcon,
   costing: CalculatorIcon,
   dashboard: DashboardIcon,
   expenses: ExpenseIcon,
@@ -110,6 +112,17 @@ function BoxIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+function CategoryIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconSvg {...props}>
+      <path d="M4 5h6v6H4z" />
+      <path d="M14 5h6v6h-6z" />
+      <path d="M4 15h6v4H4z" />
+      <path d="M14 15h6v4h-6z" />
+    </IconSvg>
+  );
+}
+
 function PaletteIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <IconSvg {...props}>
@@ -203,6 +216,18 @@ function ReportsIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M8 15v-4" />
       <path d="M12 15V8" />
       <path d="M16 15v-6" />
+    </IconSvg>
+  );
+}
+
+function AnalyticsIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconSvg {...props}>
+      <path d="M4 18 9 12l4 3 7-9" />
+      <path d="M4 6v12h16" />
+      <circle cx="9" cy="12" r="1" />
+      <circle cx="13" cy="15" r="1" />
+      <circle cx="20" cy="6" r="1" />
     </IconSvg>
   );
 }

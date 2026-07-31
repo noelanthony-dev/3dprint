@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
-import { updateSaleDetailsNative } from "@/data/db/nativeWorkflows";
+import { deleteSaleNative, updateSaleDetailsNative } from "@/data/db/nativeWorkflows";
 import {
   calculateSaleTotals,
   validateSaleDetailsInput,
@@ -15,12 +15,10 @@ import {
 } from "@/domain/sales";
 import type { FinishedGoodSaleUnit } from "@/domain/inventory";
 
-export interface SaleCreateInput extends SaleInput {
-  readonly stockQuantityAfter: number;
-  readonly stockQuantityBefore: number;
-}
+export type SaleCreateInput = SaleInput;
 
 export interface SalesRepository {
+  delete(id: number): Promise<void>;
   get(id: number): Promise<SaleRecord | null>;
   list(): Promise<SaleRecord[]>;
   listStockMovements(saleId: number): Promise<SaleStockMovementRecord[]>;
@@ -63,6 +61,7 @@ type NativeSaleUpdater = (
   input: SaleDetailsInput,
   totals: SaleTotals,
 ) => Promise<void>;
+type NativeSaleDeleter = (id: number) => Promise<void>;
 
 interface NativeRecordSaleResult {
   readonly saleId: number;
@@ -100,12 +99,22 @@ export function createSalesRepository(
   databaseFactory: DatabaseFactory = getDatabase,
   nativeSaleRecorder: NativeSaleRecorder = recordSaleWithStockMovementNative,
   nativeSaleUpdater: NativeSaleUpdater = updateSaleDetailsWithNativeCommand,
+  nativeSaleDeleter: NativeSaleDeleter = deleteSaleWithNativeCommand,
 ): SalesRepository {
   async function database(): Promise<SqlDatabase> {
     return databaseFactory();
   }
 
   return {
+    async delete(id) {
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error("Sale id is invalid.");
+      }
+
+      await database();
+      await nativeSaleDeleter(id);
+    },
+
     async get(id) {
       const db = await database();
       const rows = await db.select<SaleRow[]>(
@@ -148,14 +157,6 @@ export function createSalesRepository(
 
       if (!validation.valid) {
         throw new Error(Object.values(validation.errors)[0] ?? "Invalid sale.");
-      }
-
-      if (input.stockQuantityAfter !== input.stockQuantityBefore - input.quantity) {
-        throw new Error("Sale stock movement does not match the sale quantity.");
-      }
-
-      if (input.stockQuantityAfter < 0) {
-        throw new Error("Sale cannot reduce ready quantity below zero.");
       }
 
       const totals = calculateSaleTotals(input);
@@ -217,8 +218,6 @@ async function recordSaleWithStockMovementNative(
       quantity: input.quantity,
       saleDate: input.saleDate,
       saleUnit: input.saleUnit,
-      stockQuantityAfter: input.stockQuantityAfter,
-      stockQuantityBefore: input.stockQuantityBefore,
     },
   });
 
@@ -239,6 +238,10 @@ async function updateSaleDetailsWithNativeCommand(
     saleDate: input.saleDate.trim(),
     saleId: id,
   });
+}
+
+async function deleteSaleWithNativeCommand(id: number): Promise<void> {
+  await deleteSaleNative({ saleId: id });
 }
 
 function mapSaleRow(row: SaleRow): SaleRecord {

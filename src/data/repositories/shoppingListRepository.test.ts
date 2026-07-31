@@ -231,4 +231,34 @@ describe("shopping list repository", () => {
     expect(update?.values).toEqual(["purchased", 1]);
     expect(updated.status).toBe("purchased");
   });
+
+  it("deletes a shopping item through the native command without frontend writes", async () => {
+    const fakeDb = new FakeDatabase();
+    const shoppingItemDeleter = vi.fn(async () => undefined);
+    const repository = createShoppingListRepository(
+      async () => fakeDb,
+      async () => 1,
+      shoppingItemDeleter,
+    );
+
+    await repository.delete(1);
+
+    expect(shoppingItemDeleter).toHaveBeenCalledOnce();
+    expect(shoppingItemDeleter).toHaveBeenCalledWith(1);
+    expect(fakeDb.executed).toEqual([]);
+  });
+
+  it("rejects an invalid shopping item id before calling the native command", async () => {
+    const fakeDb = new FakeDatabase();
+    const shoppingItemDeleter = vi.fn(async () => undefined);
+    const repository = createShoppingListRepository(
+      async () => fakeDb,
+      async () => 1,
+      shoppingItemDeleter,
+    );
+
+    await expect(repository.delete(0)).rejects.toThrow("Shopping list item id is invalid.");
+    expect(shoppingItemDeleter).not.toHaveBeenCalled();
+    expect(fakeDb.executed).toEqual([]);
+  });
 });

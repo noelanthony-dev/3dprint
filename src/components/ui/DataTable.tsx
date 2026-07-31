@@ -13,6 +13,7 @@ interface DataTableProps {
   readonly density?: "default" | "dense";
   readonly emptyMessage?: string;
   readonly footer?: string;
+  readonly minimumWidth?: string;
   readonly onRowClick?: (rowIndex: number) => void;
   readonly rows: readonly (readonly ReactNode[])[];
   readonly selectedRowIndex?: number | null;
@@ -24,12 +25,14 @@ export function DataTable({
   density = "default",
   emptyMessage = "No records to display.",
   footer,
+  minimumWidth,
   onRowClick,
   rows,
   selectedRowIndex = null,
 }: DataTableProps) {
   const tableStyle = {
     "--table-columns": columnsTemplate ?? `repeat(${columns.length}, minmax(0, 1fr))`,
+    "--table-min-width": minimumWidth,
   } as CSSProperties;
 
   return (

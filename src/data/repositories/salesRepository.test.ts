@@ -57,8 +57,6 @@ const input: SaleCreateInput = {
   quantity: 3,
   saleDate: " 2026-07-02 ",
   saleUnit: "piece",
-  stockQuantityAfter: 7,
-  stockQuantityBefore: 10,
 };
 
 describe("sales repository", () => {
@@ -125,6 +123,23 @@ describe("sales repository", () => {
       details,
       expect.objectContaining({ grossRevenue: 150, discountsFees: 10, netRevenue: 140 }),
     );
+    expect(fakeDb.executed).toEqual([]);
+  });
+
+  it("deletes a sale through one native transaction command without frontend writes", async () => {
+    const fakeDb = new FakeDatabase();
+    const nativeSaleDeleter = vi.fn(async () => undefined);
+    const repository = createSalesRepository(
+      async () => fakeDb,
+      async () => 1,
+      async () => undefined,
+      nativeSaleDeleter,
+    );
+
+    await repository.delete(1);
+
+    expect(nativeSaleDeleter).toHaveBeenCalledOnce();
+    expect(nativeSaleDeleter).toHaveBeenCalledWith(1);
     expect(fakeDb.executed).toEqual([]);
   });
 });

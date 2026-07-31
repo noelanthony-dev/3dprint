@@ -6,6 +6,7 @@ import {
   filterProductsForCatalog,
   getProductAuthorFilterOptions,
   getProductNavigationState,
+  nextPrintHoursSortKey,
   sortProducts,
 } from "./ProductLibraryPage";
 
@@ -110,6 +111,28 @@ describe("product catalog helpers", () => {
       "Blade & Blossom - Bookmarks Set",
       "Mecha Chameleon Character Magnets",
     ]);
+  });
+
+  it("sorts print hours descending and ascending with unknown values last", () => {
+    const timedProducts = [
+      makeProduct({ designName: "Two point eight", estimatedPrintHours: 2.8, id: 1 }),
+      makeProduct({ designName: "Unknown", estimatedPrintHours: null, id: 2 }),
+      makeProduct({ designName: "Four", estimatedPrintHours: 4, id: 3 }),
+      makeProduct({ designName: "One", estimatedPrintHours: 1, id: 4 }),
+    ];
+
+    expect(sortProducts(timedProducts, "print-hours-desc").map((product) => product.id)).toEqual([
+      3, 1, 4, 2,
+    ]);
+    expect(sortProducts(timedProducts, "print-hours-asc").map((product) => product.id)).toEqual([
+      4, 1, 3, 2,
+    ]);
+  });
+
+  it("cycles print-hour sorting from descending to ascending to none", () => {
+    expect(nextPrintHoursSortKey("default")).toBe("print-hours-desc");
+    expect(nextPrintHoursSortKey("print-hours-desc")).toBe("print-hours-asc");
+    expect(nextPrintHoursSortKey("print-hours-asc")).toBe("default");
   });
 
   it("returns unique sorted author filter options", () => {

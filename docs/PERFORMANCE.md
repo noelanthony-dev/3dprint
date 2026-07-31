@@ -48,3 +48,10 @@ The app should feel fast, local, and responsive on a MacBook. Startup should be 
 - Backup and restore use Tauri dialog/file-system plugins only after explicit user actions.
 - Full backup creation asks native SQLite for a consistent snapshot and encodes it into the existing JSON envelope; no backup work runs at startup.
 - Restore validates `quick_check`, closes the managed connection, swaps the database, removes stale sidecars, and requires restart.
+
+## Sales Analytics Notes
+
+- The analytics route is lazy-loaded and reads sales only when opened or explicitly refreshed.
+- Period, business, and cross-business comparison calculations use pure
+  report-domain aggregation against the page-local sales snapshot.
+- The daily trend uses a lightweight project-native SVG instead of adding a charting dependency.

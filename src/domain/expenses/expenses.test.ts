@@ -42,6 +42,10 @@ describe("expense validation", () => {
     });
   });
 
+  it("accepts generated production expenses", () => {
+    expect(validateExpenseInput({ ...expenseInput, category: "Production" }).valid).toBe(true);
+  });
+
   it("rejects invalid recurrence month and negative amount", () => {
     const validation = validateExpenseInput({
       ...expenseInput,

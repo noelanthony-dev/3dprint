@@ -119,3 +119,13 @@ For copy-ready implementation prompts, use `docs/IMPLEMENTATION_PHASES.md`.
 - Add missing tests for critical pure logic and repository-adjacent paths.
 - Verify startup performance, lazy loading, frontend checks, and native packaging.
 - Status: complete for MVP hardening and debug `.app` packaging. Full DMG bundling still needs follow-up because Tauri's generated `bundle_dmg.sh` fails after the `.app` is created.
+
+## Sales Analytics
+
+- Add a separate on-demand analytics page without replacing monthly reports.
+- Show a daily net-revenue trend and a complete product ranking by units sold.
+- Filter both analytics panels by all sales or recorded month and by sales channel.
+- Compare every business by revenue, units, sales count, average sale, and
+  period-over-period net-revenue change.
+- Keep aggregation in the reports domain and render the trend without a charting dependency.
+- Status: complete for daily trends, product ranking, and business comparison.

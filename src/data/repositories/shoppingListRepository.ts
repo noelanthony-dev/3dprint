@@ -1,5 +1,6 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  deleteShoppingItemNative,
   saveShoppingItemNative,
   type SaveShoppingItemCommand,
 } from "@/data/db/nativeWorkflows";
@@ -16,6 +17,7 @@ import {
 
 export interface ShoppingListRepository {
   create(input: ShoppingListItemInput): Promise<ShoppingListItemRecord>;
+  delete(id: number): Promise<void>;
   get(id: number): Promise<ShoppingListItemRecord | null>;
   list(): Promise<ShoppingListItemRecord[]>;
   update(id: number, input: ShoppingListItemInput): Promise<ShoppingListItemRecord>;
@@ -47,6 +49,7 @@ interface ShoppingListItemProductRow {
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
 type ShoppingItemSaver = (input: SaveShoppingItemCommand) => Promise<number>;
+type ShoppingItemDeleter = (id: number) => Promise<void>;
 
 const SHOPPING_LIST_COLUMNS = `
   id,
@@ -69,6 +72,7 @@ const SHOPPING_LIST_COLUMNS = `
 export function createShoppingListRepository(
   databaseFactory: DatabaseFactory = getDatabase,
   shoppingItemSaver: ShoppingItemSaver = saveShoppingItemNative,
+  shoppingItemDeleter: ShoppingItemDeleter = deleteShoppingItemNative,
 ): ShoppingListRepository {
   async function database(): Promise<SqlDatabase> {
     return databaseFactory();
@@ -92,6 +96,15 @@ export function createShoppingListRepository(
       }
 
       return created;
+    },
+
+    async delete(id) {
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error("Shopping list item id is invalid.");
+      }
+
+      await database();
+      await shoppingItemDeleter(id);
     },
 
     async get(id) {

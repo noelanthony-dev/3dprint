@@ -55,14 +55,11 @@ export function createSalesService(
         throw new Error(stockError);
       }
 
-      const stockQuantityBefore = finishedGood.quantityReady;
       const totals = calculateSaleTotals(input);
       const sale = await dependencies.sales.recordSaleWithStockMovement({
         ...input,
         productReference: finishedGood.productReference,
         saleUnit: finishedGood.saleUnit,
-        stockQuantityAfter: stockQuantityBefore - input.quantity,
-        stockQuantityBefore,
       });
 
       return {

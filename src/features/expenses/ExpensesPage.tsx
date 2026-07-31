@@ -248,7 +248,13 @@ export function ExpensesPage() {
                 <Badge tone={expense.category === "License" || expense.category === "Membership" ? "warning" : "neutral"}>
                   {expense.category}
                 </Badge>,
-                expense.vendor,
+                expense.productionRunId == null ? (
+                  expense.vendor
+                ) : (
+                  <span>
+                    {expense.vendor} <small>RUN-{expense.productionRunId}</small>
+                  </span>
+                ),
                 expense.recurrence,
                 <span className="numeric-readout">
                   <strong>{formatCurrency(expense.amount)}</strong>

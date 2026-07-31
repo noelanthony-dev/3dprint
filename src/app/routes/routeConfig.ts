@@ -3,6 +3,7 @@ import { lazy, type ComponentType, type LazyExoticComponent } from "react";
 export type RouteId =
   | "dashboard"
   | "products"
+  | "categories"
   | "hueforge"
   | "inventory"
   | "inventory-filaments"
@@ -11,6 +12,7 @@ export type RouteId =
   | "costing"
   | "production"
   | "sales"
+  | "analytics"
   | "expenses"
   | "reports"
   | "shopping-list"
@@ -20,6 +22,7 @@ export type RouteId =
 export type RoutePath =
   | "/"
   | "/products"
+  | "/categories"
   | "/hueforge"
   | "/inventory"
   | "/inventory/filaments"
@@ -28,6 +31,7 @@ export type RoutePath =
   | "/costing"
   | "/production"
   | "/sales"
+  | "/analytics"
   | "/expenses"
   | "/reports"
   | "/shopping-list"
@@ -50,6 +54,11 @@ const DashboardPage = lazy(async () => {
 const ProductLibraryPage = lazy(async () => {
   const module = await import("@/features/products");
   return { default: module.ProductLibraryPage };
+});
+
+const CategoriesPage = lazy(async () => {
+  const module = await import("@/features/categories");
+  return { default: module.CategoriesPage };
 });
 
 const HueForgeMatchCheckerPage = lazy(async () => {
@@ -92,6 +101,11 @@ const SalesPage = lazy(async () => {
   return { default: module.SalesPage };
 });
 
+const SalesAnalyticsPage = lazy(async () => {
+  const module = await import("@/features/analytics");
+  return { default: module.SalesAnalyticsPage };
+});
+
 const ExpensesPage = lazy(async () => {
   const module = await import("@/features/expenses");
   return { default: module.ExpensesPage };
@@ -131,6 +145,13 @@ export const appRoutes = [
     label: "Products",
     path: "/products",
     Page: ProductLibraryPage,
+  },
+  {
+    description: "Configurable product and design category names.",
+    id: "categories",
+    label: "Categories",
+    path: "/categories",
+    Page: CategoriesPage,
   },
   {
     description: "HueForge requirement matching against owned filament.",
@@ -187,6 +208,13 @@ export const appRoutes = [
     label: "Sales",
     path: "/sales",
     Page: SalesPage,
+  },
+  {
+    description: "On-demand daily sales trends and product performance.",
+    id: "analytics",
+    label: "Analytics",
+    path: "/analytics",
+    Page: SalesAnalyticsPage,
   },
   {
     description: "Expenses, memberships, and warning-only license tracking.",

@@ -14,13 +14,16 @@ import {
 } from "@/data/repositories";
 import {
   calculateProductionDeductionPlan,
+  validateProductionAddOnCorrectionInput,
   validateProductionRunInput,
+  type ProductionAddOnCorrectionInput,
   type ProductionDeductionPlan,
   type ProductionRunInput,
   type ProductionRunRecord,
 } from "@/domain/production";
 import { isFinishedGoodSaleUnit, type FilamentRecord } from "@/domain/inventory";
 import { invoke } from "@tauri-apps/api/core";
+import { correctProductionRunAddOnsNative } from "@/data/db/nativeWorkflows";
 
 export interface LoggedProductionRun {
   readonly deductionPlan: ProductionDeductionPlan;
@@ -28,6 +31,7 @@ export interface LoggedProductionRun {
 }
 
 export interface ProductionRunsService {
+  correctAddOns(input: ProductionAddOnCorrectionInput): Promise<ProductionRunRecord>;
   logProductionRun(input: ProductionRunInput): Promise<LoggedProductionRun>;
 }
 
@@ -39,6 +43,7 @@ interface ProductionRunsServiceDependencies {
   readonly productionRuns: ProductionRunsRepository;
   readonly products: ProductsRepository;
   readonly atomicRecorder: AtomicProductionRecorder;
+  readonly correctionRecorder: ProductionAddOnCorrectionRecorder;
 }
 
 interface PreparedFilamentDeduction {
@@ -83,6 +88,7 @@ interface AtomicProductionInput {
 }
 
 type AtomicProductionRecorder = (input: AtomicProductionInput) => Promise<number>;
+type ProductionAddOnCorrectionRecorder = (input: ProductionAddOnCorrectionInput) => Promise<void>;
 
 const defaultDependencies: ProductionRunsServiceDependencies = {
   addOns: addOnsRepository,
@@ -92,12 +98,34 @@ const defaultDependencies: ProductionRunsServiceDependencies = {
   productionRuns: productionRunsRepository,
   products: productsRepository,
   atomicRecorder: recordProductionRunNative,
+  correctionRecorder: correctProductionRunAddOns,
 };
 
 export function createProductionRunsService(
   dependencies: ProductionRunsServiceDependencies = defaultDependencies,
 ): ProductionRunsService {
   return {
+    async correctAddOns(input) {
+      const validation = validateProductionAddOnCorrectionInput(input);
+
+      if (!validation.valid) {
+        throw new Error(Object.values(validation.errors)[0] ?? "Invalid production correction.");
+      }
+
+      const run = await dependencies.productionRuns.get(input.productionRunId);
+      if (!run) {
+        throw new Error(`Production run ${input.productionRunId} does not exist.`);
+      }
+
+      await dependencies.correctionRecorder(input);
+      const corrected = await dependencies.productionRuns.get(input.productionRunId);
+      if (!corrected) {
+        throw new Error("Corrected production run could not be loaded.");
+      }
+
+      return corrected;
+    },
+
     async logProductionRun(input) {
       const validation = validateProductionRunInput(input);
 
@@ -296,6 +324,10 @@ async function prepareFinishedGoodOutput(
 async function recordProductionRunNative(input: AtomicProductionInput): Promise<number> {
   const result = await invoke<{ readonly runId: number }>("record_production_run", { input });
   return result.runId;
+}
+
+async function correctProductionRunAddOns(input: ProductionAddOnCorrectionInput): Promise<void> {
+  await correctProductionRunAddOnsNative(input);
 }
 
 function productionAdjustmentNote(input: ProductionRunInput): string {

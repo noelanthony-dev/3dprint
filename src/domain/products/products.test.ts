@@ -8,6 +8,7 @@ import {
   getFilamentProfileInputsFromProductFilaments,
   isLicenseBillingInterval,
   isProductSaleUnit,
+  normalizeProductCategories,
   validateProductInput,
   type ProductInput,
 } from "./index";
@@ -54,6 +55,13 @@ describe("product design helpers", () => {
     ]);
   });
 
+  it("normalizes configurable product categories", () => {
+    expect(normalizeProductCategories([" Keychains ", "keychains", "Desk Organizers"])).toEqual([
+      "Keychains",
+      "Desk Organizers",
+    ]);
+  });
+
   it("validates supported product sale units", () => {
     expect(isProductSaleUnit("piece")).toBe(true);
     expect(isProductSaleUnit("bundle")).toBe(true);
@@ -97,6 +105,15 @@ describe("product design helpers", () => {
     expect(result.errors.authorName).toBeDefined();
     expect(result.errors.designName).toBeDefined();
     expect(result.errors.sourceLink).toBeDefined();
+  });
+
+  it("accepts a configured category name without a code allowlist", () => {
+    expect(
+      validateProductInput({
+        ...validInput,
+        category: "Keychains",
+      }).valid,
+    ).toBe(true);
   });
 
   it("accepts optional non-negative decimal print hours", () => {

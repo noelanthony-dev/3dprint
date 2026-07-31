@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateProductionDeductionPlan,
+  validateProductionAddOnCorrectionInput,
   validateProductionRunInput,
   type ProductionRunInput,
 } from "./index";
@@ -54,6 +55,28 @@ describe("production run validation", () => {
 
     expect(validation.valid).toBe(false);
     expect(validation.errors.goodPieces).toBe("Log at least one good or failed piece.");
+  });
+});
+
+describe("production add-on correction validation", () => {
+  it("accepts an empty desired list when removing all add-ons", () => {
+    expect(validateProductionAddOnCorrectionInput({
+      addOns: [],
+      productionRunId: 4,
+      reason: "Add-ons were logged on the wrong run",
+    })).toEqual({ errors: {}, valid: true });
+  });
+
+  it("requires a reason and unique positive quantities", () => {
+    const validation = validateProductionAddOnCorrectionInput({
+      addOns: [{ addOnId: 2, quantity: 1 }, { addOnId: 2, quantity: 0 }],
+      productionRunId: 4,
+      reason: "",
+    });
+
+    expect(validation.valid).toBe(false);
+    expect(validation.errors.reason).toBe("A correction reason is required.");
+    expect(validation.errors.addOns).toBe("Each add-on can only appear once in a correction.");
   });
 });
 

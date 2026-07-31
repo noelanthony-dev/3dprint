@@ -29,6 +29,8 @@ import {
 } from "@/domain/inventory";
 import {
   calculateSaleTotals,
+  getSaleStockReconciliationQuantity,
+  getSaleStockWarning,
   SALES_CHANNELS,
   validateSaleAgainstStock,
   validateSaleDetailsInput,
@@ -86,6 +88,8 @@ export function SalesPage() {
   const [finishedGoods, setFinishedGoods] = useState<FinishedGoodRecord[]>([]);
   const [form, setForm] = useState<SaleFormState>(emptyForm);
   const [isAddSaleOpen, setIsAddSaleOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [sales, setSales] = useState<SaleRecord[]>([]);
@@ -135,6 +139,12 @@ export function SalesPage() {
   const stockMessage = selectedFinishedGood
     ? validateSaleAgainstStock(input, selectedFinishedGood)
     : "Choose a finished good item.";
+  const stockWarning = selectedFinishedGood
+    ? getSaleStockWarning(input, selectedFinishedGood)
+    : null;
+  const stockReconciliationQuantity = selectedFinishedGood
+    ? getSaleStockReconciliationQuantity(input, selectedFinishedGood)
+    : 0;
   const totals = calculateSaleTotals(input);
   const editInput = useMemo<SaleDetailsInput>(() => ({
     channel: editForm.channel,
@@ -183,7 +193,11 @@ export function SalesPage() {
 
     try {
       await salesService.recordSale(input);
-      setValidationMessage("Sale recorded. Finished goods stock was reduced.");
+      setValidationMessage(
+        stockReconciliationQuantity > 0
+          ? `Sale recorded. ${stockReconciliationQuantity} missing finished-good ${stockReconciliationQuantity === 1 ? "unit was" : "units were"} added automatically before stock was reduced.`
+          : "Sale recorded. Finished goods stock was reduced.",
+      );
       setIsAddSaleOpen(false);
       setForm((current) => ({
         ...current,
@@ -222,6 +236,7 @@ export function SalesPage() {
   function openEditSaleModal(sale: SaleRecord): void {
     setValidationMessage(null);
     setEditValidationMessage(null);
+    setIsDeleteConfirmOpen(false);
     setEditForm({
       channel: sale.channel,
       discountsFees: String(sale.discountsFees),
@@ -236,13 +251,14 @@ export function SalesPage() {
     if (!isSaving) {
       setEditingSale(null);
       setEditValidationMessage(null);
+      setIsDeleteConfirmOpen(false);
     }
   }
 
   async function handleEditSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
 
-    if (!editingSale || saveInFlightRef.current) {
+    if (!editingSale || isDeleteConfirmOpen || saveInFlightRef.current) {
       return;
     }
 
@@ -268,6 +284,34 @@ export function SalesPage() {
       setError(formatRepositoryError(saveError, "update"));
     } finally {
       saveInFlightRef.current = false;
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteSale(): Promise<void> {
+    if (!editingSale || !isDeleteConfirmOpen || saveInFlightRef.current) {
+      return;
+    }
+
+    saveInFlightRef.current = true;
+    setIsDeleting(true);
+    setIsSaving(true);
+    setEditValidationMessage(null);
+    setError(null);
+
+    try {
+      await salesRepository.delete(editingSale.id);
+      setEditingSale(null);
+      setIsDeleteConfirmOpen(false);
+      setValidationMessage(
+        `Sale deleted. ${formatFinishedGoodsQuantity(editingSale.quantity, editingSale.saleUnit)} was restored to finished-goods stock.`,
+      );
+      await loadSalesData();
+    } catch (deleteError) {
+      setEditValidationMessage(formatRepositoryError(deleteError, "delete"));
+    } finally {
+      saveInFlightRef.current = false;
+      setIsDeleting(false);
       setIsSaving(false);
     }
   }
@@ -446,20 +490,36 @@ export function SalesPage() {
                     ? formatFinishedGoodsQuantity(selectedFinishedGood.quantityReady, selectedFinishedGood.saleUnit)
                     : "--"}
                 </strong>
+                {stockReconciliationQuantity > 0 ? (
+                  <>
+                    <span>Auto-added</span>
+                    <strong>
+                      {formatFinishedGoodsQuantity(
+                        stockReconciliationQuantity,
+                        selectedFinishedGood?.saleUnit ?? "piece",
+                      )}
+                    </strong>
+                  </>
+                ) : null}
                 <span>After Sale</span>
                 <strong>
                   {selectedFinishedGood
                     ? formatFinishedGoodsQuantity(
-                        Math.max(0, selectedFinishedGood.quantityReady - input.quantity),
+                        Math.max(
+                          selectedFinishedGood.quantityReserved,
+                          selectedFinishedGood.quantityReady + stockReconciliationQuantity - input.quantity,
+                        ),
                         selectedFinishedGood.saleUnit,
                       )
                     : "--"}
                 </strong>
               </div>
-              {stockMessage ? (
+              {stockMessage || stockWarning ? (
                 <div className="callout callout--warning">
-                  <Badge tone="warning">Stock</Badge>
-                  <p>{stockMessage}</p>
+                  <Badge tone="warning">
+                    {stockMessage ? "Stock" : "Auto reconcile"}
+                  </Badge>
+                  <p>{stockMessage ?? stockWarning}</p>
                 </div>
               ) : null}
             </aside>
@@ -539,13 +599,56 @@ export function SalesPage() {
                 </FormField>
                 <div className="callout" data-wide="true">
                   <Badge>Stock protected</Badge>
-                  <p>Product, quantity, and stock movement stay unchanged when correcting this sale.</p>
+                  <p>Saving changes keeps stock history unchanged. Deleting this sale restores its quantity to finished-goods stock.</p>
                 </div>
+                {isDeleteConfirmOpen ? (
+                  <div className="callout callout--warning" data-wide="true" role="alert">
+                    <Badge tone="danger">Confirm deletion</Badge>
+                    <p>
+                      Delete this sale for “{editingSale.productReference}”?{" "}
+                      {formatFinishedGoodsQuantity(editingSale.quantity, editingSale.saleUnit)} will
+                      be restored to finished-goods stock. This cannot be undone.
+                    </p>
+                  </div>
+                ) : null}
                 <div className="form-actions">
-                  <ToolbarButton disabled={isSaving} onClick={closeEditSaleModal}>Cancel</ToolbarButton>
-                  <ToolbarButton isLoading={isSaving} loadingLabel="Saving" tone="primary" type="submit">
-                    Save Changes
-                  </ToolbarButton>
+                  {isDeleteConfirmOpen ? (
+                    <>
+                      <ToolbarButton
+                        disabled={isSaving}
+                        onClick={() => setIsDeleteConfirmOpen(false)}
+                      >
+                        Keep Sale
+                      </ToolbarButton>
+                      <ToolbarButton
+                        isLoading={isDeleting}
+                        loadingLabel="Deleting"
+                        onClick={() => void handleDeleteSale()}
+                        tone="danger"
+                      >
+                        Confirm Delete
+                      </ToolbarButton>
+                    </>
+                  ) : (
+                    <>
+                      <ToolbarButton
+                        disabled={isSaving}
+                        onClick={() => setIsDeleteConfirmOpen(true)}
+                        tone="danger"
+                      >
+                        Delete Sale
+                      </ToolbarButton>
+                      <ToolbarButton disabled={isSaving} onClick={closeEditSaleModal}>Cancel</ToolbarButton>
+                      <ToolbarButton
+                        isLoading={isSaving}
+                        loadingLabel="Saving"
+                        tone="primary"
+                        type="submit"
+                      >
+                        Save Changes
+                      </ToolbarButton>
+                    </>
+                  )}
                 </div>
                 {editValidationMessage ? (
                   <div className="form-message" role="alert">{editValidationMessage}</div>
@@ -825,15 +928,22 @@ function formatCurrency(value: number): string {
   return `₱${value.toFixed(2)}`;
 }
 
-function formatRepositoryError(error: unknown, context: "load" | "save" | "update" = "load"): string {
+function formatRepositoryError(
+  error: unknown,
+  context: "delete" | "load" | "save" | "update" = "load",
+): string {
   const message = getErrorMessage(error);
   const fallback = context === "load"
     ? "Sales storage could not be opened."
+    : context === "delete"
+      ? "Sale could not be deleted."
     : context === "update"
       ? "Sale changes could not be saved."
       : "Sale could not be saved.";
   const prefix = context === "load"
     ? "Sales storage could not be opened"
+    : context === "delete"
+      ? "Sale could not be deleted"
     : context === "update"
       ? "Sale changes could not be saved"
       : "Sale could not be saved";
@@ -850,7 +960,9 @@ function formatRepositoryError(error: unknown, context: "load" | "save" | "updat
 }
 
 function isSaleSuccessMessage(message: string): boolean {
-  return message.startsWith("Sale recorded") || message.startsWith("Sale updated");
+  return message.startsWith("Sale recorded")
+    || message.startsWith("Sale updated")
+    || message.startsWith("Sale deleted");
 }
 
 function getErrorMessage(error: unknown): string {

@@ -3,11 +3,13 @@ import type { AppRoute, RouteId } from "@/app/routes/routeConfig";
 export const primaryNavigationRouteIds = [
   "dashboard",
   "products",
+  "categories",
   "hueforge",
   "inventory",
   "costing",
   "production",
   "sales",
+  "analytics",
   "expenses",
   "reports",
   "shopping-list",
@@ -28,4 +30,3 @@ export function getNavigationRoutes(
     return route;
   });
 }
-

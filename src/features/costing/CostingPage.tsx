@@ -56,6 +56,14 @@ export interface ProfileAddOnFormState {
   readonly unitCost: string;
 }
 
+export type SavedProfileSortColumn = "unit-cost" | "gross-margin";
+export type SavedProfileSortState =
+  | {
+      readonly column: SavedProfileSortColumn;
+      readonly direction: "ascending" | "descending";
+    }
+  | null;
+
 const emptyForm: ProfileFormState = {
   addOns: [],
   expectedFailedUnits: "0",
@@ -81,6 +89,7 @@ export function CostingPage() {
   const [addOns, setAddOns] = useState<AddOnRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [profiles, setProfiles] = useState<PrintProfileRecord[]>([]);
+  const [savedProfileSort, setSavedProfileSort] = useState<SavedProfileSortState>(null);
   const [settings, setSettings] = useState<AppSettings>(() => localSettingsRepository.load());
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
@@ -145,6 +154,10 @@ export function CostingPage() {
         products.map((product) => [product.id, product.designName] as const),
       ),
     [products],
+  );
+  const sortedProfiles = useMemo(
+    () => sortSavedProfiles(profiles, savedProfileSort),
+    [profiles, savedProfileSort],
   );
   const selectedAddOnIds = new Set(form.addOns.map((addOn) => addOn.addOnId).filter(Boolean));
 
@@ -471,34 +484,6 @@ export function CostingPage() {
             </form>
           </Panel>
 
-          <Panel title="Saved Profiles">
-            <DataTable
-              columns={["Product", "Good", "Markup", "Unit Cost", "Suggested Sell Price"]}
-              columnsTemplate="minmax(190px, 1.45fr) 0.48fr 0.5fr 0.65fr minmax(140px, 0.85fr)"
-              density="dense"
-              footer={`${profiles.length} print profiles. Profiles estimate only; inventory is not deducted.`}
-              rows={profiles.map((profile) => {
-                const profileCost = calculatePrintCost(profile);
-                const profilePricing = calculatePricing({
-                  costPerUnit: profileCost.costPerGoodUnit,
-                  expectedGoodUnits: profile.expectedGoodUnits,
-                  laborMinutes: profile.laborMinutes,
-                  markupMultiplier: profile.targetMarkup,
-                  printHours: profileCost.totalPrintHours,
-                });
-
-                return [
-                  <button className="table-link" onClick={() => startEdit(profile)} type="button">
-                    {profileProductNames.get(profile.productId) ?? `Product ${profile.productId}`}
-                  </button>,
-                  `${profile.expectedGoodUnits} ${profile.saleUnit}`,
-                  formatMarkupPercent(profile.targetMarkup),
-                  formatCurrency(profileCost.costPerGoodUnit, settings.currencySymbol),
-                  formatCurrency(profilePricing.suggestedSellPrice, settings.currencySymbol),
-                ];
-              })}
-            />
-          </Panel>
         </div>
 
         <div className="side-stack">
@@ -558,7 +543,104 @@ export function CostingPage() {
           </Panel>
         </div>
       </div>
+
+      <Panel title="Saved Profiles">
+        <DataTable
+          columns={[
+            "Product",
+            "Good",
+            "Markup",
+            {
+              key: "unit-cost",
+              header: (
+                <SavedProfileSortHeader
+                  column="unit-cost"
+                  label="Unit Cost"
+                  onChange={(column) =>
+                    setSavedProfileSort((current) => nextSavedProfileSort(current, column))
+                  }
+                  sort={savedProfileSort}
+                />
+              ),
+            },
+            {
+              key: "gross-margin",
+              header: (
+                <SavedProfileSortHeader
+                  column="gross-margin"
+                  label="Gross Margin"
+                  onChange={(column) =>
+                    setSavedProfileSort((current) => nextSavedProfileSort(current, column))
+                  }
+                  sort={savedProfileSort}
+                />
+              ),
+            },
+            "Suggested Sell Price",
+          ]}
+          columnsTemplate="minmax(240px, 1.4fr) minmax(90px, 0.48fr) minmax(90px, 0.5fr) minmax(110px, 0.65fr) minmax(120px, 0.65fr) minmax(160px, 0.85fr)"
+          density="dense"
+          footer={`${profiles.length} print profiles. Profiles estimate only; inventory is not deducted.`}
+          minimumWidth="900px"
+          rows={sortedProfiles.map((profile) => {
+            const profileCost = calculatePrintCost(profile);
+            const profilePricing = calculatePricing({
+              costPerUnit: profileCost.costPerGoodUnit,
+              expectedGoodUnits: profile.expectedGoodUnits,
+              laborMinutes: profile.laborMinutes,
+              markupMultiplier: profile.targetMarkup,
+              printHours: profileCost.totalPrintHours,
+            });
+
+            return [
+              <button className="table-link" onClick={() => startEdit(profile)} type="button">
+                {profileProductNames.get(profile.productId) ?? `Product ${profile.productId}`}
+              </button>,
+              `${profile.expectedGoodUnits} ${profile.saleUnit}`,
+              formatMarkupPercent(profile.targetMarkup),
+              formatCurrency(profileCost.costPerGoodUnit, settings.currencySymbol),
+              `${profilePricing.marginPercent}%`,
+              formatCurrency(profilePricing.suggestedSellPrice, settings.currencySymbol),
+            ];
+          })}
+        />
+      </Panel>
     </Page>
+  );
+}
+
+function SavedProfileSortHeader({
+  column,
+  label,
+  onChange,
+  sort,
+}: {
+  readonly column: SavedProfileSortColumn;
+  readonly label: string;
+  readonly onChange: (column: SavedProfileSortColumn) => void;
+  readonly sort: SavedProfileSortState;
+}) {
+  const direction = sort?.column === column ? sort.direction : null;
+  const nextDirection =
+    direction === "descending"
+      ? "ascending"
+      : direction === "ascending"
+        ? "original order"
+        : "descending";
+  const indicator =
+    direction === "descending" ? "↓" : direction === "ascending" ? "↑" : "↕";
+
+  return (
+    <button
+      aria-label={`${label}: ${direction ?? "not sorted"}. Click for ${nextDirection}.`}
+      className="data-table-sort-button"
+      data-active={direction ? "true" : "false"}
+      onClick={() => onChange(column)}
+      type="button"
+    >
+      <span>{label}</span>
+      <strong aria-hidden="true">{indicator}</strong>
+    </button>
   );
 }
 
@@ -579,6 +661,65 @@ function CostLine({
       <strong>{formatCurrency(value, currency)}</strong>
     </div>
   );
+}
+
+export function nextSavedProfileSort(
+  current: SavedProfileSortState,
+  column: SavedProfileSortColumn,
+): SavedProfileSortState {
+  if (current?.column !== column) {
+    return { column, direction: "descending" };
+  }
+
+  if (current.direction === "descending") {
+    return { column, direction: "ascending" };
+  }
+
+  return null;
+}
+
+export function sortSavedProfiles(
+  profiles: readonly PrintProfileRecord[],
+  sort: SavedProfileSortState,
+): readonly PrintProfileRecord[] {
+  if (sort == null) {
+    return profiles;
+  }
+
+  return profiles
+    .map((profile, originalIndex) => ({
+      originalIndex,
+      profile,
+      value: getSavedProfileSortValue(profile, sort.column),
+    }))
+    .sort((left, right) => {
+      const difference =
+        sort.direction === "descending"
+          ? right.value - left.value
+          : left.value - right.value;
+
+      return difference || left.originalIndex - right.originalIndex;
+    })
+    .map(({ profile }) => profile);
+}
+
+function getSavedProfileSortValue(
+  profile: PrintProfileRecord,
+  column: SavedProfileSortColumn,
+): number {
+  const cost = calculatePrintCost(profile);
+
+  if (column === "unit-cost") {
+    return cost.costPerGoodUnit;
+  }
+
+  return calculatePricing({
+    costPerUnit: cost.costPerGoodUnit,
+    expectedGoodUnits: profile.expectedGoodUnits,
+    laborMinutes: profile.laborMinutes,
+    markupMultiplier: profile.targetMarkup,
+    printHours: cost.totalPrintHours,
+  }).marginPercent;
 }
 
 function FormField({
@@ -825,14 +966,32 @@ function getCurrencyUnitLabel(currencyDisplay: AppSettings["currencySymbol"]): s
   return getCurrencyCode(currencyDisplay) === "PHP" ? "₱" : currencyDisplay.slice(0, 3);
 }
 
-function formatRepositoryError(error: unknown): string {
-  if (error instanceof Error) {
-    if (error.message.includes("invoke")) {
-      return "Native SQLite storage is available when the app is opened through Tauri. Browser preview can render the screen but cannot access the local database.";
+export function formatRepositoryError(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error.trim()
+        : isErrorLike(error)
+          ? error.message.trim()
+          : "";
+
+  if (message) {
+    if (message.includes("invoke")) {
+      return "Native SQLite storage is available in the PrintOps desktop app. A browser preview can render this screen but cannot access the local database.";
     }
 
-    return error.message;
+    return message;
   }
 
-  return "Costing storage is unavailable. Open the app through Tauri to use local SQLite.";
+  return "Costing data could not be loaded. Refresh and try again.";
+}
+
+function isErrorLike(error: unknown): error is { message: string } {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof error.message === "string"
+  );
 }

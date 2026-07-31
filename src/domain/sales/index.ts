@@ -5,7 +5,7 @@ import {
 } from "@/domain/inventory";
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
-export const SALES_CHANNELS = ["Direct", "Sincerely", "Dear Reader", "Flora"] as const;
+export const SALES_CHANNELS = ["Direct", "Sincerely", "Dear Reader", "Flora", "Stomping"] as const;
 
 export type SalesChannel = (typeof SALES_CHANNELS)[number];
 export type SaleStockStatus = "available" | "insufficient" | "out";
@@ -95,14 +95,16 @@ export function calculateSaleTotals(
 }
 
 export function getSaleStockStatus(
-  stock: Pick<FinishedGoodRecord, "quantityReady">,
+  stock: Pick<FinishedGoodRecord, "quantityReady" | "quantityReserved">,
   quantity: number,
 ): SaleStockStatus {
-  if (stock.quantityReady <= 0) {
+  const availableQuantity = Math.max(0, stock.quantityReady - stock.quantityReserved);
+
+  if (availableQuantity <= 0) {
     return "out";
   }
 
-  if (quantity > stock.quantityReady) {
+  if (quantity > availableQuantity) {
     return "insufficient";
   }
 
@@ -195,23 +197,34 @@ export function validateSaleDetailsInput(
 
 export function validateSaleAgainstStock(
   input: Pick<SaleInput, "quantity" | "saleUnit">,
-  stock: Pick<FinishedGoodRecord, "quantityReady" | "saleUnit">,
+  stock: Pick<FinishedGoodRecord, "quantityReady" | "quantityReserved" | "saleUnit">,
 ): string | null {
   if (stock.saleUnit !== input.saleUnit) {
     return "Sale unit does not match the finished goods stock unit.";
   }
 
-  const stockStatus = getSaleStockStatus(stock, input.quantity);
-
-  if (stockStatus === "out") {
-    return "Finished goods stock is out for this item.";
-  }
-
-  if (stockStatus === "insufficient") {
-    return "Finished goods stock is too low for this sale quantity.";
-  }
-
   return null;
+}
+
+export function getSaleStockReconciliationQuantity(
+  input: Pick<SaleInput, "quantity">,
+  stock: Pick<FinishedGoodRecord, "quantityReady" | "quantityReserved">,
+): number {
+  const availableQuantity = Math.max(0, stock.quantityReady - stock.quantityReserved);
+  return Math.max(0, input.quantity - availableQuantity);
+}
+
+export function getSaleStockWarning(
+  input: Pick<SaleInput, "quantity">,
+  stock: Pick<FinishedGoodRecord, "quantityReady" | "quantityReserved">,
+): string | null {
+  const reconciliationQuantity = getSaleStockReconciliationQuantity(input, stock);
+
+  if (reconciliationQuantity === 0) {
+    return null;
+  }
+
+  return `${reconciliationQuantity} missing finished-good ${reconciliationQuantity === 1 ? "unit" : "units"} will be added automatically before recording this sale.`;
 }
 
 export function roundMoney(value: number): number {

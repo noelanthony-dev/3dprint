@@ -206,7 +206,7 @@ function toPersistedValues(input: ProductInput): readonly unknown[] {
     input.estimatedPrintHours,
     input.sourceLink.trim(),
     input.authorName.trim(),
-    input.category,
+    input.category.trim().replace(/\s+/g, " "),
     input.saleUnit,
     input.commercialLicenseStatus,
     input.licenseCostAmount,

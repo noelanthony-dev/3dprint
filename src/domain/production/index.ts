@@ -27,7 +27,8 @@ export interface ProductionAddOnSelectionInput {
 }
 
 export interface ProductionRunRecord {
-  readonly addOnDeductions: readonly ProductionAddOnDeductionRecord[];
+  readonly addOnCorrectionCount: number;
+  readonly addOnDeductions: readonly ProductionAddOnAllocationRecord[];
   readonly addOnQuantityDeducted: number;
   readonly createdAt: string;
   readonly expectedPieces: number;
@@ -38,11 +39,43 @@ export interface ProductionRunRecord {
   readonly finishedGoodId: number | null;
   readonly goodPieces: number;
   readonly id: number;
+  readonly lastAddOnCorrectionAt: string | null;
   readonly notes: string;
   readonly printProfileId: number;
   readonly productId: number;
   readonly runDate: string;
   readonly updatedAt: string;
+}
+
+export interface ProductionAddOnAllocationRecord {
+  readonly addOnId: number;
+  readonly id: number;
+  readonly productionRunId: number;
+  readonly quantityDeducted: number;
+  readonly sortOrder: number;
+}
+
+export interface ProductionAddOnCorrectionInput {
+  readonly addOns: readonly ProductionAddOnSelectionInput[];
+  readonly productionRunId: number;
+  readonly reason: string;
+}
+
+export interface ProductionAddOnCorrectionItemRecord {
+  readonly addOnId: number;
+  readonly quantityDelta: number;
+  readonly runQuantityAfter: number;
+  readonly runQuantityBefore: number;
+  readonly stockQuantityAfter: number;
+  readonly stockQuantityBefore: number;
+}
+
+export interface ProductionAddOnCorrectionRecord {
+  readonly createdAt: string;
+  readonly id: number;
+  readonly items: readonly ProductionAddOnCorrectionItemRecord[];
+  readonly productionRunId: number;
+  readonly reason: string;
 }
 
 export interface ProductionFilamentDeductionRecord {
@@ -67,6 +100,11 @@ export interface ProductionAddOnDeductionRecord {
 
 export interface ProductionRunValidationResult {
   readonly errors: Partial<Record<keyof ProductionRunInput, string>>;
+  readonly valid: boolean;
+}
+
+export interface ProductionAddOnCorrectionValidationResult {
+  readonly errors: Partial<Record<keyof ProductionAddOnCorrectionInput, string>>;
   readonly valid: boolean;
 }
 
@@ -169,6 +207,40 @@ export function validateProductionRunInput(
     errors,
     valid: Object.keys(errors).length === 0,
   };
+}
+
+export function validateProductionAddOnCorrectionInput(
+  input: ProductionAddOnCorrectionInput,
+): ProductionAddOnCorrectionValidationResult {
+  const errors: Partial<Record<keyof ProductionAddOnCorrectionInput, string>> = {};
+
+  if (!Number.isInteger(input.productionRunId) || input.productionRunId <= 0) {
+    errors.productionRunId = "Choose a valid production run.";
+  }
+
+  if (!input.reason.trim()) {
+    errors.reason = "A correction reason is required.";
+  } else if (input.reason.trim().length > 500) {
+    errors.reason = "The correction reason must be 500 characters or fewer.";
+  }
+
+  const addOnIds = new Set<number>();
+  input.addOns.forEach((addOn, index) => {
+    if (!Number.isInteger(addOn.addOnId) || addOn.addOnId <= 0) {
+      errors.addOns = `Choose a valid item for add-on ${index + 1}.`;
+      return;
+    }
+    if (addOnIds.has(addOn.addOnId)) {
+      errors.addOns = "Each add-on can only appear once in a correction.";
+      return;
+    }
+    addOnIds.add(addOn.addOnId);
+    if (!Number.isFinite(addOn.quantity) || addOn.quantity <= 0) {
+      errors.addOns = `Add-on ${index + 1} quantity must be greater than zero.`;
+    }
+  });
+
+  return { errors, valid: Object.keys(errors).length === 0 };
 }
 
 export function calculateProductionDeductionPlan(

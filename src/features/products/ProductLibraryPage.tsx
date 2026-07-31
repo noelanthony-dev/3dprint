@@ -24,6 +24,7 @@ import {
   ToolbarButton,
 } from "@/components/ui";
 import { filamentProfilesRepository, filamentRepository, productsRepository, shoppingListRepository } from "@/data/repositories";
+import { localSettingsRepository } from "@/data/settings/localSettingsRepository";
 import {
   FILAMENT_MATERIALS,
   normalizeHexColor,
@@ -35,12 +36,12 @@ import {
 import {
   COMMERCIAL_LICENSE_STATUSES,
   LICENSE_BILLING_INTERVALS,
-  PRODUCT_CATEGORIES,
   PRODUCT_BUSINESSES,
   PRODUCT_SALE_UNITS,
   getLicensePaymentDisplay,
   getLicenseWarningDisplay,
   getFilamentProfileInputsFromProductInput,
+  normalizeProductCategories,
   validateProductInput,
   type CommercialLicenseStatus,
   type ProductFilamentMode,
@@ -55,7 +56,12 @@ import {
 
 export type FilterValue = "all" | "warning" | "with-image" | "no-image";
 export type ExistingColorsFilterValue = "all" | "ready" | "needs";
-export type ProductSortKey = "default" | "design" | "author";
+export type ProductSortKey =
+  | "default"
+  | "design"
+  | "author"
+  | "print-hours-desc"
+  | "print-hours-asc";
 
 export interface ProductCatalogFilters {
   readonly authorFilter: string;
@@ -166,6 +172,9 @@ export function ProductLibraryPage() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | ProductCategory>("all");
   const [colorsFilter, setColorsFilter] = useState<ExistingColorsFilterValue>("all");
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [productCategories, setProductCategories] = useState<readonly ProductCategory[]>(
+    () => localSettingsRepository.load().productCategories,
+  );
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [sortKey, setSortKey] = useState<ProductSortKey>("default");
@@ -196,6 +205,12 @@ export function ProductLibraryPage() {
         filamentRepository.list(),
       ]);
       setProducts(loaded);
+      setProductCategories(
+        normalizeProductCategories([
+          ...localSettingsRepository.load().productCategories,
+          ...loaded.map((product) => product.category),
+        ]),
+      );
       setFilamentProfiles(loadedProfiles);
       setFilaments(loadedFilaments);
       setSelectedId((current) => current ?? loaded[0]?.id ?? null);
@@ -257,7 +272,10 @@ export function ProductLibraryPage() {
   function startCreate(): void {
     setEditingId(null);
     setDuplicateSourceName(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      category: productCategories[0] ?? emptyForm.category,
+    });
     setValidationMessage(null);
     setIsFormOpen(true);
   }
@@ -412,7 +430,10 @@ export function ProductLibraryPage() {
       });
       if (editingId === product.id) {
         setEditingId(null);
-        setForm(emptyForm);
+        setForm({
+          ...emptyForm,
+          category: productCategories[0] ?? emptyForm.category,
+        });
         setIsFormOpen(false);
       }
       if (selectedId === product.id) {
@@ -535,7 +556,7 @@ export function ProductLibraryPage() {
                     onChange={(value) => setCategoryFilter(value as "all" | ProductCategory)}
                     options={[
                       { label: "All", value: "all" },
-                      ...PRODUCT_CATEGORIES.map((category) => ({
+                      ...productCategories.map((category) => ({
                         label: category,
                         value: category,
                       })),
@@ -566,7 +587,21 @@ export function ProductLibraryPage() {
               },
               {
                 key: "print-hours",
-                header: <span className="product-table-header__label">Print Hours</span>,
+                header: (
+                  <ProductTableHeaderButton
+                    actionLabel={`Sort print hours: ${formatPrintHoursSortState(sortKey)}`}
+                    active={sortKey === "print-hours-desc" || sortKey === "print-hours-asc"}
+                    indicator={
+                      sortKey === "print-hours-desc"
+                        ? "↓"
+                        : sortKey === "print-hours-asc"
+                          ? "↑"
+                          : "↕"
+                    }
+                    label="Print Hours"
+                    onClick={() => setSortKey(nextPrintHoursSortKey(sortKey))}
+                  />
+                ),
               },
               {
                 key: "existing-colors",
@@ -682,25 +717,46 @@ export function ProductLibraryPage() {
                   </button>
                 ) : null}
               </div>
-              <button
-                aria-label="Close product details"
-                className="modal__close-button"
-                onClick={closeProductDetail}
-                type="button"
-              >
-                x
-              </button>
+              <div className="modal__header-actions">
+                <button
+                  aria-label="Close product details"
+                  className="modal__close-button"
+                  onClick={closeProductDetail}
+                  type="button"
+                >
+                  x
+                </button>
+              </div>
             </header>
             <div className="modal__body">
               <ProductSnapshot
                 filaments={filaments}
-                isDeleting={isDeleting}
-                onDelete={() => void deleteProduct(selectedProduct)}
-                onDuplicate={() => startDuplicate(selectedProduct)}
-                onEdit={() => startEdit(selectedProduct)}
                 product={selectedProduct}
               />
             </div>
+            <footer className="modal__footer">
+              <ToolbarButton
+                isLoading={isDeleting}
+                loadingLabel="Deleting"
+                onClick={() => void deleteProduct(selectedProduct)}
+                tone="danger"
+              >
+                Delete
+              </ToolbarButton>
+              <ToolbarButton
+                disabled={isDeleting}
+                onClick={() => startDuplicate(selectedProduct)}
+              >
+                Duplicate
+              </ToolbarButton>
+              <ToolbarButton
+                disabled={isDeleting}
+                onClick={() => startEdit(selectedProduct)}
+                tone="primary"
+              >
+                Edit Product
+              </ToolbarButton>
+            </footer>
           </section>
         </div>
       ) : null}
@@ -710,7 +766,7 @@ export function ProductLibraryPage() {
           <section
             aria-labelledby="product-form-title"
             aria-modal="true"
-            className="modal"
+            className="modal modal--product-form"
             role="dialog"
           >
             <header className="modal__header">
@@ -762,19 +818,22 @@ export function ProductLibraryPage() {
                 x
               </button>
             </header>
-            <form className="inventory-form modal__body" onSubmit={(event) => void handleSubmit(event)}>
-              <ProductFormFields
-                filaments={filaments}
-                filamentProfiles={filamentProfiles}
-                form={form}
-                setForm={setForm}
-              />
-              {validationMessage ? (
-                <div className="form-message" role="alert">
-                  {validationMessage}
-                </div>
-              ) : null}
-              <div className="form-actions">
+            <form className="modal__form-layout" onSubmit={(event) => void handleSubmit(event)}>
+              <div className="inventory-form modal__body">
+                <ProductFormFields
+                  categories={productCategories}
+                  filaments={filaments}
+                  filamentProfiles={filamentProfiles}
+                  form={form}
+                  setForm={setForm}
+                />
+                {validationMessage ? (
+                  <div className="form-message" role="alert">
+                    {validationMessage}
+                  </div>
+                ) : null}
+              </div>
+              <footer className="modal__footer">
                 <ToolbarButton disabled={isSaving} onClick={startCreate}>
                   Clear
                 </ToolbarButton>
@@ -793,7 +852,7 @@ export function ProductLibraryPage() {
                       : "Save Product"
                     : "Update Product"}
                 </ToolbarButton>
-              </div>
+              </footer>
             </form>
           </section>
         </div>
@@ -913,17 +972,9 @@ function ProductDetail({
 
 function ProductSnapshot({
   filaments,
-  isDeleting,
-  onDelete,
-  onDuplicate,
-  onEdit,
   product,
 }: {
   readonly filaments: readonly FilamentRecord[];
-  readonly isDeleting: boolean;
-  readonly onDelete: () => void;
-  readonly onDuplicate: () => void;
-  readonly onEdit: () => void;
   readonly product: ProductRecord;
 }) {
   const license = getLicenseWarningDisplay(product.commercialLicenseStatus);
@@ -1019,22 +1070,6 @@ function ProductSnapshot({
         </div>
       </div>
 
-      <div className="form-actions product-snapshot__actions">
-        <ToolbarButton
-          isLoading={isDeleting}
-          loadingLabel="Deleting"
-          onClick={onDelete}
-          tone="danger"
-        >
-          Delete
-        </ToolbarButton>
-        <ToolbarButton onClick={onDuplicate}>
-          Duplicate
-        </ToolbarButton>
-        <ToolbarButton onClick={onEdit} tone="primary">
-          Edit Product
-        </ToolbarButton>
-      </div>
     </div>
   );
 }
@@ -1240,23 +1275,28 @@ function InventoryReadyIndicator({
 }
 
 function ProductTableHeaderButton({
+  actionLabel,
   active,
+  indicator = "A-Z",
   label,
   onClick,
 }: {
+  readonly actionLabel?: string;
   readonly active: boolean;
+  readonly indicator?: string;
   readonly label: string;
   readonly onClick: () => void;
 }) {
   return (
     <button
+      aria-label={actionLabel}
       className="product-table-header__button"
       data-active={active ? "true" : "false"}
       onClick={onClick}
       type="button"
     >
       <span>{label}</span>
-      <strong>A-Z</strong>
+      <strong>{indicator}</strong>
     </button>
   );
 }
@@ -1406,11 +1446,52 @@ export function sortProducts(
       return compareProductText(left.designName, right.designName);
     }
 
+    if (sortKey === "print-hours-desc" || sortKey === "print-hours-asc") {
+      const leftHours = left.estimatedPrintHours;
+      const rightHours = right.estimatedPrintHours;
+
+      if (leftHours == null && rightHours == null) {
+        return compareProductText(left.designName, right.designName);
+      }
+      if (leftHours == null) {
+        return 1;
+      }
+      if (rightHours == null) {
+        return -1;
+      }
+
+      const hoursDifference =
+        sortKey === "print-hours-desc" ? rightHours - leftHours : leftHours - rightHours;
+      return hoursDifference || compareProductText(left.designName, right.designName);
+    }
+
     return (
       compareProductText(left.authorName, right.authorName) ||
       compareProductText(left.designName, right.designName)
     );
   });
+}
+
+export function nextPrintHoursSortKey(sortKey: ProductSortKey): ProductSortKey {
+  if (sortKey === "print-hours-desc") {
+    return "print-hours-asc";
+  }
+  if (sortKey === "print-hours-asc") {
+    return "default";
+  }
+
+  return "print-hours-desc";
+}
+
+function formatPrintHoursSortState(sortKey: ProductSortKey): string {
+  if (sortKey === "print-hours-desc") {
+    return "descending; click for ascending";
+  }
+  if (sortKey === "print-hours-asc") {
+    return "ascending; click to clear";
+  }
+
+  return "none; click for descending";
 }
 
 export function getProductAuthorFilterOptions(
@@ -1436,11 +1517,13 @@ function compareProductText(left: string, right: string): number {
 }
 
 function ProductFormFields({
+  categories,
   filaments,
   filamentProfiles,
   form,
   setForm,
 }: {
+  readonly categories: readonly ProductCategory[];
   readonly filaments: readonly FilamentRecord[];
   readonly filamentProfiles: readonly FilamentProfileRecord[];
   readonly form: ProductFormState;
@@ -1473,7 +1556,7 @@ function ProductFormFields({
           }
           value={form.category}
         >
-          {PRODUCT_CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <option key={category} value={category}>
               {category}
             </option>
@@ -1499,7 +1582,7 @@ function ProductFormFields({
           min="0"
           onChange={(event) => setFormValue("estimatedPrintHours", event.target.value, setForm)}
           placeholder="Unknown"
-          step="0.25"
+          step="any"
           type="number"
           value={form.estimatedPrintHours}
         />

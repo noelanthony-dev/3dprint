@@ -1,5 +1,8 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import {
+  type ProductionAddOnAllocationRecord,
+  type ProductionAddOnCorrectionItemRecord,
+  type ProductionAddOnCorrectionRecord,
   type ProductionAddOnDeductionRecord,
   type ProductionFilamentDeductionRecord,
   type ProductionRunRecord,
@@ -8,11 +11,13 @@ import {
 export interface ProductionRunsRepository {
   get(id: number): Promise<ProductionRunRecord | null>;
   list(): Promise<ProductionRunRecord[]>;
+  listAddOnCorrections(productionRunId: number): Promise<ProductionAddOnCorrectionRecord[]>;
   listAddOnDeductions(productionRunId: number): Promise<ProductionAddOnDeductionRecord[]>;
   listFilamentDeductions(productionRunId: number): Promise<ProductionFilamentDeductionRecord[]>;
 }
 
 interface ProductionRunRow {
+  readonly addon_correction_count: number;
   readonly addon_id: number | null;
   readonly addon_quantity_deducted: number;
   readonly created_at: string;
@@ -24,11 +29,37 @@ interface ProductionRunRow {
   readonly finished_good_id: number | null;
   readonly good_pieces: number;
   readonly id: number;
+  readonly last_addon_correction_at: string | null;
   readonly notes: string | null;
   readonly print_profile_id: number;
   readonly product_id: number;
   readonly run_date: string;
   readonly updated_at: string;
+}
+
+interface ProductionAddOnAllocationRow {
+  readonly addon_id: number;
+  readonly id: number;
+  readonly production_run_id: number;
+  readonly quantity_deducted: number;
+  readonly sort_order: number;
+}
+
+interface ProductionAddOnCorrectionRow {
+  readonly created_at: string;
+  readonly id: number;
+  readonly production_run_id: number;
+  readonly reason: string;
+}
+
+interface ProductionAddOnCorrectionItemRow {
+  readonly addon_id: number;
+  readonly correction_id: number;
+  readonly quantity_delta: number;
+  readonly run_quantity_after: number;
+  readonly run_quantity_before: number;
+  readonly stock_quantity_after: number;
+  readonly stock_quantity_before: number;
 }
 
 interface ProductionFilamentDeductionRow {
@@ -70,6 +101,10 @@ const PRODUCTION_RUN_COLUMNS = `
   finished_good_id,
   created_at,
   updated_at
+  ,(SELECT COUNT(*) FROM production_run_corrections AS correction
+      WHERE correction.production_run_id = production_runs.id) AS addon_correction_count
+  ,(SELECT MAX(correction.created_at) FROM production_run_corrections AS correction
+      WHERE correction.production_run_id = production_runs.id) AS last_addon_correction_at
 `;
 
 const PRODUCTION_FILAMENT_DEDUCTION_COLUMNS = `
@@ -111,7 +146,7 @@ export function createProductionRunsRepository(
       );
 
       if (!rows[0]) return null;
-      const addOnDeductions = await getAddOnDeductionsForRuns(db, [id]);
+      const addOnDeductions = await getAddOnAllocationsForRuns(db, [id]);
       return mapProductionRunRow(rows[0], addOnDeductions.get(id) ?? []);
     },
 
@@ -123,7 +158,7 @@ export function createProductionRunsRepository(
          ORDER BY run_date DESC, created_at DESC, id DESC`,
       );
 
-      const addOnDeductions = await getAddOnDeductionsForRuns(db, rows.map((row) => row.id));
+      const addOnDeductions = await getAddOnAllocationsForRuns(db, rows.map((row) => row.id));
       return rows.map((row) => mapProductionRunRow(row, addOnDeductions.get(row.id) ?? []));
     },
 
@@ -138,6 +173,43 @@ export function createProductionRunsRepository(
       );
 
       return rows.map(mapProductionAddOnDeductionRow);
+    },
+
+    async listAddOnCorrections(productionRunId) {
+      const db = await database();
+      const corrections = await db.select<ProductionAddOnCorrectionRow[]>(
+        `SELECT id, production_run_id, reason, created_at
+         FROM production_run_corrections
+         WHERE production_run_id = $1 AND correction_type = 'addons'
+         ORDER BY created_at DESC, id DESC`,
+        [productionRunId],
+      );
+
+      if (corrections.length === 0) return [];
+      const correctionIds = corrections.map((correction) => correction.id);
+      const placeholders = correctionIds.map((_, index) => `$${index + 1}`).join(", ");
+      const items = await db.select<ProductionAddOnCorrectionItemRow[]>(
+        `SELECT correction_id, addon_id, quantity_delta, run_quantity_before,
+           run_quantity_after, stock_quantity_before, stock_quantity_after
+         FROM production_run_addon_correction_items
+         WHERE correction_id IN (${placeholders})
+         ORDER BY correction_id DESC, id`,
+        correctionIds,
+      );
+      const groupedItems = new Map<number, ProductionAddOnCorrectionItemRecord[]>();
+      items.forEach((item) => {
+        const grouped = groupedItems.get(item.correction_id) ?? [];
+        grouped.push(mapProductionAddOnCorrectionItemRow(item));
+        groupedItems.set(item.correction_id, grouped);
+      });
+
+      return corrections.map((correction) => ({
+        createdAt: correction.created_at,
+        id: correction.id,
+        items: groupedItems.get(correction.id) ?? [],
+        productionRunId: correction.production_run_id,
+        reason: correction.reason,
+      }));
     },
 
     async listFilamentDeductions(productionRunId) {
@@ -157,9 +229,10 @@ export function createProductionRunsRepository(
 
 function mapProductionRunRow(
   row: ProductionRunRow,
-  addOnDeductions: readonly ProductionAddOnDeductionRecord[],
+  addOnDeductions: readonly ProductionAddOnAllocationRecord[],
 ): ProductionRunRecord {
   return {
+    addOnCorrectionCount: row.addon_correction_count,
     addOnDeductions,
     addOnQuantityDeducted: row.addon_quantity_deducted,
     createdAt: row.created_at,
@@ -171,6 +244,7 @@ function mapProductionRunRow(
     finishedGoodId: row.finished_good_id,
     goodPieces: row.good_pieces,
     id: row.id,
+    lastAddOnCorrectionAt: row.last_addon_correction_at,
     notes: row.notes ?? "",
     printProfileId: row.print_profile_id,
     productId: row.product_id,
@@ -179,28 +253,53 @@ function mapProductionRunRow(
   };
 }
 
-async function getAddOnDeductionsForRuns(
+async function getAddOnAllocationsForRuns(
   db: SqlDatabase,
   runIds: readonly number[],
-): Promise<Map<number, ProductionAddOnDeductionRecord[]>> {
-  const grouped = new Map<number, ProductionAddOnDeductionRecord[]>();
+): Promise<Map<number, ProductionAddOnAllocationRecord[]>> {
+  const grouped = new Map<number, ProductionAddOnAllocationRecord[]>();
   if (runIds.length === 0) return grouped;
 
   const placeholders = runIds.map((_, index) => `$${index + 1}`).join(", ");
-  const rows = await db.select<ProductionAddOnDeductionRow[]>(
-    `SELECT ${PRODUCTION_ADDON_DEDUCTION_COLUMNS}
-     FROM production_run_addons
+  const rows = await db.select<ProductionAddOnAllocationRow[]>(
+    `SELECT id, production_run_id, addon_id, quantity_deducted, sort_order
+     FROM production_run_addon_allocations
      WHERE production_run_id IN (${placeholders})
-     ORDER BY production_run_id, id`,
+     ORDER BY production_run_id, sort_order, id`,
     runIds,
   );
 
   rows.forEach((row) => {
     const current = grouped.get(row.production_run_id) ?? [];
-    current.push(mapProductionAddOnDeductionRow(row));
+    current.push(mapProductionAddOnAllocationRow(row));
     grouped.set(row.production_run_id, current);
   });
   return grouped;
+}
+
+function mapProductionAddOnAllocationRow(
+  row: ProductionAddOnAllocationRow,
+): ProductionAddOnAllocationRecord {
+  return {
+    addOnId: row.addon_id,
+    id: row.id,
+    productionRunId: row.production_run_id,
+    quantityDeducted: row.quantity_deducted,
+    sortOrder: row.sort_order,
+  };
+}
+
+function mapProductionAddOnCorrectionItemRow(
+  row: ProductionAddOnCorrectionItemRow,
+): ProductionAddOnCorrectionItemRecord {
+  return {
+    addOnId: row.addon_id,
+    quantityDelta: row.quantity_delta,
+    runQuantityAfter: row.run_quantity_after,
+    runQuantityBefore: row.run_quantity_before,
+    stockQuantityAfter: row.stock_quantity_after,
+    stockQuantityBefore: row.stock_quantity_before,
+  };
 }
 
 function mapProductionFilamentDeductionRow(
