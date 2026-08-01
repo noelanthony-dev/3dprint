@@ -13,6 +13,8 @@ export interface MonthlyReportInput {
   readonly sales: readonly SaleRecord[];
 }
 
+export type LifetimeReportInput = Omit<MonthlyReportInput, "month">;
+
 export interface ReportBreakdownItem {
   readonly label: string;
   readonly percent: number;
@@ -94,21 +96,42 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
   const productionRuns = input.productionRuns.filter((run) =>
     isDateInMonth(run.runDate, input.month),
   );
-  const salesSummary = buildSalesSummary(sales);
-  const expenseSummary = buildExpenseSummary(expenses, memberships);
-  const productionSummary = buildProductionSummary(productionRuns);
-  const inventoryMovement = buildInventoryMovementSummary(sales, productionRuns);
+  return buildReportFromRecords({
+    expenses,
+    memberships,
+    month: input.month,
+    productionRuns,
+    sales,
+  });
+}
+
+export function buildLifetimeReport(input: LifetimeReportInput): MonthlyReport {
+  return buildReportFromRecords({
+    ...input,
+    month: "lifetime",
+  });
+}
+
+function buildReportFromRecords(input: MonthlyReportInput): MonthlyReport {
+  const salesSummary = buildSalesSummary(input.sales);
+  const expenseSummary = buildExpenseSummary(input.expenses, input.memberships);
+  const productionSummary = buildProductionSummary(input.productionRuns);
+  const inventoryMovement = buildInventoryMovementSummary(input.sales, input.productionRuns);
   const profitSummary = buildProfitSummary(salesSummary, expenseSummary);
 
   return {
-    channelBreakdown: buildSalesChannelBreakdown(sales),
+    channelBreakdown: buildSalesChannelBreakdown(input.sales),
     expenseSummary,
     inventoryMovement,
     month: input.month,
     productionSummary,
-    productBreakdown: buildProductBreakdown(sales),
+    productBreakdown: buildProductBreakdown(input.sales),
     profitSummary,
-    recentTransactions: buildRecentTransactions(sales, expenses, productionRuns),
+    recentTransactions: buildRecentTransactions(
+      input.sales,
+      input.expenses,
+      input.productionRuns,
+    ),
     salesSummary,
   };
 }
@@ -292,6 +315,22 @@ export function getPreviousMonth(month: string): string {
   return `${year}-${String(monthIndex - 1).padStart(2, "0")}`;
 }
 
+export function getNextMonth(month: string): string {
+  const [yearText, monthText] = month.split("-");
+  const year = Number(yearText);
+  const monthIndex = Number(monthText);
+
+  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
+    return month;
+  }
+
+  if (monthIndex === 12) {
+    return `${year + 1}-01`;
+  }
+
+  return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
+
 export function isDateInMonth(date: string, month: string): boolean {
   return /^\d{4}-\d{2}$/.test(month) && date.startsWith(month);
 }
@@ -329,5 +368,5 @@ function sum<T>(items: readonly T[], selector: (item: T) => number): number {
 export const reportsDomainStatus = createScaffoldModuleStatus({
   layer: "domain",
   name: "reports",
-  notes: ["Pure monthly sales, expenses, production, inventory movement, and profit summaries."],
+  notes: ["Pure monthly and lifetime sales, expenses, production, inventory movement, and profit summaries."],
 });

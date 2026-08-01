@@ -65,6 +65,13 @@ export interface SaleTotals {
   readonly netRevenue: number;
 }
 
+export interface SalesChannelSummary {
+  readonly channel: SalesChannel;
+  readonly netRevenue: number;
+  readonly orderCount: number;
+  readonly unitsSold: number;
+}
+
 export interface SaleValidationResult {
   readonly errors: Partial<Record<keyof SaleInput, string>>;
   readonly valid: boolean;
@@ -92,6 +99,23 @@ export function calculateSaleTotals(
     grossRevenue,
     netRevenue,
   };
+}
+
+export function getSalesChannelSummaries(
+  sales: readonly Pick<SaleRecord, "channel" | "netRevenue" | "quantity">[],
+): readonly SalesChannelSummary[] {
+  return SALES_CHANNELS.map((channel) => {
+    const channelSales = sales.filter((sale) => sale.channel === channel);
+
+    return {
+      channel,
+      netRevenue: roundMoney(
+        channelSales.reduce((total, sale) => total + sale.netRevenue, 0),
+      ),
+      orderCount: channelSales.length,
+      unitsSold: channelSales.reduce((total, sale) => total + sale.quantity, 0),
+    };
+  });
 }
 
 export function getSaleStockStatus(

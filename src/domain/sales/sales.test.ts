@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateSaleTotals,
+  getSalesChannelSummaries,
   getSaleStockReconciliationQuantity,
   getSaleStockStatus,
   getSaleStockWarning,
@@ -35,6 +36,20 @@ describe("sales totals", () => {
 
   it("does not produce a unit price for zero quantity", () => {
     expect(calculateSaleTotals({ discountsFees: 0, grossRevenue: 10, quantity: 0 }).averageUnitPrice).toBe(0);
+  });
+
+  it("summarizes net sales, orders, and units for every configured channel", () => {
+    expect(getSalesChannelSummaries([
+      { channel: "Sincerely", netRevenue: 120, quantity: 1 },
+      { channel: "Sincerely", netRevenue: 275.5, quantity: 3 },
+      { channel: "Dear Reader", netRevenue: 80, quantity: 2 },
+    ])).toEqual([
+      { channel: "Direct", netRevenue: 0, orderCount: 0, unitsSold: 0 },
+      { channel: "Sincerely", netRevenue: 395.5, orderCount: 2, unitsSold: 4 },
+      { channel: "Dear Reader", netRevenue: 80, orderCount: 1, unitsSold: 2 },
+      { channel: "Flora", netRevenue: 0, orderCount: 0, unitsSold: 0 },
+      { channel: "Stomping", netRevenue: 0, orderCount: 0, unitsSold: 0 },
+    ]);
   });
 });
 

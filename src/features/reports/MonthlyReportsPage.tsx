@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Page } from "@/components/layout/Page";
-import { Badge, DataTable, MetricPanel, Panel, ProgressBar, ToolbarButton } from "@/components/ui";
+import {
+  Badge,
+  DataTable,
+  MetricPanel,
+  Panel,
+  ProgressBar,
+  SegmentedFilter,
+  ToolbarButton,
+} from "@/components/ui";
 import {
   expensesRepository,
   productionRunsRepository,
@@ -10,7 +18,9 @@ import {
 import type { ExpenseRecord, MembershipRecord } from "@/domain/expenses";
 import type { ProductionRunRecord } from "@/domain/production";
 import {
+  buildLifetimeReport,
   buildMonthlyReport,
+  getNextMonth,
   getPreviousMonth,
   type MonthlyReport,
   type ReportBreakdownItem,
@@ -23,6 +33,7 @@ export function MonthlyReportsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [memberships, setMemberships] = useState<MembershipRecord[]>([]);
   const [month, setMonth] = useState(currentMonthInputValue());
+  const [periodMode, setPeriodMode] = useState<"lifetime" | "monthly">("monthly");
   const [productionRuns, setProductionRuns] = useState<ProductionRunRecord[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
 
@@ -59,45 +70,46 @@ export function MonthlyReportsPage() {
   }, []);
 
   const report = useMemo(
-    () =>
-      buildMonthlyReport({
+    () => {
+      const source = {
         expenses,
         memberships,
-        month,
         productionRuns,
         sales,
-      }),
-    [expenses, memberships, month, productionRuns, sales],
+      };
+
+      return periodMode === "lifetime"
+        ? buildLifetimeReport(source)
+        : buildMonthlyReport({ ...source, month });
+    },
+    [expenses, memberships, month, periodMode, productionRuns, sales],
   );
   const previousReport = useMemo(
-    () =>
-      buildMonthlyReport({
+    () => periodMode === "lifetime"
+      ? null
+      : buildMonthlyReport({
         expenses,
         memberships,
         month: getPreviousMonth(month),
         productionRuns,
         sales,
       }),
-    [expenses, memberships, month, productionRuns, sales],
+    [expenses, memberships, month, periodMode, productionRuns, sales],
   );
+  const periodPhrase = periodMode === "lifetime"
+    ? "in the lifetime report"
+    : "for this month";
 
   return (
     <Page
       actions={
-        <>
-          <input
-            aria-label="Report month"
-            className="table-input"
-            onChange={(event) => setMonth(event.target.value || currentMonthInputValue())}
-            type="month"
-            value={month}
-          />
-          <ToolbarButton onClick={() => void loadReportData()}>Refresh</ToolbarButton>
-        </>
+        <ToolbarButton disabled={isLoading} onClick={() => void loadReportData()}>
+          Refresh
+        </ToolbarButton>
       }
-      description="Review monthly sales, expenses, production, inventory movement, and simple profit from local records."
+      description="Review lifetime or monthly sales, expenses, production, inventory movement, and simple profit from local records."
       meta={["On-demand calculation", "SQLite source data", "No chart library"]}
-      title="Monthly Reports"
+      title="Reports"
     >
       {error ? (
         <div className="callout callout--warning">
@@ -106,9 +118,58 @@ export function MonthlyReportsPage() {
         </div>
       ) : null}
 
+      <div className="report-period-bar">
+        <div className="report-period-mode">
+          <span>Report range</span>
+          <SegmentedFilter
+            label="Report range"
+            onChange={(value) => setPeriodMode(value as "lifetime" | "monthly")}
+            options={[
+              { active: periodMode === "lifetime", label: "Lifetime", value: "lifetime" },
+              { active: periodMode === "monthly", label: "Monthly", value: "monthly" },
+            ]}
+          />
+        </div>
+        {periodMode === "monthly" ? (
+          <div className="report-month-controls">
+            <ToolbarButton onClick={() => setMonth(getPreviousMonth(month))}>
+              ← Previous
+            </ToolbarButton>
+            <label className="report-month-input">
+              <span>Selected month</span>
+              <strong>{formatMonthLabel(month)}</strong>
+              <input
+                aria-label="Report month"
+                className="table-input"
+                onChange={(event) => setMonth(event.target.value || currentMonthInputValue())}
+                type="month"
+                value={month}
+              />
+            </label>
+            <ToolbarButton onClick={() => setMonth(getNextMonth(month))}>
+              Next →
+            </ToolbarButton>
+            <ToolbarButton
+              disabled={month === currentMonthInputValue()}
+              onClick={() => setMonth(currentMonthInputValue())}
+              tone="ghost"
+            >
+              Current Month
+            </ToolbarButton>
+          </div>
+        ) : (
+          <div className="report-lifetime-note">
+            <Badge tone="success">All recorded data</Badge>
+            <span>Recurring definitions are counted once.</span>
+          </div>
+        )}
+      </div>
+
       <div className="metric-grid">
         <MetricPanel
-          detail={formatDelta(report.salesSummary.netRevenue, previousReport.salesSummary.netRevenue)}
+          detail={previousReport
+            ? formatDelta(report.salesSummary.netRevenue, previousReport.salesSummary.netRevenue)
+            : "all recorded sales"}
           label="Net Revenue"
           tone="success"
           value={formatCurrency(report.salesSummary.netRevenue)}
@@ -120,7 +181,9 @@ export function MonthlyReportsPage() {
           value={formatCurrency(report.expenseSummary.totalExpenses)}
         />
         <MetricPanel
-          detail={formatDelta(report.profitSummary.simpleProfit, previousReport.profitSummary.simpleProfit)}
+          detail={previousReport
+            ? formatDelta(report.profitSummary.simpleProfit, previousReport.profitSummary.simpleProfit)
+            : "all recorded data"}
           label="Simple Profit"
           tone={report.profitSummary.simpleProfit >= 0 ? "success" : "danger"}
           value={formatCurrency(report.profitSummary.simpleProfit)}
@@ -158,7 +221,7 @@ export function MonthlyReportsPage() {
               density="dense"
               footer={
                 report.recentTransactions.length === 0
-                  ? "No sales, expenses, or production runs in this month."
+                  ? `No sales, expenses, or production runs ${periodPhrase}.`
                   : `Showing ${report.recentTransactions.length} recent entries.`
               }
               rows={report.recentTransactions.map((transaction) => [
@@ -179,7 +242,7 @@ export function MonthlyReportsPage() {
         <div className="side-stack">
           <Panel title="Revenue by Product">
             <BreakdownList
-              emptyLabel="No product sales for this month."
+              emptyLabel={`No product sales ${periodPhrase}.`}
               items={report.productBreakdown}
               valueFormatter={formatCurrency}
             />
@@ -187,7 +250,7 @@ export function MonthlyReportsPage() {
 
           <Panel title="Revenue by Channel">
             <BreakdownList
-              emptyLabel="No channel sales for this month."
+              emptyLabel={`No channel sales ${periodPhrase}.`}
               items={report.channelBreakdown}
               valueFormatter={formatCurrency}
             />
@@ -195,7 +258,7 @@ export function MonthlyReportsPage() {
 
           <Panel title="Expense Breakdown">
             <BreakdownList
-              emptyLabel="No expenses for this month."
+              emptyLabel={`No expenses ${periodPhrase}.`}
               items={report.expenseSummary.categoryBreakdown}
               tone="warning"
               valueFormatter={formatCurrency}
@@ -281,6 +344,21 @@ function currentMonthInputValue(): string {
   const date = new Date();
 
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(month: string): string {
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return month;
+  }
+
+  const year = Number(month.slice(0, 4));
+  const monthNumber = Number(month.slice(5, 7));
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function formatCurrency(value: number): string {

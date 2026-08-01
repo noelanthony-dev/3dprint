@@ -848,6 +848,72 @@ textarea {
   min-width: 0;
 }
 
+.report-period-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-crisp);
+  padding: var(--space-3) var(--space-4);
+}
+
+.report-period-mode,
+.report-month-controls,
+.report-lifetime-note {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.report-period-mode > span,
+.report-month-input > span {
+  color: var(--color-muted);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.report-period-mode > span {
+  margin-right: var(--space-2);
+}
+
+.report-month-input {
+  display: grid;
+  min-width: 300px;
+  grid-template-columns: minmax(125px, 1fr) 145px;
+  grid-template-rows: auto auto;
+  gap: 2px var(--space-3);
+  align-items: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-input);
+  padding: var(--space-2) var(--space-3);
+}
+
+.report-month-input > strong {
+  color: var(--color-text);
+  font-size: 0.92rem;
+}
+
+.report-month-input > input {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 100%;
+}
+
+.report-lifetime-note {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
 .analytics-filter-bar {
   display: flex;
   min-width: 0;
@@ -1050,6 +1116,10 @@ textarea {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+.sales-channel-metrics {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .metric-panel,

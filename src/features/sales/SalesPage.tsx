@@ -31,6 +31,7 @@ import {
   calculateSaleTotals,
   getSaleStockReconciliationQuantity,
   getSaleStockWarning,
+  getSalesChannelSummaries,
   SALES_CHANNELS,
   validateSaleAgainstStock,
   validateSaleDetailsInput,
@@ -162,6 +163,7 @@ export function SalesPage() {
   const filteredSales = channelFilter === "All"
     ? sales
     : sales.filter((sale) => sale.channel === channelFilter);
+  const channelSummaries = getSalesChannelSummaries(sales);
 
   const grossRevenue = sales.reduce((sum, sale) => sum + sale.grossRevenue, 0);
   const netRevenue = sales.reduce((sum, sale) => sum + sale.netRevenue, 0);
@@ -357,6 +359,20 @@ export function SalesPage() {
         <MetricPanel detail="quantity sold" label="Units Sold" value={isLoading ? "..." : String(unitsSold)} />
         <MetricPanel detail="net per order" label="Avg Order" value={formatCurrency(averageOrder)} />
       </div>
+
+      <Panel actions={<Badge>All time</Badge>} title="Net Sales by Branch / Channel">
+        <div className="metric-grid sales-channel-metrics">
+          {channelSummaries.map((summary) => (
+            <MetricPanel
+              detail={`${summary.orderCount} ${summary.orderCount === 1 ? "order" : "orders"} · ${summary.unitsSold} ${summary.unitsSold === 1 ? "unit" : "units"}`}
+              key={summary.channel}
+              label={summary.channel}
+              tone="success"
+              value={isLoading ? "..." : formatCurrency(summary.netRevenue)}
+            />
+          ))}
+        </div>
+      </Panel>
 
       <Panel title="Transaction Overview">
         <div className="sales-filter-bar">

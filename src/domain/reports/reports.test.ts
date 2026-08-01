@@ -5,8 +5,10 @@ import type { ProductionRunRecord } from "@/domain/production";
 import type { SaleRecord } from "@/domain/sales";
 
 import {
+  buildLifetimeReport,
   buildMonthlyReport,
   buildProductionSummary,
+  getNextMonth,
   getPreviousMonth,
   isDateInMonth,
 } from "./index";
@@ -117,6 +119,24 @@ describe("monthly reports", () => {
     });
   });
 
+  it("builds a lifetime report from every recorded source row", () => {
+    const report = buildLifetimeReport({
+      expenses: [expense, { ...expense, amount: 40, expenseDate: "2026-08-01", id: 2 }],
+      memberships: [membership],
+      productionRuns: [productionRun, { ...productionRun, id: 2, runDate: "2026-08-01" }],
+      sales: [sale, { ...sale, id: 2, netRevenue: 105, saleDate: "2026-08-01" }],
+    });
+
+    expect(report.month).toBe("lifetime");
+    expect(report.salesSummary).toMatchObject({
+      netRevenue: 200,
+      orderCount: 2,
+      unitsSold: 4,
+    });
+    expect(report.expenseSummary.totalExpenses).toBe(77);
+    expect(report.productionSummary.runCount).toBe(2);
+  });
+
   it("builds channel, product, and expense breakdowns", () => {
     const report = buildMonthlyReport({
       expenses: [expense],
@@ -184,5 +204,7 @@ describe("monthly reports", () => {
     expect(isDateInMonth("2026-08-01", "2026-07")).toBe(false);
     expect(getPreviousMonth("2026-01")).toBe("2025-12");
     expect(getPreviousMonth("2026-07")).toBe("2026-06");
+    expect(getNextMonth("2026-12")).toBe("2027-01");
+    expect(getNextMonth("2026-07")).toBe("2026-08");
   });
 });
