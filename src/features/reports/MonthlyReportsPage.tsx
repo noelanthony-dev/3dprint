@@ -28,11 +28,19 @@ import {
   type ReportBreakdownItem,
 } from "@/domain/reports";
 import { SALES_CHANNELS, type SaleRecord } from "@/domain/sales";
+import { exportAiAnalysisPack } from "@/infrastructure/analysis";
+
+interface AnalysisExportStatus {
+  readonly message: string;
+  readonly tone: "neutral" | "success" | "warning";
+}
 
 export function MonthlyReportsPage() {
+  const [analysisExportStatus, setAnalysisExportStatus] = useState<AnalysisExportStatus | null>(null);
   const [business, setBusiness] = useState<ReportBusiness>("all");
   const [error, setError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [memberships, setMemberships] = useState<MembershipRecord[]>([]);
   const [month, setMonth] = useState(currentMonthInputValue());
@@ -71,6 +79,26 @@ export function MonthlyReportsPage() {
   useEffect(() => {
     void loadReportData();
   }, []);
+
+  async function exportAnalysis(): Promise<void> {
+    setIsExporting(true);
+    setAnalysisExportStatus(null);
+
+    try {
+      const result = await exportAiAnalysisPack();
+      setAnalysisExportStatus({
+        message: result.message,
+        tone: result.canceled ? "neutral" : "success",
+      });
+    } catch (exportError) {
+      setAnalysisExportStatus({
+        message: formatAnalysisExportError(exportError),
+        tone: "warning",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   const businessSales = useMemo(
     () => filterReportSalesByBusiness(sales, business),
@@ -137,18 +165,41 @@ export function MonthlyReportsPage() {
   return (
     <Page
       actions={
-        <ToolbarButton disabled={isLoading} onClick={() => void loadReportData()}>
-          Refresh
-        </ToolbarButton>
+        <>
+          <ToolbarButton
+            disabled={isLoading}
+            isLoading={isExporting}
+            loadingLabel="Exporting"
+            onClick={() => void exportAnalysis()}
+            tone="primary"
+          >
+            Export AI Analysis Pack
+          </ToolbarButton>
+          <ToolbarButton
+            disabled={isLoading || isExporting}
+            onClick={() => void loadReportData()}
+          >
+            Refresh
+          </ToolbarButton>
+        </>
       }
       description="Review lifetime or monthly sales, expenses, production, inventory movement, and simple profit from local records."
-      meta={["On-demand calculation", "SQLite source data", "No chart library"]}
+      meta={["On-demand calculation", "SQLite source data", "Local JSON export"]}
       title="Reports"
     >
       {error ? (
         <div className="callout callout--warning">
           <Badge tone="warning">Storage</Badge>
           <p>{error}</p>
+        </div>
+      ) : null}
+
+      {analysisExportStatus ? (
+        <div className={analysisExportStatus.tone === "warning" ? "callout callout--warning" : "callout"}>
+          <Badge tone={analysisExportStatus.tone}>
+            {analysisExportStatus.tone === "success" ? "Exported" : analysisExportStatus.tone === "warning" ? "Export" : "Canceled"}
+          </Badge>
+          <p>{analysisExportStatus.message}</p>
         </div>
       ) : null}
 
@@ -478,4 +529,14 @@ function formatRepositoryError(error: unknown): string {
   }
 
   return message;
+}
+
+export function formatAnalysisExportError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("invoke")) {
+    return "AI Analysis Pack export requires the Tauri desktop app and local SQLite data.";
+  }
+
+  return message || "AI Analysis Pack could not be exported.";
 }

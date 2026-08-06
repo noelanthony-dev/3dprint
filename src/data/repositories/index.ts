@@ -1,4 +1,5 @@
 export * from "./addOnsRepository";
+export * from "./analysisExportRepository";
 export * from "./expensesRepository";
 export * from "./filamentProfilesRepository";
 export * from "./filamentsRepository";
