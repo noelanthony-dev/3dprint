@@ -1,6 +1,6 @@
 import { occursInMonth, type ExpenseRecord, type MembershipRecord } from "@/domain/expenses";
 import type { ProductionRunRecord } from "@/domain/production";
-import type { SaleRecord } from "@/domain/sales";
+import type { SaleRecord, SalesChannel } from "@/domain/sales";
 import { createScaffoldModuleStatus } from "@/domain/shared";
 
 export * from "./analytics";
@@ -14,6 +14,7 @@ export interface MonthlyReportInput {
 }
 
 export type LifetimeReportInput = Omit<MonthlyReportInput, "month">;
+export type ReportBusiness = "all" | SalesChannel;
 
 export interface ReportBreakdownItem {
   readonly label: string;
@@ -110,6 +111,15 @@ export function buildLifetimeReport(input: LifetimeReportInput): MonthlyReport {
     ...input,
     month: "lifetime",
   });
+}
+
+export function filterReportSalesByBusiness(
+  sales: readonly SaleRecord[],
+  business: ReportBusiness,
+): readonly SaleRecord[] {
+  return business === "all"
+    ? sales
+    : sales.filter((sale) => sale.channel === business);
 }
 
 function buildReportFromRecords(input: MonthlyReportInput): MonthlyReport {

@@ -8,6 +8,7 @@ import { createScaffoldModuleStatus } from "@/domain/shared";
 export const SALES_CHANNELS = ["Direct", "Sincerely", "Dear Reader", "Flora", "Stomping"] as const;
 
 export type SalesChannel = (typeof SALES_CHANNELS)[number];
+export type SalesPeriodMode = "lifetime" | "monthly";
 export type SaleStockStatus = "available" | "insufficient" | "out";
 
 export interface SaleInput {
@@ -116,6 +117,22 @@ export function getSalesChannelSummaries(
       unitsSold: channelSales.reduce((total, sale) => total + sale.quantity, 0),
     };
   });
+}
+
+export function filterSalesByPeriod<T extends Pick<SaleRecord, "saleDate">>(
+  sales: readonly T[],
+  periodMode: SalesPeriodMode,
+  month: string,
+): readonly T[] {
+  if (periodMode === "lifetime") {
+    return sales;
+  }
+
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return [];
+  }
+
+  return sales.filter((sale) => sale.saleDate.startsWith(`${month}-`));
 }
 
 export function getSaleStockStatus(
@@ -262,5 +279,5 @@ export function roundMoney(value: number): number {
 export const salesDomainStatus = createScaffoldModuleStatus({
   layer: "domain",
   name: "sales",
-  notes: ["Pure sales validation, revenue totals, and finished-goods stock checks."],
+  notes: ["Pure sales validation, period filtering, revenue totals, and finished-goods stock checks."],
 });

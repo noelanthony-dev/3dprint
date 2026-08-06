@@ -8,6 +8,7 @@ import {
   buildLifetimeReport,
   buildMonthlyReport,
   buildProductionSummary,
+  filterReportSalesByBusiness,
   getNextMonth,
   getPreviousMonth,
   isDateInMonth,
@@ -164,6 +165,14 @@ describe("monthly reports", () => {
       percent: 32.43,
       value: 12,
     });
+  });
+
+  it("filters report sales by business channel", () => {
+    const floraSale = { ...sale, channel: "Flora" as const, id: 2 };
+    const sales = [sale, floraSale];
+
+    expect(filterReportSalesByBusiness(sales, "Flora")).toEqual([floraSale]);
+    expect(filterReportSalesByBusiness(sales, "all")).toBe(sales);
   });
 
   it("calculates production yield from good and failed pieces", () => {

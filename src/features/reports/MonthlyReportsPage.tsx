@@ -20,14 +20,17 @@ import type { ProductionRunRecord } from "@/domain/production";
 import {
   buildLifetimeReport,
   buildMonthlyReport,
+  filterReportSalesByBusiness,
   getNextMonth,
   getPreviousMonth,
   type MonthlyReport,
+  type ReportBusiness,
   type ReportBreakdownItem,
 } from "@/domain/reports";
-import type { SaleRecord } from "@/domain/sales";
+import { SALES_CHANNELS, type SaleRecord } from "@/domain/sales";
 
 export function MonthlyReportsPage() {
+  const [business, setBusiness] = useState<ReportBusiness>("all");
   const [error, setError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,7 +72,11 @@ export function MonthlyReportsPage() {
     void loadReportData();
   }, []);
 
-  const report = useMemo(
+  const businessSales = useMemo(
+    () => filterReportSalesByBusiness(sales, business),
+    [business, sales],
+  );
+  const overallReport = useMemo(
     () => {
       const source = {
         expenses,
@@ -84,7 +91,7 @@ export function MonthlyReportsPage() {
     },
     [expenses, memberships, month, periodMode, productionRuns, sales],
   );
-  const previousReport = useMemo(
+  const previousOverallReport = useMemo(
     () => periodMode === "lifetime"
       ? null
       : buildMonthlyReport({
@@ -95,6 +102,33 @@ export function MonthlyReportsPage() {
         sales,
       }),
     [expenses, memberships, month, periodMode, productionRuns, sales],
+  );
+  const salesReport = useMemo(
+    () => {
+      const source = {
+        expenses: [],
+        memberships: [],
+        productionRuns: [],
+        sales: businessSales,
+      };
+
+      return periodMode === "lifetime"
+        ? buildLifetimeReport(source)
+        : buildMonthlyReport({ ...source, month });
+    },
+    [businessSales, month, periodMode],
+  );
+  const previousSalesReport = useMemo(
+    () => periodMode === "lifetime"
+      ? null
+      : buildMonthlyReport({
+        expenses: [],
+        memberships: [],
+        month: getPreviousMonth(month),
+        productionRuns: [],
+        sales: businessSales,
+      }),
+    [businessSales, month, periodMode],
   );
   const periodPhrase = periodMode === "lifetime"
     ? "in the lifetime report"
@@ -115,6 +149,32 @@ export function MonthlyReportsPage() {
         <div className="callout callout--warning">
           <Badge tone="warning">Storage</Badge>
           <p>{error}</p>
+        </div>
+      ) : null}
+
+      <div className="analytics-filter-bar">
+        <span>Business</span>
+        <SegmentedFilter
+          label="Report business"
+          onChange={(value) => setBusiness(value as ReportBusiness)}
+          options={[
+            { active: business === "all", label: "All", value: "all" },
+            ...SALES_CHANNELS.map((channel) => ({
+              active: business === channel,
+              label: channel,
+              value: channel,
+            })),
+          ]}
+        />
+      </div>
+
+      {business !== "all" ? (
+        <div className="callout">
+          <Badge tone="success">{business}</Badge>
+          <p>
+            Revenue, orders, units, average order, and revenue breakdowns are filtered to this business.
+            Expenses, profit, activity, and production remain all-business because those records do not store a business yet.
+          </p>
         </div>
       ) : null}
 
@@ -167,50 +227,57 @@ export function MonthlyReportsPage() {
 
       <div className="metric-grid">
         <MetricPanel
-          detail={previousReport
-            ? formatDelta(report.salesSummary.netRevenue, previousReport.salesSummary.netRevenue)
+          detail={previousSalesReport
+            ? formatDelta(salesReport.salesSummary.netRevenue, previousSalesReport.salesSummary.netRevenue)
             : "all recorded sales"}
           label="Net Revenue"
           tone="success"
-          value={formatCurrency(report.salesSummary.netRevenue)}
+          value={formatCurrency(salesReport.salesSummary.netRevenue)}
         />
         <MetricPanel
-          detail={`${formatCurrency(report.expenseSummary.recurringMonthlyTotal)} recurring`}
-          label="Expenses"
-          tone={report.expenseSummary.totalExpenses > 0 ? "warning" : "default"}
-          value={formatCurrency(report.expenseSummary.totalExpenses)}
+          detail={business === "all"
+            ? `${formatCurrency(overallReport.expenseSummary.recurringMonthlyTotal)} recurring`
+            : "all-business shared costs"}
+          label={business === "all" ? "Expenses" : "Shared Expenses"}
+          tone={overallReport.expenseSummary.totalExpenses > 0 ? "warning" : "default"}
+          value={formatCurrency(overallReport.expenseSummary.totalExpenses)}
         />
         <MetricPanel
-          detail={previousReport
-            ? formatDelta(report.profitSummary.simpleProfit, previousReport.profitSummary.simpleProfit)
-            : "all recorded data"}
-          label="Simple Profit"
-          tone={report.profitSummary.simpleProfit >= 0 ? "success" : "danger"}
-          value={formatCurrency(report.profitSummary.simpleProfit)}
+          detail={previousOverallReport
+            ? formatDelta(
+              overallReport.profitSummary.simpleProfit,
+              previousOverallReport.profitSummary.simpleProfit,
+            )
+            : business === "all" ? "all recorded data" : "all businesses"}
+          label={business === "all" ? "Simple Profit" : "Overall Simple Profit"}
+          tone={overallReport.profitSummary.simpleProfit >= 0 ? "success" : "danger"}
+          value={formatCurrency(overallReport.profitSummary.simpleProfit)}
         />
         <MetricPanel
-          detail={`${report.salesSummary.orderCount} orders / ${formatQuantity(report.salesSummary.unitsSold)} units`}
-          label="Avg Margin"
-          value={formatPercent(report.profitSummary.marginPercent)}
+          detail={`${salesReport.salesSummary.orderCount} orders / ${formatQuantity(salesReport.salesSummary.unitsSold)} units`}
+          label={business === "all" ? "Avg Margin" : "Average Order"}
+          value={business === "all"
+            ? formatPercent(overallReport.profitSummary.marginPercent)
+            : formatCurrency(salesReport.salesSummary.averageOrderValue)}
         />
       </div>
 
       <div className="content-grid content-grid--costing">
         <div className="side-stack">
-          <Panel title="Profit Summary">
+          <Panel title={business === "all" ? "Profit Summary" : "All-Business Profit Summary"}>
             <div className="key-value-list">
               <span>Gross revenue</span>
-              <strong>{formatCurrency(report.profitSummary.grossRevenue)}</strong>
+              <strong>{formatCurrency(overallReport.profitSummary.grossRevenue)}</strong>
               <span>Discounts and fees</span>
-              <strong>{formatCurrency(report.salesSummary.discountsFees)}</strong>
+              <strong>{formatCurrency(overallReport.salesSummary.discountsFees)}</strong>
               <span>Net revenue</span>
-              <strong>{formatCurrency(report.profitSummary.netRevenue)}</strong>
+              <strong>{formatCurrency(overallReport.profitSummary.netRevenue)}</strong>
               <span>Total expenses</span>
-              <strong>{formatCurrency(report.profitSummary.expenseTotal)}</strong>
+              <strong>{formatCurrency(overallReport.profitSummary.expenseTotal)}</strong>
               <span>Simple profit</span>
-              <strong>{formatCurrency(report.profitSummary.simpleProfit)}</strong>
+              <strong>{formatCurrency(overallReport.profitSummary.simpleProfit)}</strong>
               <span>Average order</span>
-              <strong>{formatCurrency(report.salesSummary.averageOrderValue)}</strong>
+              <strong>{formatCurrency(overallReport.salesSummary.averageOrderValue)}</strong>
             </div>
           </Panel>
 
@@ -220,11 +287,11 @@ export function MonthlyReportsPage() {
               columnsTemplate="0.7fr 0.55fr minmax(160px, 1.25fr) 0.65fr 0.65fr"
               density="dense"
               footer={
-                report.recentTransactions.length === 0
+                overallReport.recentTransactions.length === 0
                   ? `No sales, expenses, or production runs ${periodPhrase}.`
-                  : `Showing ${report.recentTransactions.length} recent entries.`
+                  : `Showing ${overallReport.recentTransactions.length} recent entries.`
               }
-              rows={report.recentTransactions.map((transaction) => [
+              rows={overallReport.recentTransactions.map((transaction) => [
                 transaction.date,
                 <Badge tone={getTransactionTone(transaction.type)}>{transaction.type}</Badge>,
                 transaction.label,
@@ -243,7 +310,7 @@ export function MonthlyReportsPage() {
           <Panel title="Revenue by Product">
             <BreakdownList
               emptyLabel={`No product sales ${periodPhrase}.`}
-              items={report.productBreakdown}
+              items={salesReport.productBreakdown}
               valueFormatter={formatCurrency}
             />
           </Panel>
@@ -251,7 +318,7 @@ export function MonthlyReportsPage() {
           <Panel title="Revenue by Channel">
             <BreakdownList
               emptyLabel={`No channel sales ${periodPhrase}.`}
-              items={report.channelBreakdown}
+              items={salesReport.channelBreakdown}
               valueFormatter={formatCurrency}
             />
           </Panel>
@@ -259,7 +326,7 @@ export function MonthlyReportsPage() {
           <Panel title="Expense Breakdown">
             <BreakdownList
               emptyLabel={`No expenses ${periodPhrase}.`}
-              items={report.expenseSummary.categoryBreakdown}
+              items={overallReport.expenseSummary.categoryBreakdown}
               tone="warning"
               valueFormatter={formatCurrency}
             />
@@ -267,7 +334,7 @@ export function MonthlyReportsPage() {
         </div>
 
         <Panel title="Production and Inventory Movement">
-          <ReportMovementGrid report={report} />
+          <ReportMovementGrid report={overallReport} />
         </Panel>
       </div>
 

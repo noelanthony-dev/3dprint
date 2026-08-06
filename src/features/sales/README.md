@@ -5,6 +5,7 @@ Offline sales tracking module.
 Implemented scope:
 
 - Lists recorded sales with date, product reference, channel, quantity, gross revenue, net revenue, and stock movement.
+- Filters all sales KPIs, branch/channel totals, and transaction rows between lifetime and a selected month; channel filtering composes with the selected period for the table.
 - Records sales against finished goods home stock.
 - Tracks sale unit, channel, gross revenue, discounts/fees, net revenue, and notes.
 - Reduces finished goods ready quantity through repository/service stock adjustment paths.

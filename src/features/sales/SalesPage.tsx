@@ -27,8 +27,10 @@ import {
   type FinishedGoodRecord,
   type FinishedGoodSaleUnit,
 } from "@/domain/inventory";
+import { getNextMonth, getPreviousMonth } from "@/domain/reports";
 import {
   calculateSaleTotals,
+  filterSalesByPeriod,
   getSaleStockReconciliationQuantity,
   getSaleStockWarning,
   getSalesChannelSummaries,
@@ -40,6 +42,7 @@ import {
   type SaleInput,
   type SaleRecord,
   type SalesChannel,
+  type SalesPeriodMode,
 } from "@/domain/sales";
 
 interface SaleFormState {
@@ -93,6 +96,8 @@ export function SalesPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [month, setMonth] = useState(currentMonthInputValue());
+  const [periodMode, setPeriodMode] = useState<SalesPeriodMode>("lifetime");
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
@@ -160,15 +165,17 @@ export function SalesPage() {
     grossRevenue: editInput.grossRevenue,
     quantity: editingSale?.quantity ?? 1,
   });
+  const periodSales = filterSalesByPeriod(sales, periodMode, month);
   const filteredSales = channelFilter === "All"
-    ? sales
-    : sales.filter((sale) => sale.channel === channelFilter);
-  const channelSummaries = getSalesChannelSummaries(sales);
+    ? periodSales
+    : periodSales.filter((sale) => sale.channel === channelFilter);
+  const channelSummaries = getSalesChannelSummaries(periodSales);
+  const periodLabel = periodMode === "lifetime" ? "Lifetime" : formatMonthLabel(month);
 
-  const grossRevenue = sales.reduce((sum, sale) => sum + sale.grossRevenue, 0);
-  const netRevenue = sales.reduce((sum, sale) => sum + sale.netRevenue, 0);
-  const unitsSold = sales.reduce((sum, sale) => sum + sale.quantity, 0);
-  const averageOrder = sales.length > 0 ? netRevenue / sales.length : 0;
+  const grossRevenue = periodSales.reduce((sum, sale) => sum + sale.grossRevenue, 0);
+  const netRevenue = periodSales.reduce((sum, sale) => sum + sale.netRevenue, 0);
+  const unitsSold = periodSales.reduce((sum, sale) => sum + sale.quantity, 0);
+  const averageOrder = periodSales.length > 0 ? netRevenue / periodSales.length : 0;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -353,14 +360,61 @@ export function SalesPage() {
         </div>
       ) : null}
 
+      <div className="report-period-bar">
+        <div className="report-period-mode">
+          <span>Sales range</span>
+          <SegmentedFilter
+            label="Sales range"
+            onChange={(value) => setPeriodMode(value as SalesPeriodMode)}
+            options={[
+              { active: periodMode === "lifetime", label: "Lifetime", value: "lifetime" },
+              { active: periodMode === "monthly", label: "Monthly", value: "monthly" },
+            ]}
+          />
+        </div>
+        {periodMode === "monthly" ? (
+          <div className="report-month-controls">
+            <ToolbarButton onClick={() => setMonth(getPreviousMonth(month))}>
+              ← Previous
+            </ToolbarButton>
+            <label className="report-month-input">
+              <span>Selected month</span>
+              <strong>{formatMonthLabel(month)}</strong>
+              <input
+                aria-label="Sales month"
+                className="table-input"
+                onChange={(event) => setMonth(event.target.value || currentMonthInputValue())}
+                type="month"
+                value={month}
+              />
+            </label>
+            <ToolbarButton onClick={() => setMonth(getNextMonth(month))}>
+              Next →
+            </ToolbarButton>
+            <ToolbarButton
+              disabled={month === currentMonthInputValue()}
+              onClick={() => setMonth(currentMonthInputValue())}
+              tone="ghost"
+            >
+              Current Month
+            </ToolbarButton>
+          </div>
+        ) : (
+          <div className="report-lifetime-note">
+            <Badge tone="success">All recorded sales</Badge>
+            <span>Switch to Monthly to review one month.</span>
+          </div>
+        )}
+      </div>
+
       <div className="metric-grid">
-        <MetricPanel detail="all channels" label="Gross Revenue" value={formatCurrency(grossRevenue)} />
+        <MetricPanel detail={`${periodLabel} · all channels`} label="Gross Revenue" value={formatCurrency(grossRevenue)} />
         <MetricPanel detail="gross less discounts/fees" label="Net Revenue" tone="success" value={formatCurrency(netRevenue)} />
         <MetricPanel detail="quantity sold" label="Units Sold" value={isLoading ? "..." : String(unitsSold)} />
         <MetricPanel detail="net per order" label="Avg Order" value={formatCurrency(averageOrder)} />
       </div>
 
-      <Panel actions={<Badge>All time</Badge>} title="Net Sales by Branch / Channel">
+      <Panel actions={<Badge>{periodLabel}</Badge>} title="Net Sales by Branch / Channel">
         <div className="metric-grid sales-channel-metrics">
           {channelSummaries.map((summary) => (
             <MetricPanel
@@ -392,7 +446,9 @@ export function SalesPage() {
           columns={["Date", "Product", "Channel", "Qty", "Gross", "Net", "Stock", "Actions"]}
           columnsTemplate="0.68fr minmax(150px, 1.35fr) 0.65fr 0.42fr 0.58fr 0.58fr 0.5fr 0.42fr"
           density="dense"
-          footer={filteredSales.length === 0 ? "No sales recorded for this channel." : `Showing ${filteredSales.length} sales.`}
+          footer={filteredSales.length === 0
+            ? `No ${channelFilter === "All" ? "" : `${channelFilter} `}sales recorded for ${periodLabel}.`
+            : `Showing ${filteredSales.length} sales for ${periodLabel}.`}
           rows={filteredSales.map((sale) => [
             sale.saleDate,
             sale.productReference,
@@ -938,6 +994,27 @@ function toNumber(value: string): number {
 
 function todayInputValue(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function currentMonthInputValue(): string {
+  const date = new Date();
+
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatMonthLabel(month: string): string {
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    return month;
+  }
+
+  const year = Number(month.slice(0, 4));
+  const monthNumber = Number(month.slice(5, 7));
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    timeZone: "UTC",
+    year: "numeric",
+  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function formatCurrency(value: number): string {

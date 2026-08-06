@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   calculateSaleTotals,
+  filterSalesByPeriod,
   getSalesChannelSummaries,
   getSaleStockReconciliationQuantity,
   getSaleStockStatus,
@@ -32,6 +33,26 @@ describe("sales totals", () => {
       grossRevenue: 45,
       netRevenue: 42.5,
     });
+  });
+
+  it("filters sales by sale date while preserving the lifetime view", () => {
+    const sales = [
+      { channel: "Sincerely" as const, saleDate: "2026-07-31" },
+      { channel: "Sincerely" as const, saleDate: "2026-08-01" },
+      { channel: "Flora" as const, saleDate: "2026-08-15" },
+    ];
+
+    expect(filterSalesByPeriod(sales, "lifetime", "2026-08")).toBe(sales);
+    expect(filterSalesByPeriod(sales, "monthly", "2026-08")).toEqual([
+      sales[1],
+      sales[2],
+    ]);
+    expect(
+      filterSalesByPeriod(sales, "monthly", "2026-08")
+        .filter((sale) => sale.channel === "Sincerely"),
+    ).toEqual([sales[1]]);
+    expect(filterSalesByPeriod(sales, "monthly", "2030-01")).toEqual([]);
+    expect(filterSalesByPeriod(sales, "monthly", "invalid")).toEqual([]);
   });
 
   it("does not produce a unit price for zero quantity", () => {
