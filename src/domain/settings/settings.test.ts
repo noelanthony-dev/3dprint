@@ -14,6 +14,12 @@ describe("settings domain", () => {
       laborRateHourly: 35,
       machineLifeHours: 5_000,
       printerPowerWatts: 120,
+      productBusinesses: [
+        "Sincerely, Books",
+        "Flora & Faun",
+        "Dear Reader",
+        "Stomping Grounds",
+      ],
       productCategories: [
         "Bookmarks",
         "Magnets",
@@ -77,5 +83,22 @@ describe("settings domain", () => {
         productCategories: [" Keychains ", "keychains", "Desk Organizers"],
       }).productCategories,
     ).toEqual(["Keychains", "Desk Organizers"]);
+  });
+
+  it("normalizes saved custom product businesses", () => {
+    expect(
+      normalizeAppSettings({
+        ...DEFAULT_APP_SETTINGS,
+        productBusinesses: [" Weekend Market ", "weekend market", "Online Shop"],
+      }).productBusinesses,
+    ).toEqual(["Weekend Market", "Online Shop"]);
+  });
+
+  it("adds default businesses when loading legacy settings", () => {
+    const { productBusinesses: _removed, ...legacySettings } = DEFAULT_APP_SETTINGS;
+
+    expect(normalizeAppSettings(legacySettings).productBusinesses).toEqual(
+      DEFAULT_APP_SETTINGS.productBusinesses,
+    );
   });
 });

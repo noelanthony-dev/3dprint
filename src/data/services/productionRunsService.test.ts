@@ -39,6 +39,7 @@ describe("production runs service", () => {
       finishedGoods,
       printProfiles,
       productionRuns: {
+        delete: async () => undefined,
         get: async () => productionRun,
         list: async () => [],
         listAddOnCorrections: async () => [],
@@ -132,6 +133,7 @@ describe("production runs service", () => {
       finishedGoods,
       printProfiles,
       productionRuns: {
+        delete: async () => undefined,
         get: async () => productionRun,
         list: async () => [],
         listAddOnCorrections: async () => [],
@@ -193,6 +195,7 @@ describe("production runs service", () => {
       finishedGoods,
       printProfiles,
       productionRuns: {
+        delete: async () => undefined,
         get: async () => productionRun,
         list: async () => [],
         listAddOnCorrections: async () => [],
@@ -253,6 +256,7 @@ describe("production runs service", () => {
       finishedGoods,
       printProfiles,
       productionRuns: {
+        delete: async () => undefined,
         get: async () => productionRun,
         list: async () => [],
         listAddOnCorrections: async () => [],
@@ -311,6 +315,7 @@ describe("production runs service", () => {
       finishedGoods,
       printProfiles,
       productionRuns: {
+        delete: async () => undefined,
         get: async () => (loadCount++ === 0 ? productionRun : correctedRun),
         list: async () => [],
         listAddOnCorrections: async () => [],
@@ -427,6 +432,7 @@ const products: ProductsRepository = {
   get: async () => product,
   list: async () => [product],
   update: async () => product,
+  updateBusinesses: async () => product,
 };
 
 const printProfiles: PrintProfilesRepository = {

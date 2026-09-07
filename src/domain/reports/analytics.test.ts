@@ -5,6 +5,7 @@ import type { SaleRecord } from "@/domain/sales";
 import {
   buildBusinessPerformanceComparison,
   buildSalesAnalytics,
+  buildSalesTrend,
   getBusinessRevenueBarPercent,
   listSalesAnalyticsMonths,
 } from "./analytics";
@@ -115,6 +116,106 @@ describe("sales analytics", () => {
     });
   });
 
+  it("builds a seven-day trend ending today without changing the page period", () => {
+    const trend = buildSalesTrend({
+      business: "Direct",
+      period: "all",
+      sales: [
+        { ...sale, id: 2, netRevenue: 10, saleDate: "2026-08-21" },
+        { ...sale, id: 3, netRevenue: 20, saleDate: "2026-08-22" },
+        { ...sale, id: 4, netRevenue: 30, saleDate: "2026-08-28" },
+        { ...sale, channel: "Flora", id: 5, netRevenue: 500, saleDate: "2026-08-28" },
+      ],
+      today: "2026-08-28",
+      view: "week",
+    });
+
+    expect(trend.dailySalesTrend).toHaveLength(7);
+    expect(trend.dailySalesTrend[0]).toEqual({
+      date: "2026-08-22",
+      netRevenue: 20,
+    });
+    expect(trend.dailySalesTrend[6]).toEqual({
+      date: "2026-08-28",
+      netRevenue: 30,
+    });
+    expect(trend.matchingSaleCount).toBe(2);
+    expect(trend.totalNetRevenue).toBe(50);
+  });
+
+  it("builds a fourteen-day trend with zero-filled dates", () => {
+    const trend = buildSalesTrend({
+      business: "all",
+      period: "all",
+      sales: [{ ...sale, id: 2, netRevenue: 45, saleDate: "2026-08-15" }],
+      today: "2026-08-28",
+      view: "14-days",
+    });
+
+    expect(trend.dailySalesTrend).toHaveLength(14);
+    expect(trend.dailySalesTrend[0]).toEqual({
+      date: "2026-08-15",
+      netRevenue: 45,
+    });
+    expect(trend.dailySalesTrend[13]).toEqual({
+      date: "2026-08-28",
+      netRevenue: 0,
+    });
+  });
+
+  it("builds a current-month trend only through today", () => {
+    const trend = buildSalesTrend({
+      business: "all",
+      period: "all",
+      sales: [
+        { ...sale, id: 2, netRevenue: 25, saleDate: "2026-08-01" },
+        { ...sale, id: 3, netRevenue: 35, saleDate: "2026-08-28" },
+        { ...sale, id: 4, netRevenue: 100, saleDate: "2026-07-31" },
+      ],
+      today: "2026-08-28",
+      view: "month",
+    });
+
+    expect(trend.dailySalesTrend).toHaveLength(28);
+    expect(trend.dailySalesTrend[0]?.date).toBe("2026-08-01");
+    expect(trend.dailySalesTrend[27]?.date).toBe("2026-08-28");
+    expect(trend.totalNetRevenue).toBe(60);
+  });
+
+  it("anchors short trends to the end of a selected historical month", () => {
+    const trend = buildSalesTrend({
+      business: "all",
+      period: "2026-06",
+      sales: [
+        { ...sale, id: 2, netRevenue: 40, saleDate: "2026-06-24" },
+        { ...sale, id: 3, netRevenue: 60, saleDate: "2026-07-01" },
+      ],
+      today: "2026-08-28",
+      view: "week",
+    });
+
+    expect(trend.dailySalesTrend).toHaveLength(7);
+    expect(trend.dailySalesTrend[0]?.date).toBe("2026-06-24");
+    expect(trend.dailySalesTrend[6]?.date).toBe("2026-06-30");
+    expect(trend.totalNetRevenue).toBe(40);
+  });
+
+  it("does not let a short trend spill outside a selected month", () => {
+    const trend = buildSalesTrend({
+      business: "all",
+      period: "2026-08",
+      sales: [{ ...sale, id: 2, netRevenue: 30, saleDate: "2026-08-01" }],
+      today: "2026-08-03",
+      view: "week",
+    });
+
+    expect(trend.dailySalesTrend).toEqual([
+      { date: "2026-08-01", netRevenue: 30 },
+      { date: "2026-08-02", netRevenue: 0 },
+      { date: "2026-08-03", netRevenue: 0 },
+    ]);
+  });
+
   it("compares every business for all sales without a prior-period change", () => {
     const comparison = buildBusinessPerformanceComparison({
       period: "all",
@@ -132,6 +233,7 @@ describe("sales analytics", () => {
       "Direct",
       "Sincerely",
       "Dear Reader",
+      "Angkong",
     ]);
     expect(comparison.find((item) => item.channel === "Direct")).toMatchObject({
       averageSaleValue: 95,

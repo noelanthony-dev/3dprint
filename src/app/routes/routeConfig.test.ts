@@ -23,6 +23,7 @@ describe("routeConfig", () => {
         "Inventory",
         "Costing",
         "Production",
+        "Print Planner",
         "Sales",
         "Analytics",
         "Expenses",

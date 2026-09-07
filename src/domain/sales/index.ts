@@ -3,12 +3,19 @@ import {
   type FinishedGoodRecord,
   type FinishedGoodSaleUnit,
 } from "@/domain/inventory";
-import { createScaffoldModuleStatus } from "@/domain/shared";
+import { createScaffoldModuleStatus, isIsoDate, isMonthToken } from "@/domain/shared";
 
-export const SALES_CHANNELS = ["Direct", "Sincerely", "Dear Reader", "Flora", "Stomping"] as const;
+export const SALES_CHANNELS = [
+  "Direct",
+  "Sincerely",
+  "Dear Reader",
+  "Flora",
+  "Angkong",
+  "Stomping",
+] as const;
 
 export type SalesChannel = (typeof SALES_CHANNELS)[number];
-export type SalesPeriodMode = "lifetime" | "monthly";
+export type SalesPeriodMode = "lifetime" | "monthly" | "daily";
 export type SaleStockStatus = "available" | "insufficient" | "out";
 
 export interface SaleInput {
@@ -73,6 +80,12 @@ export interface SalesChannelSummary {
   readonly unitsSold: number;
 }
 
+export interface SalesProductUnitSummary {
+  readonly productReference: string;
+  readonly saleUnit: FinishedGoodSaleUnit;
+  readonly unitsSold: number;
+}
+
 export interface SaleValidationResult {
   readonly errors: Partial<Record<keyof SaleInput, string>>;
   readonly valid: boolean;
@@ -119,20 +132,51 @@ export function getSalesChannelSummaries(
   });
 }
 
+export function getSalesProductUnitSummaries(
+  sales: readonly Pick<SaleRecord, "productReference" | "quantity" | "saleUnit">[],
+): readonly SalesProductUnitSummary[] {
+  const summaries = new Map<string, Map<FinishedGoodSaleUnit, number>>();
+
+  for (const sale of sales) {
+    const productSummaries = summaries.get(sale.productReference) ?? new Map();
+    productSummaries.set(sale.saleUnit, (productSummaries.get(sale.saleUnit) ?? 0) + sale.quantity);
+    summaries.set(sale.productReference, productSummaries);
+  }
+
+  return Array.from(summaries.entries())
+    .flatMap(([productReference, productSummaries]) =>
+      Array.from(productSummaries.entries()).map(([saleUnit, unitsSold]) => ({
+        productReference,
+        saleUnit,
+        unitsSold,
+      })),
+    )
+    .sort((first, second) =>
+      second.unitsSold - first.unitsSold ||
+      first.productReference.localeCompare(second.productReference) ||
+      first.saleUnit.localeCompare(second.saleUnit),
+    );
+}
+
 export function filterSalesByPeriod<T extends Pick<SaleRecord, "saleDate">>(
   sales: readonly T[],
   periodMode: SalesPeriodMode,
   month: string,
+  date = "",
 ): readonly T[] {
   if (periodMode === "lifetime") {
     return sales;
   }
 
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return [];
+  if (periodMode === "daily") {
+    return isIsoDate(date)
+      ? sales.filter((sale) => sale.saleDate === date)
+      : [];
   }
 
-  return sales.filter((sale) => sale.saleDate.startsWith(`${month}-`));
+  return isMonthToken(month)
+    ? sales.filter((sale) => sale.saleDate.startsWith(`${month}-`))
+    : [];
 }
 
 export function getSaleStockStatus(

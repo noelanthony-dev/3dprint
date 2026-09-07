@@ -26,6 +26,8 @@ export const PRODUCT_BUSINESSES = [
   "Stomping Grounds",
 ] as const;
 
+export const MAX_PRODUCT_BUSINESS_LENGTH = 60;
+
 export const COMMERCIAL_LICENSE_STATUSES = [
   "commercial-ok",
   "permission-needed",
@@ -42,7 +44,7 @@ export const LICENSE_BILLING_INTERVALS = [
 
 export type ProductCategory = string;
 export type ProductSaleUnit = (typeof PRODUCT_SALE_UNITS)[number];
-export type ProductBusiness = (typeof PRODUCT_BUSINESSES)[number];
+export type ProductBusiness = string;
 export type CommercialLicenseStatus = (typeof COMMERCIAL_LICENSE_STATUSES)[number];
 export type LicenseBillingInterval = (typeof LICENSE_BILLING_INTERVALS)[number];
 export type LicenseWarningTone = "success" | "warning" | "danger";
@@ -160,6 +162,47 @@ export function normalizeProductCategories(value: unknown): readonly ProductCate
   return categories.length > 0 ? categories : PRODUCT_CATEGORIES;
 }
 
+export function normalizeProductBusinessName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+export function isValidProductBusinessName(value: string): boolean {
+  const normalized = normalizeProductBusinessName(value);
+
+  return normalized.length > 0 && normalized.length <= MAX_PRODUCT_BUSINESS_LENGTH;
+}
+
+export function normalizeProductBusinesses(value: unknown): readonly ProductBusiness[] {
+  const businesses = normalizeProductBusinessSelection(value);
+
+  return businesses.length > 0 ? businesses : PRODUCT_BUSINESSES;
+}
+
+export function normalizeProductBusinessSelection(value: unknown): readonly ProductBusiness[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const businesses: ProductBusiness[] = [];
+  const normalizedNames = new Set<string>();
+
+  value.forEach((candidate) => {
+    if (typeof candidate !== "string" || !isValidProductBusinessName(candidate)) {
+      return;
+    }
+
+    const business = normalizeProductBusinessName(candidate);
+    const normalizedName = business.toLocaleLowerCase();
+
+    if (!normalizedNames.has(normalizedName)) {
+      normalizedNames.add(normalizedName);
+      businesses.push(business);
+    }
+  });
+
+  return businesses;
+}
+
 export function isLicenseBillingInterval(value: string): value is LicenseBillingInterval {
   return LICENSE_BILLING_INTERVALS.includes(value as LicenseBillingInterval);
 }
@@ -234,8 +277,11 @@ export function getLicensePaymentDisplay(
 export function validateProductInput(input: ProductInput): ProductValidationResult {
   const errors: Partial<Record<keyof ProductInput, string>> = {};
 
-  if (input.businesses.some((business) => !PRODUCT_BUSINESSES.includes(business))) {
-    errors.businesses = "Choose only supported businesses.";
+  if (
+    input.businesses.some((business) => !isValidProductBusinessName(business)) ||
+    normalizeProductBusinessSelection(input.businesses).length !== input.businesses.length
+  ) {
+    errors.businesses = `Businesses must be unique, named, and ${MAX_PRODUCT_BUSINESS_LENGTH} characters or fewer.`;
   }
 
   if (!input.designName.trim()) {

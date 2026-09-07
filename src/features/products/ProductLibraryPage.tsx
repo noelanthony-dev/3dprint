@@ -36,11 +36,11 @@ import {
 import {
   COMMERCIAL_LICENSE_STATUSES,
   LICENSE_BILLING_INTERVALS,
-  PRODUCT_BUSINESSES,
   PRODUCT_SALE_UNITS,
   getLicensePaymentDisplay,
   getLicenseWarningDisplay,
   getFilamentProfileInputsFromProductInput,
+  normalizeProductBusinesses,
   normalizeProductCategories,
   validateProductInput,
   type CommercialLicenseStatus,
@@ -172,6 +172,9 @@ export function ProductLibraryPage() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | ProductCategory>("all");
   const [colorsFilter, setColorsFilter] = useState<ExistingColorsFilterValue>("all");
   const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [productBusinesses, setProductBusinesses] = useState<readonly ProductBusiness[]>(
+    () => localSettingsRepository.load().productBusinesses,
+  );
   const [productCategories, setProductCategories] = useState<readonly ProductCategory[]>(
     () => localSettingsRepository.load().productCategories,
   );
@@ -205,9 +208,16 @@ export function ProductLibraryPage() {
         filamentRepository.list(),
       ]);
       setProducts(loaded);
+      const settings = localSettingsRepository.load();
+      setProductBusinesses(
+        normalizeProductBusinesses([
+          ...settings.productBusinesses,
+          ...loaded.flatMap((product) => product.businesses),
+        ]),
+      );
       setProductCategories(
         normalizeProductCategories([
-          ...localSettingsRepository.load().productCategories,
+          ...settings.productCategories,
           ...loaded.map((product) => product.category),
         ]),
       );
@@ -821,6 +831,7 @@ export function ProductLibraryPage() {
             <form className="modal__form-layout" onSubmit={(event) => void handleSubmit(event)}>
               <div className="inventory-form modal__body">
                 <ProductFormFields
+                  businesses={productBusinesses}
                   categories={productCategories}
                   filaments={filaments}
                   filamentProfiles={filamentProfiles}
@@ -1517,12 +1528,14 @@ function compareProductText(left: string, right: string): number {
 }
 
 function ProductFormFields({
+  businesses,
   categories,
   filaments,
   filamentProfiles,
   form,
   setForm,
 }: {
+  readonly businesses: readonly ProductBusiness[];
   readonly categories: readonly ProductCategory[];
   readonly filaments: readonly FilamentRecord[];
   readonly filamentProfiles: readonly FilamentProfileRecord[];
@@ -1590,7 +1603,7 @@ function ProductFormFields({
       <fieldset className="business-multiselect">
         <legend>Businesses</legend>
         <div className="business-multiselect__options">
-          {PRODUCT_BUSINESSES.map((business) => {
+          {businesses.map((business) => {
             const checked = form.businesses.includes(business);
 
             return (

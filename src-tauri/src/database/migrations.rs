@@ -4,7 +4,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-const CURRENT_SCHEMA_VERSION: i64 = 4;
+const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 pub(super) async fn migrate(
     connection: &mut SqliteConnection,
@@ -16,6 +16,13 @@ pub(super) async fn migrate(
         return Err(format!(
             "This database uses schema version {version}, but this PrintOps build supports version {CURRENT_SCHEMA_VERSION}. Update the app before continuing."
         ));
+    }
+
+    if version == 5 {
+        return Err(
+            "This database uses the retired PrintOps schema version 5. Restore the supported schema 4 backup before opening it with this build; the rejected version 5 layout cannot be upgraded safely."
+                .into(),
+        );
     }
 
     if version == CURRENT_SCHEMA_VERSION {
@@ -626,6 +633,24 @@ const SCHEMA_STATEMENTS: &[&str] = &[
      )",
     "CREATE INDEX IF NOT EXISTS idx_sales_date ON sales (sale_date DESC, created_at DESC)",
     "CREATE INDEX IF NOT EXISTS idx_sales_channel ON sales (channel, sale_date DESC)",
+    "CREATE TABLE IF NOT EXISTS print_plans (\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, plan_date TEXT NOT NULL, window_start TEXT NOT NULL, window_end TEXT NOT NULL,\
+       history_days INTEGER NOT NULL CHECK (history_days > 0), target_days INTEGER NOT NULL CHECK (target_days > 0),\
+       algorithm_version INTEGER NOT NULL CHECK (algorithm_version > 0), warnings TEXT NOT NULL DEFAULT '[]',\
+       created_at TEXT NOT NULL DEFAULT (datetime('now'))\
+     )",
+    "CREATE INDEX IF NOT EXISTS idx_print_plans_date ON print_plans (plan_date DESC, created_at DESC)",
+    "CREATE TABLE IF NOT EXISTS print_plan_items (\
+       id INTEGER PRIMARY KEY AUTOINCREMENT, plan_id INTEGER NOT NULL, product_id INTEGER, product_name TEXT NOT NULL, sale_unit TEXT NOT NULL,\
+       business_id TEXT NOT NULL CHECK (business_id IN ('sincerely','flora','dear-reader','angkong-dimsum','stomping')), business_name TEXT NOT NULL,\
+       inventory_count INTEGER NOT NULL CHECK (inventory_count >= 0), units_sold INTEGER NOT NULL CHECK (units_sold >= 0),\
+       target_quantity INTEGER NOT NULL CHECK (target_quantity >= 0), recommended_quantity INTEGER NOT NULL CHECK (recommended_quantity >= 0),\
+       days_of_stock REAL CHECK (days_of_stock IS NULL OR days_of_stock >= 0),\
+       status TEXT NOT NULL CHECK (status IN ('covered','no-history','print')),\
+       FOREIGN KEY (plan_id) REFERENCES print_plans(id) ON DELETE CASCADE, FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,\
+       UNIQUE (plan_id, business_id, product_id)\
+     )",
+    "CREATE INDEX IF NOT EXISTS idx_print_plan_items_plan ON print_plan_items (plan_id, business_id, product_name)",
     "CREATE TABLE IF NOT EXISTS sale_stock_movements (\
        id INTEGER PRIMARY KEY AUTOINCREMENT, sale_id INTEGER NOT NULL, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL CHECK (quantity_delta < 0),\
        quantity_before INTEGER NOT NULL CHECK (quantity_before >= 0), quantity_after INTEGER NOT NULL CHECK (quantity_after >= 0),\
@@ -696,6 +721,12 @@ mod tests {
         .fetch_one(&mut database)
         .await
         .unwrap();
+        let planner_tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('print_plans','print_plan_items')",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
         let foreign_keys: i64 = sqlx::query_scalar("PRAGMA foreign_keys")
             .fetch_one(&mut database)
             .await
@@ -703,7 +734,76 @@ mod tests {
 
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
         assert_eq!(products, 1);
+        assert_eq!(planner_tables, 2);
         assert_eq!(foreign_keys, 1);
+    }
+
+    #[tokio::test]
+    async fn upgrades_schema_four_directly_to_six_with_planner_tables() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("schema-four.db");
+        let mut database = connection(&path).await;
+
+        for statement in SCHEMA_STATEMENTS.iter().filter(|statement| {
+            !statement.contains("print_plans") && !statement.contains("print_plan_items")
+        }) {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+        sqlx::query(
+            "CREATE TABLE _printops_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO _printops_schema_migrations (version) VALUES (4)")
+            .execute(&mut database)
+            .await
+            .unwrap();
+
+        migrate(&mut database, &path).await.unwrap();
+
+        let version: i64 =
+            sqlx::query_scalar("SELECT MAX(version) FROM _printops_schema_migrations")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let planner_tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('print_plans','print_plan_items')",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+
+        assert_eq!(version, 6);
+        assert_eq!(planner_tables, 2);
+    }
+
+    #[tokio::test]
+    async fn rejects_the_retired_schema_five_layout() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("retired-five.db");
+        let mut database = connection(&path).await;
+        sqlx::query(
+            "CREATE TABLE _printops_schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT (datetime('now')))",
+        )
+        .execute(&mut database)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO _printops_schema_migrations (version) VALUES (5)")
+            .execute(&mut database)
+            .await
+            .unwrap();
+
+        let error = migrate(&mut database, &path).await.unwrap_err();
+
+        assert!(error.contains("retired PrintOps schema version 5"));
+        let planner_tables: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='print_plans'",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+        assert_eq!(planner_tables, 0);
     }
 
     #[tokio::test]

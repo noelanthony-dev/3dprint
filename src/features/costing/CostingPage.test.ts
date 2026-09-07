@@ -4,6 +4,7 @@ import type { PrintProfileRecord } from "@/domain/costing";
 
 import {
   createAddOnFormRow,
+  filterSavedProfiles,
   formatRepositoryError,
   nextSavedProfileSort,
   sortSavedProfiles,
@@ -125,7 +126,17 @@ describe("saved profile sorting", () => {
         direction: "ascending",
       }).map((profile) => profile.id),
     ).toEqual([2, 3, 1]);
-    expect(sortSavedProfiles(profiles, null).map((profile) => profile.id)).toEqual([1, 2, 3]);
+    expect(
+      sortSavedProfiles(
+        profiles,
+        null,
+        new Map([
+          [1, "Zulu"],
+          [2, "Alpha"],
+          [3, "Middle"],
+        ]),
+      ).map((profile) => profile.id),
+    ).toEqual([2, 3, 1]);
   });
 
   it("sorts gross margin in both directions", () => {
@@ -141,6 +152,18 @@ describe("saved profile sorting", () => {
         direction: "ascending",
       }).map((profile) => profile.id),
     ).toEqual([1, 3, 2]);
+  });
+
+  it("filters product and profile names case-insensitively", () => {
+    const productNames = new Map([
+      [1, "Tanjiro Bookmark"],
+      [2, "Mecha Chameleon"],
+      [3, "Azure Tides"],
+    ]);
+
+    expect(filterSavedProfiles(profiles, productNames, "  CHAMELEON ").map((profile) => profile.id)).toEqual([2]);
+    expect(filterSavedProfiles(profiles, productNames, "profile 3").map((profile) => profile.id)).toEqual([3]);
+    expect(filterSavedProfiles(profiles, productNames, "")).toBe(profiles);
   });
 });
 

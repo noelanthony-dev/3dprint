@@ -4,6 +4,7 @@ import {
   calculateSaleTotals,
   filterSalesByPeriod,
   getSalesChannelSummaries,
+  getSalesProductUnitSummaries,
   getSaleStockReconciliationQuantity,
   getSaleStockStatus,
   getSaleStockWarning,
@@ -42,17 +43,44 @@ describe("sales totals", () => {
       { channel: "Flora" as const, saleDate: "2026-08-15" },
     ];
 
-    expect(filterSalesByPeriod(sales, "lifetime", "2026-08")).toBe(sales);
-    expect(filterSalesByPeriod(sales, "monthly", "2026-08")).toEqual([
+    expect(filterSalesByPeriod(sales, "lifetime", "2026-08", "2026-08-15")).toBe(sales);
+    expect(filterSalesByPeriod(sales, "monthly", "2026-08", "2026-08-15")).toEqual([
       sales[1],
       sales[2],
     ]);
+    expect(filterSalesByPeriod(sales, "daily", "2026-08", "2026-08-15")).toEqual([
+      sales[2],
+    ]);
     expect(
-      filterSalesByPeriod(sales, "monthly", "2026-08")
+      filterSalesByPeriod(sales, "daily", "2026-08", "2026-08-01")
         .filter((sale) => sale.channel === "Sincerely"),
     ).toEqual([sales[1]]);
     expect(filterSalesByPeriod(sales, "monthly", "2030-01")).toEqual([]);
     expect(filterSalesByPeriod(sales, "monthly", "invalid")).toEqual([]);
+    expect(filterSalesByPeriod(sales, "daily", "2026-08", "2026-02-29")).toEqual([]);
+    expect(filterSalesByPeriod(sales, "daily", "2026-08", "2030-01-01")).toEqual([]);
+  });
+
+  it("uses the exact same daily collection for branch summaries", () => {
+    const sales = [
+      { channel: "Sincerely" as const, netRevenue: 120, quantity: 2, saleDate: "2026-08-15" },
+      { channel: "Flora" as const, netRevenue: 80, quantity: 1, saleDate: "2026-08-15" },
+      { channel: "Sincerely" as const, netRevenue: 500, quantity: 5, saleDate: "2026-08-16" },
+    ];
+    const dailySales = filterSalesByPeriod(sales, "daily", "2026-08", "2026-08-15");
+    const summaries = getSalesChannelSummaries(dailySales);
+
+    expect(dailySales).toHaveLength(2);
+    expect(summaries.find((summary) => summary.channel === "Sincerely")).toMatchObject({
+      netRevenue: 120,
+      orderCount: 1,
+      unitsSold: 2,
+    });
+    expect(summaries.find((summary) => summary.channel === "Flora")).toMatchObject({
+      netRevenue: 80,
+      orderCount: 1,
+      unitsSold: 1,
+    });
   });
 
   it("does not produce a unit price for zero quantity", () => {
@@ -69,7 +97,40 @@ describe("sales totals", () => {
       { channel: "Sincerely", netRevenue: 395.5, orderCount: 2, unitsSold: 4 },
       { channel: "Dear Reader", netRevenue: 80, orderCount: 1, unitsSold: 2 },
       { channel: "Flora", netRevenue: 0, orderCount: 0, unitsSold: 0 },
+      { channel: "Angkong", netRevenue: 0, orderCount: 0, unitsSold: 0 },
       { channel: "Stomping", netRevenue: 0, orderCount: 0, unitsSold: 0 },
+    ]);
+  });
+
+  it("summarizes product units without combining different recorded sale units", () => {
+    const sales = [
+      { productReference: "Great Wave", quantity: 1, saleUnit: "piece" as const },
+      { productReference: "Great Wave", quantity: 2, saleUnit: "piece" as const },
+      { productReference: "Great Wave", quantity: 2, saleUnit: "set" as const },
+      { productReference: "Starry Night", quantity: 3, saleUnit: "piece" as const },
+      { productReference: "Aurora", quantity: 3, saleUnit: "bundle" as const },
+    ];
+
+    expect(getSalesProductUnitSummaries(sales)).toEqual([
+      { productReference: "Aurora", saleUnit: "bundle", unitsSold: 3 },
+      { productReference: "Great Wave", saleUnit: "piece", unitsSold: 3 },
+      { productReference: "Starry Night", saleUnit: "piece", unitsSold: 3 },
+      { productReference: "Great Wave", saleUnit: "set", unitsSold: 2 },
+    ]);
+    expect(getSalesProductUnitSummaries([])).toEqual([]);
+  });
+
+  it("composes period and channel filters before building product totals", () => {
+    const sales = [
+      { channel: "Sincerely" as const, productReference: "Great Wave", quantity: 2, saleDate: "2026-08-29", saleUnit: "piece" as const },
+      { channel: "Flora" as const, productReference: "Great Wave", quantity: 5, saleDate: "2026-08-29", saleUnit: "piece" as const },
+      { channel: "Sincerely" as const, productReference: "Starry Night", quantity: 4, saleDate: "2026-08-28", saleUnit: "piece" as const },
+    ];
+    const filteredSales = filterSalesByPeriod(sales, "daily", "2026-08", "2026-08-29")
+      .filter((sale) => sale.channel === "Sincerely");
+
+    expect(getSalesProductUnitSummaries(filteredSales)).toEqual([
+      { productReference: "Great Wave", saleUnit: "piece", unitsSold: 2 },
     ]);
   });
 });
@@ -82,6 +143,11 @@ describe("sales validation", () => {
     });
 
     expect(validateSaleInput({ ...saleInput, channel: "Stomping" })).toEqual({
+      errors: {},
+      valid: true,
+    });
+
+    expect(validateSaleInput({ ...saleInput, channel: "Angkong" })).toEqual({
       errors: {},
       valid: true,
     });

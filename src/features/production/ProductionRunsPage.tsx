@@ -38,6 +38,8 @@ import {
   type ProductionRunRecord,
 } from "@/domain/production";
 
+import { ProductionFilamentPicker } from "./ProductionFilamentPicker";
+
 interface RunFormState {
   readonly addOns: readonly RunAddOnFormState[];
   readonly expectedPieces: string;
@@ -106,9 +108,12 @@ export function ProductionRunsPage() {
   const [editingRun, setEditingRun] = useState<ProductionRunRecord | null>(null);
   const [correctionForm, setCorrectionForm] = useState<AddOnCorrectionFormState>({ addOns: [], reason: "" });
   const [correctionHistory, setCorrectionHistory] = useState<ProductionAddOnCorrectionRecord[]>([]);
+  const [deletingRun, setDeletingRun] = useState<ProductionRunRecord | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [filaments, setFilaments] = useState<FilamentRecord[]>([]);
   const [form, setForm] = useState<RunFormState>(emptyForm);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isRunModalOpen, setIsRunModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [products, setProducts] = useState<ProductRecord[]>([]);
@@ -157,16 +162,6 @@ export function ProductionRunsPage() {
     () => new Map(profiles.map((profile) => [profile.id, profile.profileName] as const)),
     [profiles],
   );
-  const filamentNames = useMemo(
-    () =>
-      new Map(
-        filaments.map((filament) => [
-          filament.id,
-          `${filament.brand} ${filament.name} (${formatGramsLeft(filament.estimatedGramsLeft)})`,
-        ] as const),
-      ),
-    [filaments],
-  );
   const addOnNames = useMemo(
     () => new Map(addOns.map((addOn) => [addOn.id, addOn.itemName] as const)),
     [addOns],
@@ -192,16 +187,6 @@ export function ProductionRunsPage() {
   const deductionPlan = selectedProfile
     ? calculateProductionDeductionPlan(selectedProfile, input)
     : emptyPlan;
-  const suggestedFilaments = selectedProduct && productFilamentRequirements.length === 0
-    ? getSuggestedInventoryFilaments(
-        selectedProduct,
-        selectableFilamentsForRun,
-        deductionPlan.filamentGramsToDeduct,
-      )
-    : [];
-  const otherFilaments = selectableFilamentsForRun.filter(
-    (filament) => !suggestedFilaments.some((suggested) => suggested.id === filament.id),
-  );
 
   const totalGoodPieces = runs.reduce((sum, run) => sum + run.goodPieces, 0);
   const totalFailedPieces = runs.reduce((sum, run) => sum + run.failedPieces, 0);
@@ -355,6 +340,42 @@ export function ProductionRunsPage() {
     if (!isSaving) {
       setEditingRun(null);
       setCorrectionHistory([]);
+    }
+  }
+
+  function openDeleteModal(run: ProductionRunRecord): void {
+    setValidationMessage(null);
+    setError(null);
+    setDeleteError(null);
+    setDeletingRun(run);
+  }
+
+  function closeDeleteModal(): void {
+    if (!isDeleting) {
+      setDeletingRun(null);
+      setDeleteError(null);
+    }
+  }
+
+  async function handleDeleteRun(): Promise<void> {
+    if (!deletingRun) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    setError(null);
+
+    try {
+      const deletedRunId = deletingRun.id;
+      await productionRunsRepository.delete(deletedRunId);
+      setDeletingRun(null);
+      await loadProductionData();
+      setValidationMessage(
+        `Production run RUN-${deletedRunId} deleted. Its inventory movements and linked expense were reversed.`,
+      );
+    } catch (deleteRunError) {
+      setDeleteError(formatRepositoryError(deleteRunError));
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -512,8 +533,16 @@ export function ProductionRunsPage() {
                 {run.addOnCorrectionCount > 0 ? <Badge tone="warning">Corrected</Badge> : null}
               </span>,
               <span className="table-actions">
-                <button disabled={isSaving} onClick={() => void openCorrectionModal(run)} type="button">
+                <button disabled={isSaving || isDeleting} onClick={() => void openCorrectionModal(run)} type="button">
                   Correct Add-ons
+                </button>
+                <button
+                  data-tone="danger"
+                  disabled={isSaving || isDeleting}
+                  onClick={() => openDeleteModal(run)}
+                  type="button"
+                >
+                  Delete
                 </button>
               </span>,
             ])}
@@ -671,6 +700,93 @@ export function ProductionRunsPage() {
         </div>
       ) : null}
 
+      {deletingRun ? (
+        <div
+          className="modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeDeleteModal();
+          }}
+          role="presentation"
+        >
+          <section
+            aria-labelledby="production-delete-modal-title"
+            aria-modal="true"
+            className="modal production-delete-modal"
+            role="dialog"
+          >
+            <header className="modal__header">
+              <div className="modal__title-stack">
+                <h2 id="production-delete-modal-title">Delete Production Run</h2>
+                <span className="modal__position">RUN-{deletingRun.id}</span>
+              </div>
+              <button
+                aria-label="Close production run deletion"
+                disabled={isDeleting}
+                onClick={closeDeleteModal}
+                type="button"
+              >
+                x
+              </button>
+            </header>
+            <div className="modal__body side-stack">
+              <div className="callout callout--warning" role="alert">
+                <Badge tone="danger">Permanent deletion</Badge>
+                <p>
+                  Delete this misentered production run? The app will restore its filament and
+                  current add-ons, remove its {deletingRun.goodPieces} finished-good pieces, and
+                  delete its linked production expense in one transaction.
+                </p>
+              </div>
+              <div className="production-correction-locked">
+                <span>Product</span>
+                <strong>{productNames.get(deletingRun.productId) ?? `Product ${deletingRun.productId}`}</strong>
+                <span>Date</span>
+                <strong>{deletingRun.runDate}</strong>
+                <span>Yield</span>
+                <strong>{deletingRun.goodPieces} good / {deletingRun.failedPieces} failed</strong>
+                <span>Filament return</span>
+                <strong>{formatGramsLeft(deletingRun.filamentGramsDeducted)}</strong>
+                <span>Add-on return</span>
+                <strong>
+                  {deletingRun.addOnDeductions.length > 0
+                    ? deletingRun.addOnDeductions
+                        .map((deduction) =>
+                          `${formatQuantity(deduction.quantityDeducted, "")} ${addOnNames.get(deduction.addOnId) ?? "add-on"}`
+                        )
+                        .join(", ")
+                    : "--"}
+                </strong>
+              </div>
+              <p className="muted-copy">
+                For safety, deletion is refused if these finished goods have already been sold or
+                reserved, or if restoring inventory would create an invalid stock level. Nothing
+                changes when a safety check fails.
+              </p>
+              {deleteError ? (
+                <div className="callout callout--warning" role="alert">
+                  <Badge tone="warning">Not deleted</Badge>
+                  <p>{deleteError}</p>
+                </div>
+              ) : null}
+              <div className="form-actions">
+                <ToolbarButton disabled={isDeleting} onClick={closeDeleteModal} type="button">
+                  Keep Run
+                </ToolbarButton>
+                <ToolbarButton
+                  isLoading={isDeleting}
+                  loadingLabel="Deleting"
+                  onClick={() => void handleDeleteRun()}
+                  tone="danger"
+                  type="button"
+                >
+                  Confirm Delete
+                </ToolbarButton>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {isRunModalOpen ? (
         <div className="modal-backdrop" onMouseDown={(event) => {
           if (event.target === event.currentTarget) {
@@ -731,22 +847,17 @@ export function ProductionRunsPage() {
                           {productFilamentRequirements.map((requirement, index) => (
                             <div className="production-deduction-list__item" key={`${requirement.brand}-${requirement.colorName}-${index}`}>
                               <span>{formatProductFilamentRequirement(requirement)}</span>
-                              <select
-                                aria-label={`Inventory stock for ${formatProductFilamentRequirement(requirement)}`}
-                                onChange={(event) => handleRequirementFilamentChange(index, event.target.value)}
-                                value={form.filamentSelections[String(index)] ?? ""}
-                              >
-                                <option value="">Choose inventory stock...</option>
-                                {getSuggestedInventoryFilamentsForRequirement(
+                              <ProductionFilamentPicker
+                                disabled={isSaving}
+                                filaments={getSuggestedInventoryFilamentsForRequirement(
                                   requirement,
                                   selectableFilamentsForRun,
                                   getScaledRequirementGrams(requirement, deductionPlan.attemptedPieces),
-                                ).map((filament) => (
-                                  <option key={filament.id} value={filament.id}>
-                                    {filamentNames.get(filament.id)}
-                                  </option>
-                                ))}
-                              </select>
+                                )}
+                                label={`Inventory stock for ${formatProductFilamentRequirement(requirement)}`}
+                                onChange={(value) => handleRequirementFilamentChange(index, value)}
+                                selectedFilament={filaments.find((filament) => String(filament.id) === form.filamentSelections[String(index)]) ?? null}
+                              />
                             </div>
                           ))}
                         </div>
@@ -757,25 +868,13 @@ export function ProductionRunsPage() {
                         tooltip="The print profile decides how many grams to deduct. This selects which local stock record loses those grams."
                         wide
                       >
-                        <select onChange={(event) => setFormValue("filamentId", event.target.value, setForm)} value={form.filamentId}>
-                          <option value="">Choose inventory stock...</option>
-                          {suggestedFilaments.length > 0 ? (
-                            <optgroup label="Suggested for selected product">
-                              {suggestedFilaments.map((filament) => (
-                                <option key={filament.id} value={filament.id}>
-                                  {filamentNames.get(filament.id)}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ) : null}
-                          <optgroup label={suggestedFilaments.length > 0 ? "Other stock" : "Available stock"}>
-                            {otherFilaments.map((filament) => (
-                              <option key={filament.id} value={filament.id}>
-                                {filamentNames.get(filament.id)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
+                        <ProductionFilamentPicker
+                          disabled={isSaving}
+                          filaments={selectableFilamentsForRun}
+                          label="Deduct from inventory"
+                          onChange={(value) => setFormValue("filamentId", value, setForm)}
+                          selectedFilament={selectedFilament}
+                        />
                       </FormField>
                     )}
                     <FormField label="Expected Pieces">

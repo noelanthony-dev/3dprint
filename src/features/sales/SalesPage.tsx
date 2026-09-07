@@ -27,13 +27,13 @@ import {
   type FinishedGoodRecord,
   type FinishedGoodSaleUnit,
 } from "@/domain/inventory";
-import { getNextMonth, getPreviousMonth } from "@/domain/reports";
 import {
   calculateSaleTotals,
   filterSalesByPeriod,
   getSaleStockReconciliationQuantity,
   getSaleStockWarning,
   getSalesChannelSummaries,
+  getSalesProductUnitSummaries,
   SALES_CHANNELS,
   validateSaleAgainstStock,
   validateSaleDetailsInput,
@@ -44,6 +44,24 @@ import {
   type SalesChannel,
   type SalesPeriodMode,
 } from "@/domain/sales";
+import {
+  formatDateLabel,
+  formatMonthLabel,
+  getLocalDateToken,
+  getLocalMonthToken,
+  getNextDate,
+  getNextMonth,
+  getPreviousDate,
+  getPreviousMonth,
+} from "@/domain/shared";
+import { exportSalesCsv } from "@/infrastructure/salesExport";
+
+import { buildSalesCsv, getSalesCsvFilename } from "./salesCsv";
+
+import {
+  buildProductSummaryRanking,
+  PRODUCT_SUMMARY_PREVIEW_LIMIT,
+} from "./productSummaryView";
 
 interface SaleFormState {
   readonly channel: SalesChannel;
@@ -72,7 +90,7 @@ const emptyForm: SaleFormState = {
   grossRevenue: "0",
   notes: "",
   quantity: "1",
-  saleDate: todayInputValue(),
+  saleDate: getLocalDateToken(),
 };
 
 const emptyEditForm: SaleEditFormState = {
@@ -80,12 +98,17 @@ const emptyEditForm: SaleEditFormState = {
   discountsFees: "0",
   grossRevenue: "0",
   notes: "",
-  saleDate: todayInputValue(),
+  saleDate: getLocalDateToken(),
 };
 
 export function SalesPage() {
   const [channelFilter, setChannelFilter] = useState<"All" | SalesChannel>("All");
+  const [date, setDate] = useState(getLocalDateToken());
   const [error, setError] = useState<string | null>(null);
+  const [csvExportStatus, setCsvExportStatus] = useState<{
+    readonly message: string;
+    readonly tone: "neutral" | "success" | "warning";
+  } | null>(null);
   const [editForm, setEditForm] = useState<SaleEditFormState>(emptyEditForm);
   const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
   const [editValidationMessage, setEditValidationMessage] = useState<string | null>(null);
@@ -95,12 +118,15 @@ export function SalesPage() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [isProductSummaryExpanded, setIsProductSummaryExpanded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [month, setMonth] = useState(currentMonthInputValue());
+  const [month, setMonth] = useState(getLocalMonthToken());
   const [periodMode, setPeriodMode] = useState<SalesPeriodMode>("lifetime");
   const [sales, setSales] = useState<SaleRecord[]>([]);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const saveInFlightRef = useRef(false);
+  const csvExportInFlightRef = useRef(false);
 
   async function loadSalesData(): Promise<void> {
     setIsLoading(true);
@@ -165,17 +191,63 @@ export function SalesPage() {
     grossRevenue: editInput.grossRevenue,
     quantity: editingSale?.quantity ?? 1,
   });
-  const periodSales = filterSalesByPeriod(sales, periodMode, month);
+  const periodSales = filterSalesByPeriod(sales, periodMode, month, date);
   const filteredSales = channelFilter === "All"
     ? periodSales
     : periodSales.filter((sale) => sale.channel === channelFilter);
   const channelSummaries = getSalesChannelSummaries(periodSales);
-  const periodLabel = periodMode === "lifetime" ? "Lifetime" : formatMonthLabel(month);
+  const productUnitSummaries = getSalesProductUnitSummaries(filteredSales);
+  const productSummaryRanking = buildProductSummaryRanking(
+    productUnitSummaries,
+    isProductSummaryExpanded,
+  );
+  const hasProductSummaryOverflow = productUnitSummaries.length > PRODUCT_SUMMARY_PREVIEW_LIMIT;
+  const periodLabel = periodMode === "lifetime"
+    ? "Lifetime"
+    : periodMode === "monthly"
+      ? formatMonthLabel(month)
+      : formatDateLabel(date);
 
   const grossRevenue = periodSales.reduce((sum, sale) => sum + sale.grossRevenue, 0);
   const netRevenue = periodSales.reduce((sum, sale) => sum + sale.netRevenue, 0);
   const unitsSold = periodSales.reduce((sum, sale) => sum + sale.quantity, 0);
   const averageOrder = periodSales.length > 0 ? netRevenue / periodSales.length : 0;
+
+  async function handleExportCsv(): Promise<void> {
+    if (csvExportInFlightRef.current || isLoading || isSaving || filteredSales.length === 0) {
+      return;
+    }
+
+    csvExportInFlightRef.current = true;
+    setIsExportingCsv(true);
+    setCsvExportStatus(null);
+
+    try {
+      // Freeze the displayed rows and scope before the user opens the save dialog.
+      const contents = buildSalesCsv(filteredSales);
+      const filename = getSalesCsvFilename({ periodMode, month, date, channel: channelFilter });
+      const count = filteredSales.length;
+      const scopeLabel = `${periodLabel} · ${channelFilter === "All" ? "All channels" : channelFilter}`;
+      const result = await exportSalesCsv(filename, contents);
+      setCsvExportStatus({
+        message: result.canceled
+          ? "CSV export canceled."
+          : `Exported ${count} ${count === 1 ? "sale" : "sales"} — ${scopeLabel}.`,
+        tone: result.canceled ? "neutral" : "success",
+      });
+    } catch (exportError) {
+      const message = exportError instanceof Error ? exportError.message : String(exportError);
+      setCsvExportStatus({
+        message: message.includes("invoke")
+          ? "CSV export requires the Tauri desktop app."
+          : `CSV could not be exported: ${message || "Unknown storage error."}`,
+        tone: "warning",
+      });
+    } finally {
+      csvExportInFlightRef.current = false;
+      setIsExportingCsv(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -214,7 +286,7 @@ export function SalesPage() {
         grossRevenue: "0",
         notes: "",
         quantity: "1",
-        saleDate: todayInputValue(),
+        saleDate: getLocalDateToken(),
       }));
     } catch (saveError) {
       setError(formatRepositoryError(saveError, "save"));
@@ -369,6 +441,7 @@ export function SalesPage() {
             options={[
               { active: periodMode === "lifetime", label: "Lifetime", value: "lifetime" },
               { active: periodMode === "monthly", label: "Monthly", value: "monthly" },
+              { active: periodMode === "daily", label: "Daily", value: "daily" },
             ]}
           />
         </div>
@@ -383,7 +456,7 @@ export function SalesPage() {
               <input
                 aria-label="Sales month"
                 className="table-input"
-                onChange={(event) => setMonth(event.target.value || currentMonthInputValue())}
+                onChange={(event) => setMonth(event.target.value || getLocalMonthToken())}
                 type="month"
                 value={month}
               />
@@ -392,26 +465,53 @@ export function SalesPage() {
               Next →
             </ToolbarButton>
             <ToolbarButton
-              disabled={month === currentMonthInputValue()}
-              onClick={() => setMonth(currentMonthInputValue())}
+              disabled={month === getLocalMonthToken()}
+              onClick={() => setMonth(getLocalMonthToken())}
               tone="ghost"
             >
               Current Month
             </ToolbarButton>
           </div>
+        ) : periodMode === "daily" ? (
+          <div className="report-date-controls">
+            <ToolbarButton onClick={() => setDate(getPreviousDate(date))}>
+              ← Previous Day
+            </ToolbarButton>
+            <label className="report-date-input">
+              <span>Selected date</span>
+              <strong>{formatDateLabel(date)}</strong>
+              <input
+                aria-label="Sales date"
+                className="table-input"
+                onChange={(event) => setDate(event.target.value || getLocalDateToken())}
+                type="date"
+                value={date}
+              />
+            </label>
+            <ToolbarButton onClick={() => setDate(getNextDate(date))}>
+              Next Day →
+            </ToolbarButton>
+            <ToolbarButton
+              disabled={date === getLocalDateToken()}
+              onClick={() => setDate(getLocalDateToken())}
+              tone="ghost"
+            >
+              Today
+            </ToolbarButton>
+          </div>
         ) : (
           <div className="report-lifetime-note">
             <Badge tone="success">All recorded sales</Badge>
-            <span>Switch to Monthly to review one month.</span>
+            <span>Switch to Monthly or Daily for a narrower view.</span>
           </div>
         )}
       </div>
 
       <div className="metric-grid">
         <MetricPanel detail={`${periodLabel} · all channels`} label="Gross Revenue" value={formatCurrency(grossRevenue)} />
-        <MetricPanel detail="gross less discounts/fees" label="Net Revenue" tone="success" value={formatCurrency(netRevenue)} />
-        <MetricPanel detail="quantity sold" label="Units Sold" value={isLoading ? "..." : String(unitsSold)} />
-        <MetricPanel detail="net per order" label="Avg Order" value={formatCurrency(averageOrder)} />
+        <MetricPanel detail={`${periodLabel} · gross less discounts/fees`} label="Net Revenue" tone="success" value={formatCurrency(netRevenue)} />
+        <MetricPanel detail={`${periodLabel} · quantity sold`} label="Units Sold" value={isLoading ? "..." : String(unitsSold)} />
+        <MetricPanel detail={`${periodLabel} · net per order`} label="Avg Order" value={formatCurrency(averageOrder)} />
       </div>
 
       <Panel actions={<Badge>{periodLabel}</Badge>} title="Net Sales by Branch / Channel">
@@ -428,20 +528,135 @@ export function SalesPage() {
         </div>
       </Panel>
 
-      <Panel title="Transaction Overview">
-        <div className="sales-filter-bar">
-          <SegmentedFilter
-            label="Channels"
-            onChange={(value) => setChannelFilter(value as "All" | SalesChannel)}
-            options={[
-              { active: channelFilter === "All", label: "All" },
-              ...SALES_CHANNELS.map((channel) => ({
-                active: channelFilter === channel,
-                label: channel,
-              })),
-            ]}
-          />
+      <div className="analytics-filter-bar sales-details-toolbar">
+        <span>Detail channel</span>
+        <SegmentedFilter
+          label="Detail channel"
+          onChange={(value) => setChannelFilter(value as "All" | SalesChannel)}
+          options={[
+            { active: channelFilter === "All", label: "All" },
+            ...SALES_CHANNELS.map((channel) => ({
+              active: channelFilter === channel,
+              label: channel,
+            })),
+          ]}
+        />
+        <ToolbarButton
+          disabled={isLoading || isSaving || filteredSales.length === 0}
+          isLoading={isExportingCsv}
+          loadingLabel="Exporting CSV"
+          onClick={() => void handleExportCsv()}
+        >
+          Export CSV
+        </ToolbarButton>
+      </div>
+
+      {csvExportStatus ? (
+        <div
+          className={csvExportStatus.tone === "warning" ? "callout callout--warning" : "callout"}
+          role="status"
+        >
+          <Badge tone={csvExportStatus.tone}>CSV Export</Badge>
+          <p>{csvExportStatus.message}</p>
         </div>
+      ) : null}
+
+      <Panel
+        actions={
+          <>
+            <Badge>{periodLabel}</Badge>
+            <Badge>{channelFilter === "All" ? "All channels" : channelFilter}</Badge>
+          </>
+        }
+        title="Units Sold by Product"
+      >
+        {productSummaryRanking.length === 0 ? (
+          <div className="empty-state">
+            <p>
+              No {channelFilter === "All" ? "" : `${channelFilter} `}products sold for {periodLabel}.
+            </p>
+          </div>
+        ) : (
+          <div className="sales-product-ranking">
+            <p className="sales-product-ranking__intro">
+              Ranked by units sold. Each bar compares that product with the current #1 result.
+            </p>
+            <ol className="sales-product-ranking__list" role="list">
+              {productSummaryRanking.map((summary) => {
+                const formattedQuantity = formatFinishedGoodsQuantity(
+                  summary.unitsSold,
+                  summary.saleUnit,
+                );
+
+                return (
+                  <li
+                    className="sales-product-ranking__row"
+                    key={`${summary.productReference}-${summary.saleUnit}`}
+                  >
+                    <span
+                      className="sales-product-ranking__rank"
+                      data-leading={summary.rank === 1 ? "true" : "false"}
+                    >
+                      #{summary.rank}
+                    </span>
+                    <div className="sales-product-ranking__product">
+                      <div className="sales-product-ranking__name">
+                        <strong>{summary.productReference}</strong>
+                        <Badge>{summary.saleUnit}</Badge>
+                      </div>
+                      <span
+                        aria-label={`${summary.productReference}: ${formattedQuantity} sold, ${summary.relativePercent}% of the leading product`}
+                        aria-valuemax={100}
+                        aria-valuemin={0}
+                        aria-valuenow={summary.relativePercent}
+                        className="sales-product-ranking__track"
+                        role="progressbar"
+                      >
+                        <span
+                          className="sales-product-ranking__fill"
+                          style={{ width: `${summary.relativePercent}%` }}
+                        />
+                      </span>
+                    </div>
+                    <div className="sales-product-ranking__quantity">
+                      <strong>{formattedQuantity}</strong>
+                      <span>sold</span>
+                    </div>
+                  </li>
+                );
+              })}
+            </ol>
+            <div className="sales-product-ranking__footer">
+              <span>
+                {hasProductSummaryOverflow && !isProductSummaryExpanded
+                  ? `Showing top ${PRODUCT_SUMMARY_PREVIEW_LIMIT} of ${productUnitSummaries.length} products.`
+                  : `Showing all ${productUnitSummaries.length} ${productUnitSummaries.length === 1 ? "product" : "products"}.`}
+              </span>
+              {hasProductSummaryOverflow ? (
+                <ToolbarButton
+                  ariaExpanded={isProductSummaryExpanded}
+                  onClick={() => setIsProductSummaryExpanded((current) => !current)}
+                  tone="ghost"
+                >
+                  {isProductSummaryExpanded
+                    ? `Show top ${PRODUCT_SUMMARY_PREVIEW_LIMIT}`
+                    : `Show all ${productUnitSummaries.length} products`}
+                </ToolbarButton>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </Panel>
+
+      <Panel
+        actions={
+          <>
+            <Badge>{periodLabel}</Badge>
+            <Badge>{channelFilter === "All" ? "All channels" : channelFilter}</Badge>
+          </>
+        }
+        title="Transaction Overview"
+      >
         <DataTable
           columns={["Date", "Product", "Channel", "Qty", "Gross", "Net", "Stock", "Actions"]}
           columnsTemplate="0.68fr minmax(150px, 1.35fr) 0.65fr 0.42fr 0.58fr 0.58fr 0.5fr 0.42fr"
@@ -990,31 +1205,6 @@ function toInteger(value: string): number {
 
 function toNumber(value: string): number {
   return Number(value.trim() || "0");
-}
-
-function todayInputValue(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function currentMonthInputValue(): string {
-  const date = new Date();
-
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(month: string): string {
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return month;
-  }
-
-  const year = Number(month.slice(0, 4));
-  const monthNumber = Number(month.slice(5, 7));
-
-  return new Intl.DateTimeFormat("en-PH", {
-    month: "long",
-    timeZone: "UTC",
-    year: "numeric",
-  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
 }
 
 function formatCurrency(value: number): string {

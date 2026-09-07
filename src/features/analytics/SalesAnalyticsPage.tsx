@@ -20,6 +20,7 @@ import { salesRepository } from "@/data/repositories";
 import {
   buildBusinessPerformanceComparison,
   buildSalesAnalytics,
+  buildSalesTrend,
   getBusinessRevenueBarPercent,
   listSalesAnalyticsMonths,
   type BusinessPerformance,
@@ -27,6 +28,7 @@ import {
   type ProductSalesPerformance,
   type SalesAnalyticsBusiness,
   type SalesAnalyticsPeriod,
+  type SalesTrendView,
 } from "@/domain/reports";
 import {
   SALES_CHANNELS,
@@ -48,6 +50,7 @@ export function SalesAnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<SalesAnalyticsPeriod>("all");
   const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [trendView, setTrendView] = useState<SalesTrendView>("month");
   const today = useMemo(todayInputValue, []);
 
   async function loadAnalytics(): Promise<void> {
@@ -93,6 +96,16 @@ export function SalesAnalyticsPage() {
     }),
     [period, sales, today],
   );
+  const trend = useMemo(
+    () => buildSalesTrend({
+      business,
+      period,
+      sales,
+      today,
+      view: trendView,
+    }),
+    [business, period, sales, today, trendView],
+  );
 
   return (
     <Page
@@ -118,7 +131,7 @@ export function SalesAnalyticsPage() {
           </ToolbarButton>
         </>
       }
-      description="Review daily net revenue and product performance across all recorded sales or one month."
+      description="Review weekly, 14-day, and monthly net revenue trends alongside product and business performance."
       meta={["On-demand analytics", "SQLite source data", "Net revenue trend"]}
       title="Sales Analytics"
     >
@@ -155,19 +168,43 @@ export function SalesAnalyticsPage() {
         <Panel
           actions={
             <Badge tone="success">
-              {formatCurrency(analytics.totalNetRevenue)}
+              {formatCurrency(trend.totalNetRevenue)}
             </Badge>
           }
-          title="Daily Sales Trend"
+          title="Sales Trend"
         >
+          <div className="analytics-trend-controls">
+            <span>View</span>
+            <SegmentedFilter
+              label="Sales trend view"
+              onChange={(value) => setTrendView(value as SalesTrendView)}
+              options={[
+                {
+                  active: trendView === "week",
+                  label: "Weekly",
+                  value: "week",
+                },
+                {
+                  active: trendView === "14-days",
+                  label: "14 Days",
+                  value: "14-days",
+                },
+                {
+                  active: trendView === "month",
+                  label: "Monthly",
+                  value: "month",
+                },
+              ]}
+            />
+          </div>
           {isLoading ? (
             <AnalyticsState label="Loading sales trend..." />
-          ) : analytics.matchingSaleCount === 0 ? (
-            <AnalyticsState label="No sales match the selected period and business." />
+          ) : trend.matchingSaleCount === 0 ? (
+            <AnalyticsState label="No sales match the selected trend range and business." />
           ) : (
             <SalesTrendChart
               business={business}
-              points={analytics.dailySalesTrend}
+              points={trend.dailySalesTrend}
             />
           )}
         </Panel>

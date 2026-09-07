@@ -982,7 +982,7 @@ fn validate_sale_details(input: &UpdateSaleDetailsInput) -> Result<(), String> {
         || input.sale_date.trim().is_empty()
         || !matches!(
             input.channel.as_str(),
-            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Stomping"
+            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Angkong" | "Stomping"
         )
         || !input.gross_revenue.is_finite()
         || !input.discounts_fees.is_finite()
@@ -1175,7 +1175,7 @@ mod tests {
         let input = UpdateSaleDetailsInput {
             sale_id: 1,
             sale_date: "2026-07-09".into(),
-            channel: "Stomping".into(),
+            channel: "Angkong".into(),
             gross_revenue: 150.0,
             discounts_fees: 10.0,
             net_revenue: 140.0,
@@ -1201,7 +1201,7 @@ mod tests {
 
         assert_eq!(
             sale,
-            ("2026-07-09".into(), "Stomping".into(), 150.0, 140.0, 3, 2)
+            ("2026-07-09".into(), "Angkong".into(), 150.0, 140.0, 3, 2)
         );
         assert_eq!(movement, (-1, 3, 2));
     }

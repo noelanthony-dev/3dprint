@@ -5,6 +5,7 @@ import type { ProductionRunRecord } from "@/domain/production";
 import type { SaleRecord } from "@/domain/sales";
 
 import {
+  buildDailyReport,
   buildLifetimeReport,
   buildMonthlyReport,
   buildProductionSummary,
@@ -136,6 +137,46 @@ describe("monthly reports", () => {
     });
     expect(report.expenseSummary.totalExpenses).toBe(77);
     expect(report.productionSummary.runCount).toBe(2);
+  });
+
+  it("builds a factual daily report from exact-date records", () => {
+    const report = buildDailyReport({
+      date: "2026-07-02",
+      expenses: [
+        expense,
+        { ...expense, amount: 60, expenseDate: "2026-07-03", id: 2 },
+        { ...expense, amount: 15, id: 3, recurrence: "monthly" },
+      ],
+      memberships: [membership],
+      productionRuns: [productionRun, { ...productionRun, id: 2, runDate: "2026-07-03" }],
+      sales: [sale, { ...sale, id: 2, netRevenue: 500, saleDate: "2026-07-03" }],
+    });
+
+    expect(report.month).toBe("2026-07-02");
+    expect(report.salesSummary).toMatchObject({ netRevenue: 95, orderCount: 1, unitsSold: 2 });
+    expect(report.expenseSummary).toMatchObject({
+      expenseTotal: 40,
+      membershipTotal: 0,
+      recurringMonthlyTotal: 15,
+      totalExpenses: 40,
+    });
+    expect(report.productionSummary.runCount).toBe(1);
+    expect(report.profitSummary.simpleProfit).toBe(55);
+  });
+
+  it("returns an empty daily report for an invalid or unmatched date", () => {
+    const report = buildDailyReport({
+      date: "2026-02-29",
+      expenses: [expense],
+      memberships: [membership],
+      productionRuns: [productionRun],
+      sales: [sale],
+    });
+
+    expect(report.salesSummary.netRevenue).toBe(0);
+    expect(report.expenseSummary.totalExpenses).toBe(0);
+    expect(report.productionSummary.runCount).toBe(0);
+    expect(report.recentTransactions).toEqual([]);
   });
 
   it("builds channel, product, and expense breakdowns", () => {

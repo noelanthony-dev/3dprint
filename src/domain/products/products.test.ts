@@ -8,6 +8,8 @@ import {
   getFilamentProfileInputsFromProductFilaments,
   isLicenseBillingInterval,
   isProductSaleUnit,
+  normalizeProductBusinesses,
+  normalizeProductBusinessSelection,
   normalizeProductCategories,
   validateProductInput,
   type ProductInput,
@@ -62,6 +64,12 @@ describe("product design helpers", () => {
     ]);
   });
 
+  it("normalizes configurable businesses and product selections", () => {
+    expect(normalizeProductBusinesses([" Weekend Market ", "weekend market", "Online Shop"]))
+      .toEqual(["Weekend Market", "Online Shop"]);
+    expect(normalizeProductBusinessSelection([])).toEqual([]);
+  });
+
   it("validates supported product sale units", () => {
     expect(isProductSaleUnit("piece")).toBe(true);
     expect(isProductSaleUnit("bundle")).toBe(true);
@@ -114,6 +122,30 @@ describe("product design helpers", () => {
         category: "Keychains",
       }).valid,
     ).toBe(true);
+  });
+
+  it("accepts configurable business names without a code allowlist", () => {
+    expect(
+      validateProductInput({
+        ...validInput,
+        businesses: ["Weekend Market", "Online Shop"],
+      }).valid,
+    ).toBe(true);
+  });
+
+  it("rejects duplicate or invalid business names", () => {
+    expect(
+      validateProductInput({
+        ...validInput,
+        businesses: ["Weekend Market", "weekend market"],
+      }).errors.businesses,
+    ).toBeDefined();
+    expect(
+      validateProductInput({
+        ...validInput,
+        businesses: [""],
+      }).errors.businesses,
+    ).toBeDefined();
   });
 
   it("accepts optional non-negative decimal print hours", () => {

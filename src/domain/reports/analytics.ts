@@ -6,6 +6,7 @@ import {
 
 export type SalesAnalyticsPeriod = "all" | `${number}-${number}`;
 export type SalesAnalyticsBusiness = "all" | SalesChannel;
+export type SalesTrendView = "week" | "14-days" | "month";
 
 export interface DailySalesPoint {
   readonly date: string;
@@ -49,6 +50,20 @@ export interface SalesAnalytics {
   readonly totalUnitsSold: number;
 }
 
+export interface SalesTrendInput {
+  readonly business: SalesAnalyticsBusiness;
+  readonly period: SalesAnalyticsPeriod;
+  readonly sales: readonly SaleRecord[];
+  readonly today: string;
+  readonly view: SalesTrendView;
+}
+
+export interface SalesTrend {
+  readonly dailySalesTrend: readonly DailySalesPoint[];
+  readonly matchingSaleCount: number;
+  readonly totalNetRevenue: number;
+}
+
 export function buildSalesAnalytics(input: SalesAnalyticsInput): SalesAnalytics {
   const datedSales = input.sales.filter((sale) => isIsoDate(sale.saleDate));
   const periodSales = input.period === "all"
@@ -82,6 +97,48 @@ export function buildSalesAnalytics(input: SalesAnalyticsInput): SalesAnalytics 
       matchingSales.reduce((total, sale) => total + sale.netRevenue, 0),
     ),
     totalUnitsSold: matchingSales.reduce((total, sale) => total + sale.quantity, 0),
+  };
+}
+
+export function buildSalesTrend(input: SalesTrendInput): SalesTrend {
+  const datedSales = input.sales.filter((sale) => isIsoDate(sale.saleDate));
+  const periodSales = input.period === "all"
+    ? datedSales
+    : datedSales.filter((sale) => sale.saleDate.startsWith(input.period));
+  const matchingSales = input.business === "all"
+    ? periodSales
+    : periodSales.filter((sale) => sale.channel === input.business);
+  const dateRange = getSalesTrendDateRange(input.period, input.today, input.view);
+
+  if (!dateRange) {
+    return {
+      dailySalesTrend: [],
+      matchingSaleCount: 0,
+      totalNetRevenue: 0,
+    };
+  }
+
+  const trendSales = matchingSales.filter(
+    (sale) => sale.saleDate >= dateRange.start && sale.saleDate <= dateRange.end,
+  );
+  const dailyTotals = new Map<string, number>();
+
+  for (const sale of trendSales) {
+    dailyTotals.set(
+      sale.saleDate,
+      (dailyTotals.get(sale.saleDate) ?? 0) + sale.netRevenue,
+    );
+  }
+
+  return {
+    dailySalesTrend: enumerateDates(dateRange.start, dateRange.end).map((date) => ({
+      date,
+      netRevenue: roundAnalyticsMoney(dailyTotals.get(date) ?? 0),
+    })),
+    matchingSaleCount: trendSales.length,
+    totalNetRevenue: roundAnalyticsMoney(
+      trendSales.reduce((total, sale) => total + sale.netRevenue, 0),
+    ),
   };
 }
 
@@ -242,6 +299,39 @@ function getAnalyticsDateRange(
   };
 }
 
+function getSalesTrendDateRange(
+  period: SalesAnalyticsPeriod,
+  today: string,
+  view: SalesTrendView,
+): { readonly end: string; readonly start: string } | null {
+  if (!isIsoDate(today) || (period !== "all" && !isIsoMonth(period))) {
+    return null;
+  }
+
+  const end = period === "all"
+    ? today
+    : today.slice(0, 7) === period
+      ? today
+      : getIsoMonthEnd(period);
+  const month = period === "all" ? end.slice(0, 7) : period;
+
+  if (view === "month") {
+    return {
+      end,
+      start: `${month}-01`,
+    };
+  }
+
+  const days = view === "week" ? 7 : 14;
+  const calculatedStart = addDays(end, -(days - 1));
+  const monthStart = `${month}-01`;
+
+  return {
+    end,
+    start: calculatedStart < monthStart ? monthStart : calculatedStart,
+  };
+}
+
 function filterSalesForComparisonPeriod(
   sales: readonly SaleRecord[],
   period: SalesAnalyticsPeriod,
@@ -334,6 +424,17 @@ function enumerateDates(start: string, end: string): readonly string[] {
   }
 
   return dates;
+}
+
+function addDays(value: string, days: number): string {
+  const date = parseIsoDate(value);
+
+  if (!date) {
+    return value;
+  }
+
+  date.setUTCDate(date.getUTCDate() + days);
+  return formatIsoDate(date);
 }
 
 function isIsoMonth(value: string): value is `${number}-${number}` {

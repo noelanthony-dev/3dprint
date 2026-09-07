@@ -102,8 +102,35 @@ export interface UpdateSaleDetailsCommand {
   readonly saleId: number;
 }
 
+export interface SavePrintPlanCommand {
+  readonly algorithmVersion: number;
+  readonly historyDays: number;
+  readonly items: readonly {
+    readonly businessId: string;
+    readonly businessName: string;
+    readonly daysOfStock: number | null;
+    readonly inventoryCount: number;
+    readonly productId: number | null;
+    readonly productName: string;
+    readonly recommendedQuantity: number;
+    readonly saleUnit: string;
+    readonly status: string;
+    readonly targetQuantity: number;
+    readonly unitsSold: number;
+  }[];
+  readonly planDate: string;
+  readonly targetDays: number;
+  readonly warnings: readonly string[];
+  readonly windowEnd: string;
+  readonly windowStart: string;
+}
+
 export interface DeleteSaleCommand {
   readonly saleId: number;
+}
+
+export interface DeleteProductionRunCommand {
+  readonly productionRunId: number;
 }
 
 export interface CorrectProductionRunAddOnsCommand {
@@ -153,6 +180,11 @@ export async function saveShoppingItemNative(input: SaveShoppingItemCommand): Pr
   return result.id;
 }
 
+export async function savePrintPlanNative(input: SavePrintPlanCommand): Promise<number> {
+  const result = await invoke<RecordIdOutput>("save_print_plan", { input });
+  return result.id;
+}
+
 export function deleteShoppingItemNative(id: number): Promise<void> {
   return invoke("delete_shopping_item", { id });
 }
@@ -167,6 +199,10 @@ export function updateSaleDetailsNative(input: UpdateSaleDetailsCommand): Promis
 
 export function deleteSaleNative(input: DeleteSaleCommand): Promise<void> {
   return invoke("delete_sale", { input });
+}
+
+export function deleteProductionRunNative(input: DeleteProductionRunCommand): Promise<void> {
+  return invoke("delete_production_run", { input });
 }
 
 export function correctProductionRunAddOnsNative(

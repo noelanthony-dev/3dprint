@@ -8,6 +8,7 @@ export const primaryNavigationRouteIds = [
   "inventory",
   "costing",
   "production",
+  "print-planner",
   "sales",
   "analytics",
   "expenses",

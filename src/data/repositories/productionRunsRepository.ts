@@ -1,4 +1,5 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
+import { deleteProductionRunNative } from "@/data/db/nativeWorkflows";
 import {
   type ProductionAddOnAllocationRecord,
   type ProductionAddOnCorrectionItemRecord,
@@ -9,6 +10,7 @@ import {
 } from "@/domain/production";
 
 export interface ProductionRunsRepository {
+  delete(id: number): Promise<void>;
   get(id: number): Promise<ProductionRunRecord | null>;
   list(): Promise<ProductionRunRecord[]>;
   listAddOnCorrections(productionRunId: number): Promise<ProductionAddOnCorrectionRecord[]>;
@@ -83,6 +85,7 @@ interface ProductionAddOnDeductionRow {
 }
 
 type DatabaseFactory = () => Promise<SqlDatabase>;
+type NativeProductionRunDeleter = (input: { readonly productionRunId: number }) => Promise<void>;
 
 const PRODUCTION_RUN_COLUMNS = `
   id,
@@ -129,12 +132,21 @@ const PRODUCTION_ADDON_DEDUCTION_COLUMNS = `
 
 export function createProductionRunsRepository(
   databaseFactory: DatabaseFactory = getDatabase,
+  nativeDeleter: NativeProductionRunDeleter = deleteProductionRunNative,
 ): ProductionRunsRepository {
   async function database(): Promise<SqlDatabase> {
     return databaseFactory();
   }
 
   return {
+    async delete(id) {
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new Error("Choose a valid production run.");
+      }
+      await database();
+      await nativeDeleter({ productionRunId: id });
+    },
+
     async get(id) {
       const db = await database();
       const rows = await db.select<ProductionRunRow[]>(

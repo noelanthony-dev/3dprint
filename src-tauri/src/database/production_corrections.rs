@@ -29,6 +29,12 @@ pub(crate) struct CorrectProductionRunAddOnsOutput {
     correction_id: i64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct DeleteProductionRunInput {
+    production_run_id: i64,
+}
+
 #[tauri::command]
 pub(crate) async fn correct_production_run_addons(
     state: State<'_, DatabaseState>,
@@ -41,6 +47,300 @@ pub(crate) async fn correct_production_run_addons(
         .ok_or_else(|| "The database connection is not available.".to_string())?;
 
     correct_production_run_addons_on_connection(connection, &input).await
+}
+
+#[tauri::command]
+pub(crate) async fn delete_production_run(
+    state: State<'_, DatabaseState>,
+    input: DeleteProductionRunInput,
+) -> Result<(), String> {
+    if input.production_run_id <= 0 {
+        return Err("Choose a valid production run.".into());
+    }
+
+    let mut runtime = state.lock().await?;
+    let connection = runtime
+        .connection
+        .as_mut()
+        .ok_or_else(|| "The database connection is not available.".to_string())?;
+
+    delete_production_run_on_connection(connection, input.production_run_id).await
+}
+
+pub(crate) async fn delete_production_run_on_connection(
+    connection: &mut SqliteConnection,
+    production_run_id: i64,
+) -> Result<(), String> {
+    if production_run_id <= 0 {
+        return Err("Choose a valid production run.".into());
+    }
+
+    let mut transaction = connection.begin().await.map_err(super::map_sqlx_error)?;
+    let run = sqlx::query(
+        "SELECT run.filament_id, run.filament_grams_deducted, run.addon_id, \
+                run.addon_quantity_deducted, run.finished_good_id, run.good_pieces, \
+                run.run_date, product.design_name \
+         FROM production_runs AS run \
+         JOIN products AS product ON product.id = run.product_id \
+         WHERE run.id = $1 LIMIT 1",
+    )
+    .bind(production_run_id)
+    .fetch_optional(&mut *transaction)
+    .await
+    .map_err(super::map_sqlx_error)?
+    .ok_or_else(|| format!("Production run {production_run_id} does not exist."))?;
+
+    let primary_filament_id: i64 = run.try_get("filament_id").map_err(super::map_sqlx_error)?;
+    let summary_filament_grams: f64 = run
+        .try_get("filament_grams_deducted")
+        .map_err(super::map_sqlx_error)?;
+    let primary_add_on_id: Option<i64> = run.try_get("addon_id").map_err(super::map_sqlx_error)?;
+    let summary_add_on_quantity: f64 = run
+        .try_get("addon_quantity_deducted")
+        .map_err(super::map_sqlx_error)?;
+    let finished_good_id: Option<i64> = run
+        .try_get("finished_good_id")
+        .map_err(super::map_sqlx_error)?;
+    let good_pieces: i64 = run.try_get("good_pieces").map_err(super::map_sqlx_error)?;
+    let run_date: String = run.try_get("run_date").map_err(super::map_sqlx_error)?;
+    let product_name: String = run.try_get("design_name").map_err(super::map_sqlx_error)?;
+    let note = format!(
+        "Reversed inventory after deleting misentered RUN-{production_run_id} for {product_name} ({run_date})."
+    );
+
+    let mut filament_returns: Vec<(i64, f64)> = sqlx::query_as(
+        "SELECT filament_id, SUM(grams_deducted) \
+         FROM production_run_filaments WHERE production_run_id = $1 \
+         GROUP BY filament_id ORDER BY filament_id",
+    )
+    .bind(production_run_id)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(super::map_sqlx_error)?;
+    if filament_returns.is_empty() && summary_filament_grams > QUANTITY_EPSILON {
+        filament_returns.push((primary_filament_id, summary_filament_grams));
+    }
+
+    for (filament_id, grams_to_return) in filament_returns {
+        let filament = sqlx::query(
+            "SELECT estimated_grams_left, starting_grams, spool_status \
+             FROM filaments WHERE id = $1 LIMIT 1",
+        )
+        .bind(filament_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?
+        .ok_or_else(|| {
+            format!("Filament {filament_id} no longer exists. The production run was not deleted.")
+        })?;
+        let grams_before: f64 = filament
+            .try_get("estimated_grams_left")
+            .map_err(super::map_sqlx_error)?;
+        let starting_grams: f64 = filament
+            .try_get("starting_grams")
+            .map_err(super::map_sqlx_error)?;
+        let spool_status: String = filament
+            .try_get("spool_status")
+            .map_err(super::map_sqlx_error)?;
+        let grams_after = grams_before + grams_to_return;
+
+        if grams_after > starting_grams + QUANTITY_EPSILON {
+            return Err(format!(
+                "Deleting this run would restore filament {filament_id} above its starting capacity. Correct that spool's stock first."
+            ));
+        }
+
+        let restored_status = if spool_status == "empty" {
+            "open"
+        } else {
+            &spool_status
+        };
+        let result = sqlx::query(
+            "UPDATE filaments SET estimated_grams_left = $1, spool_status = $2, updated_at = datetime('now') \
+             WHERE id = $3 AND ABS(estimated_grams_left - $4) < 0.000001",
+        )
+        .bind(grams_after.min(starting_grams))
+        .bind(restored_status)
+        .bind(filament_id)
+        .bind(grams_before)
+        .execute(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err(
+                "Filament stock changed before the production run could be deleted.".into(),
+            );
+        }
+
+        if grams_to_return > QUANTITY_EPSILON {
+            sqlx::query(
+                "INSERT INTO filament_stock_adjustments \
+                 (filament_id, grams_delta, grams_after, reason, notes) \
+                 VALUES ($1, $2, $3, 'production run deletion', $4)",
+            )
+            .bind(filament_id)
+            .bind(grams_to_return)
+            .bind(grams_after.min(starting_grams))
+            .bind(&note)
+            .execute(&mut *transaction)
+            .await
+            .map_err(super::map_sqlx_error)?;
+        }
+    }
+
+    let mut add_on_returns: Vec<(i64, f64)> = sqlx::query_as(
+        "SELECT addon_id, SUM(quantity_deducted) \
+         FROM production_run_addon_allocations WHERE production_run_id = $1 \
+         GROUP BY addon_id ORDER BY addon_id",
+    )
+    .bind(production_run_id)
+    .fetch_all(&mut *transaction)
+    .await
+    .map_err(super::map_sqlx_error)?;
+    if add_on_returns.is_empty() {
+        let correction_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM production_run_corrections WHERE production_run_id = $1",
+        )
+        .bind(production_run_id)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+        if correction_count == 0 {
+            add_on_returns = sqlx::query_as(
+                "SELECT addon_id, SUM(quantity_deducted) \
+                 FROM production_run_addons WHERE production_run_id = $1 \
+                 GROUP BY addon_id ORDER BY addon_id",
+            )
+            .bind(production_run_id)
+            .fetch_all(&mut *transaction)
+            .await
+            .map_err(super::map_sqlx_error)?;
+            if add_on_returns.is_empty() && summary_add_on_quantity > QUANTITY_EPSILON {
+                if let Some(add_on_id) = primary_add_on_id {
+                    add_on_returns.push((add_on_id, summary_add_on_quantity));
+                }
+            }
+        }
+    }
+
+    for (add_on_id, quantity_to_return) in add_on_returns {
+        let quantity_before: f64 =
+            sqlx::query_scalar("SELECT quantity_on_hand FROM addons WHERE id = $1 LIMIT 1")
+                .bind(add_on_id)
+                .fetch_optional(&mut *transaction)
+                .await
+                .map_err(super::map_sqlx_error)?
+                .ok_or_else(|| {
+                    format!(
+                        "Add-on {add_on_id} no longer exists. The production run was not deleted."
+                    )
+                })?;
+        let quantity_after = round_quantity(quantity_before + quantity_to_return);
+        let result = sqlx::query(
+            "UPDATE addons SET quantity_on_hand = $1, updated_at = datetime('now') \
+             WHERE id = $2 AND ABS(quantity_on_hand - $3) < 0.000001",
+        )
+        .bind(quantity_after)
+        .bind(add_on_id)
+        .bind(quantity_before)
+        .execute(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err("Add-on stock changed before the production run could be deleted.".into());
+        }
+
+        if quantity_to_return > QUANTITY_EPSILON {
+            sqlx::query(
+                "INSERT INTO addon_stock_adjustments \
+                 (addon_id, quantity_delta, quantity_after, reason, notes) \
+                 VALUES ($1, $2, $3, 'production run deletion', $4)",
+            )
+            .bind(add_on_id)
+            .bind(quantity_to_return)
+            .bind(quantity_after)
+            .bind(&note)
+            .execute(&mut *transaction)
+            .await
+            .map_err(super::map_sqlx_error)?;
+        }
+    }
+
+    if good_pieces > 0 {
+        let finished_good_id = finished_good_id.ok_or_else(|| {
+            "This run has finished-goods output but its inventory link is missing. The run was not deleted."
+                .to_string()
+        })?;
+        let stock = sqlx::query(
+            "SELECT quantity_ready, quantity_reserved FROM finished_goods WHERE id = $1 LIMIT 1",
+        )
+        .bind(finished_good_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?
+        .ok_or_else(|| {
+            "This run's finished-goods record no longer exists. The run was not deleted."
+                .to_string()
+        })?;
+        let quantity_before: i64 = stock
+            .try_get("quantity_ready")
+            .map_err(super::map_sqlx_error)?;
+        let quantity_reserved: i64 = stock
+            .try_get("quantity_reserved")
+            .map_err(super::map_sqlx_error)?;
+        let quantity_after = quantity_before.checked_sub(good_pieces).ok_or_else(|| {
+            "The finished goods from this run are no longer available, so the run cannot be safely deleted."
+                .to_string()
+        })?;
+        if quantity_after < quantity_reserved {
+            return Err(
+                "The finished goods from this run are sold, reserved, or otherwise unavailable. Release or correct that stock before deleting the run."
+                    .into(),
+            );
+        }
+
+        let result = sqlx::query(
+            "UPDATE finished_goods SET quantity_ready = $1, updated_at = datetime('now') \
+             WHERE id = $2 AND quantity_ready = $3 AND quantity_reserved <= $1",
+        )
+        .bind(quantity_after)
+        .bind(finished_good_id)
+        .bind(quantity_before)
+        .execute(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+        if result.rows_affected() != 1 {
+            return Err(
+                "Finished-goods stock changed before the production run could be deleted.".into(),
+            );
+        }
+
+        sqlx::query(
+            "INSERT INTO finished_good_stock_adjustments \
+             (finished_good_id, quantity_delta, quantity_after, reason, notes) \
+             VALUES ($1, $2, $3, 'production run deletion', $4)",
+        )
+        .bind(finished_good_id)
+        .bind(-good_pieces)
+        .bind(quantity_after)
+        .bind(&note)
+        .execute(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+    }
+
+    let deleted = sqlx::query("DELETE FROM production_runs WHERE id = $1")
+        .bind(production_run_id)
+        .execute(&mut *transaction)
+        .await
+        .map_err(super::map_sqlx_error)?;
+    if deleted.rows_affected() != 1 {
+        return Err(format!(
+            "Production run {production_run_id} no longer exists."
+        ));
+    }
+
+    transaction.commit().await.map_err(super::map_sqlx_error)
 }
 
 pub(crate) async fn correct_production_run_addons_on_connection(
@@ -449,6 +749,103 @@ mod tests {
         assert_eq!(amount, 0.0);
     }
 
+    #[tokio::test]
+    async fn deletion_reverses_current_inventory_and_removes_linked_records() {
+        let mut database = deletion_database().await;
+
+        delete_production_run_on_connection(&mut database, 10)
+            .await
+            .unwrap();
+
+        let filament: (f64, String) =
+            sqlx::query_as("SELECT estimated_grams_left,spool_status FROM filaments WHERE id=3")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let add_on_stock: f64 =
+            sqlx::query_scalar("SELECT quantity_on_hand FROM addons WHERE id=1")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let finished_goods: i64 =
+            sqlx::query_scalar("SELECT quantity_ready FROM finished_goods WHERE id=4")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let linked_records: i64 = sqlx::query_scalar(
+            "SELECT (SELECT COUNT(*) FROM production_runs) + \
+                    (SELECT COUNT(*) FROM production_run_filaments) + \
+                    (SELECT COUNT(*) FROM production_run_addons) + \
+                    (SELECT COUNT(*) FROM production_run_addon_allocations) + \
+                    (SELECT COUNT(*) FROM production_run_corrections) + \
+                    (SELECT COUNT(*) FROM expenses)",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+        let ledgers: Vec<(String, f64)> = sqlx::query_as(
+            "SELECT reason,CAST(grams_delta AS REAL) FROM filament_stock_adjustments \
+             UNION ALL SELECT reason,CAST(quantity_delta AS REAL) FROM addon_stock_adjustments \
+             UNION ALL SELECT reason,CAST(quantity_delta AS REAL) FROM finished_good_stock_adjustments",
+        )
+        .fetch_all(&mut database)
+        .await
+        .unwrap();
+
+        assert_eq!(filament, (900.0, "open".into()));
+        assert_eq!(add_on_stock, 11.0);
+        assert_eq!(finished_goods, 3);
+        assert_eq!(linked_records, 0);
+        assert_eq!(ledgers.len(), 3);
+        assert!(ledgers
+            .iter()
+            .all(|(reason, _)| reason == "production run deletion"));
+        assert!(ledgers.iter().any(|(_, delta)| *delta == 100.0));
+        assert!(ledgers.iter().any(|(_, delta)| *delta == 3.0));
+        assert!(ledgers.iter().any(|(_, delta)| *delta == -4.0));
+    }
+
+    #[tokio::test]
+    async fn unavailable_finished_goods_refuse_deletion_and_roll_back_returns() {
+        let mut database = deletion_database().await;
+        sqlx::query("UPDATE finished_goods SET quantity_ready=3 WHERE id=4")
+            .execute(&mut database)
+            .await
+            .unwrap();
+
+        let error = delete_production_run_on_connection(&mut database, 10)
+            .await
+            .unwrap_err();
+
+        assert!(error.contains("unavailable"), "{error}");
+        let filament: f64 =
+            sqlx::query_scalar("SELECT estimated_grams_left FROM filaments WHERE id=3")
+                .fetch_one(&mut database)
+                .await
+                .unwrap();
+        let add_on: f64 = sqlx::query_scalar("SELECT quantity_on_hand FROM addons WHERE id=1")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let run_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM production_runs")
+            .fetch_one(&mut database)
+            .await
+            .unwrap();
+        let ledger_count: i64 = sqlx::query_scalar(
+            "SELECT (SELECT COUNT(*) FROM filament_stock_adjustments) + \
+                    (SELECT COUNT(*) FROM addon_stock_adjustments) + \
+                    (SELECT COUNT(*) FROM finished_good_stock_adjustments)",
+        )
+        .fetch_one(&mut database)
+        .await
+        .unwrap();
+
+        assert_eq!(filament, 800.0);
+        assert_eq!(add_on, 8.0);
+        assert_eq!(run_count, 1);
+        assert_eq!(ledger_count, 0);
+    }
+
     async fn assert_unchanged(database: &mut SqliteConnection) {
         let stock: Vec<(i64, f64)> =
             sqlx::query_as("SELECT id,quantity_on_hand FROM addons ORDER BY id")
@@ -523,6 +920,42 @@ mod tests {
             "INSERT INTO production_run_addons VALUES (20,10,1,2,12,10)",
             "INSERT INTO production_run_addon_allocations (production_run_id,addon_id,quantity_deducted,sort_order) VALUES (10,1,2,0)",
             "INSERT INTO expenses VALUES (50,'Corrected Dragon','Production',4,'2026-07-17','one-time','2026-07','RUN-10',10,'2026-07-17','2026-07-17')",
+        ] {
+            sqlx::query(statement).execute(&mut database).await.unwrap();
+        }
+        database
+    }
+
+    async fn deletion_database() -> SqliteConnection {
+        let mut database = SqliteConnection::connect("sqlite::memory:").await.unwrap();
+        sqlx::query("PRAGMA foreign_keys=ON")
+            .execute(&mut database)
+            .await
+            .unwrap();
+        for statement in [
+            "CREATE TABLE products (id INTEGER PRIMARY KEY, design_name TEXT NOT NULL)",
+            "CREATE TABLE filaments (id INTEGER PRIMARY KEY, starting_grams REAL NOT NULL, estimated_grams_left REAL NOT NULL, spool_status TEXT NOT NULL, updated_at TEXT)",
+            "CREATE TABLE addons (id INTEGER PRIMARY KEY, quantity_on_hand REAL NOT NULL, updated_at TEXT)",
+            "CREATE TABLE finished_goods (id INTEGER PRIMARY KEY, quantity_ready INTEGER NOT NULL, quantity_reserved INTEGER NOT NULL, updated_at TEXT)",
+            "CREATE TABLE production_runs (id INTEGER PRIMARY KEY, product_id INTEGER NOT NULL REFERENCES products(id), filament_id INTEGER NOT NULL REFERENCES filaments(id), addon_id INTEGER REFERENCES addons(id), filament_grams_deducted REAL NOT NULL, addon_quantity_deducted REAL NOT NULL, finished_good_id INTEGER REFERENCES finished_goods(id), good_pieces INTEGER NOT NULL, run_date TEXT NOT NULL)",
+            "CREATE TABLE production_run_filaments (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL REFERENCES production_runs(id) ON DELETE CASCADE, filament_id INTEGER NOT NULL, grams_deducted REAL NOT NULL)",
+            "CREATE TABLE production_run_addons (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL REFERENCES production_runs(id) ON DELETE CASCADE, addon_id INTEGER NOT NULL, quantity_deducted REAL NOT NULL)",
+            "CREATE TABLE production_run_addon_allocations (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL REFERENCES production_runs(id) ON DELETE CASCADE, addon_id INTEGER NOT NULL, quantity_deducted REAL NOT NULL)",
+            "CREATE TABLE production_run_corrections (id INTEGER PRIMARY KEY, production_run_id INTEGER NOT NULL REFERENCES production_runs(id) ON DELETE CASCADE)",
+            "CREATE TABLE expenses (id INTEGER PRIMARY KEY, production_run_id INTEGER REFERENCES production_runs(id) ON DELETE CASCADE)",
+            "CREATE TABLE filament_stock_adjustments (id INTEGER PRIMARY KEY, filament_id INTEGER NOT NULL, grams_delta REAL NOT NULL, grams_after REAL NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE addon_stock_adjustments (id INTEGER PRIMARY KEY, addon_id INTEGER NOT NULL, quantity_delta REAL NOT NULL, quantity_after REAL NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "CREATE TABLE finished_good_stock_adjustments (id INTEGER PRIMARY KEY, finished_good_id INTEGER NOT NULL, quantity_delta INTEGER NOT NULL, quantity_after INTEGER NOT NULL, reason TEXT NOT NULL, notes TEXT)",
+            "INSERT INTO products VALUES (1,'Deletion Test Product')",
+            "INSERT INTO filaments VALUES (3,1000,800,'empty','2026-01-01')",
+            "INSERT INTO addons VALUES (1,8,'2026-01-01')",
+            "INSERT INTO finished_goods VALUES (4,7,1,'2026-01-01')",
+            "INSERT INTO production_runs VALUES (10,1,3,1,100,2,4,4,'2026-08-20')",
+            "INSERT INTO production_run_filaments VALUES (20,10,3,100)",
+            "INSERT INTO production_run_addons VALUES (30,10,1,2)",
+            "INSERT INTO production_run_addon_allocations VALUES (40,10,1,3)",
+            "INSERT INTO production_run_corrections VALUES (50,10)",
+            "INSERT INTO expenses VALUES (60,10)",
         ] {
             sqlx::query(statement).execute(&mut database).await.unwrap();
         }

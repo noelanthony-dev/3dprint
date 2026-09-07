@@ -24,6 +24,7 @@ const routeIcons: Record<RouteId, SidebarIcon> = {
   "inventory-filaments": FilamentIcon,
   "inventory-finished-goods": BoxIcon,
   production: ProductionIcon,
+  "print-planner": PlannerIcon,
   products: BoxIcon,
   reports: ReportsIcon,
   sales: SalesIcon,
@@ -182,6 +183,18 @@ function ProductionIcon(props: SVGProps<SVGSVGElement>) {
       <path d="M8 13h1" />
       <path d="M14 13h1" />
       <path d="M17 13h1" />
+    </IconSvg>
+  );
+}
+
+function PlannerIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <IconSvg {...props}>
+      <path d="M8 4h8" />
+      <path d="M9 3h6v3H9z" />
+      <path d="M6 5h12v16H6z" />
+      <path d="m9 11 1.5 1.5L14 9" />
+      <path d="M9 16h6" />
     </IconSvg>
   );
 }

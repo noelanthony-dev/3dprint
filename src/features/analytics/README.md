@@ -1,7 +1,7 @@
 # Sales Analytics
 
-On-demand sales analytics for daily net-revenue trends, product performance,
-and side-by-side business performance.
+On-demand sales analytics for weekly, 14-day, and monthly daily net-revenue
+trends, product performance, and side-by-side business performance.
 
 The page loads local sales only when opened or explicitly refreshed. Shared
 period and business filters feed pure aggregation helpers in the reports domain;

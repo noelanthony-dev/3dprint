@@ -1,6 +1,6 @@
 # Reports
 
-Monthly and lifetime reporting module for sales, expenses, production, inventory movement, and simple profit summaries. The period selector supports previous/next month navigation, a native month picker, and an all-recorded-data lifetime view. Lifetime totals count recurring expense and membership definitions once because individual historical payments are not stored as separate transactions.
+Daily, monthly, and lifetime reporting module for sales, expenses, production, inventory movement, and simple profit summaries. The period selector supports day and month navigation, native date/month pickers, Today and Current Month shortcuts, and an all-recorded-data lifetime view. Daily reports use exact local calendar dates from sales, production runs, and explicitly dated expenses. Memberships are excluded from daily totals because individual payment dates are not stored. Lifetime totals count recurring expense and membership definitions once because individual historical payments are not stored as separate transactions.
 
 The business selector uses the same sales-channel dimension as Sales Analytics. It filters revenue, orders, units, average order value, and revenue breakdowns. Expenses, memberships, production, recent activity, and profit remain all-business totals because those source records do not currently store business attribution; the page calls out that boundary whenever a single business is selected.
 

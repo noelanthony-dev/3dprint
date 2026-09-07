@@ -1,7 +1,10 @@
 import { createScaffoldModuleStatus } from "@/domain/shared";
 import {
+  PRODUCT_BUSINESSES,
   PRODUCT_CATEGORIES,
+  normalizeProductBusinesses,
   normalizeProductCategories,
+  type ProductBusiness,
   type ProductCategory,
 } from "@/domain/products";
 
@@ -19,6 +22,7 @@ export interface AppSettings {
   readonly machineLifeHours: number;
   readonly metricUnits: boolean;
   readonly printerPowerWatts: number;
+  readonly productBusinesses: readonly ProductBusiness[];
   readonly productCategories: readonly ProductCategory[];
   readonly wearRatePerHour: number;
 }
@@ -40,6 +44,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   machineLifeHours: 5_000,
   metricUnits: true,
   printerPowerWatts: 120,
+  productBusinesses: PRODUCT_BUSINESSES,
   productCategories: PRODUCT_CATEGORIES,
   wearRatePerHour: 8.5,
 };
@@ -85,6 +90,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
       value.printerPowerWatts,
       DEFAULT_APP_SETTINGS.printerPowerWatts,
     ),
+    productBusinesses: normalizeProductBusinesses(value.productBusinesses),
     productCategories: normalizeProductCategories(value.productCategories),
     wearRatePerHour: normalizeNumber(value.wearRatePerHour, DEFAULT_APP_SETTINGS.wearRatePerHour),
   };
@@ -92,6 +98,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
 
 export function validateAppSettings(settings: AppSettings): SettingsValidationResult {
   const errors: Partial<Record<keyof AppSettings, string>> = {};
+  const normalizedProductBusinesses = normalizeProductBusinesses(settings.productBusinesses);
   const normalizedProductCategories = normalizeProductCategories(settings.productCategories);
 
   if (!isCurrencyOption(settings.currencySymbol)) {
@@ -112,6 +119,15 @@ export function validateAppSettings(settings: AppSettings): SettingsValidationRe
 
   if (settings.printerPowerWatts < 0) {
     errors.printerPowerWatts = "Printer watts cannot be negative.";
+  }
+
+  if (
+    normalizedProductBusinesses.length !== settings.productBusinesses.length ||
+    normalizedProductBusinesses.some(
+      (business, index) => business !== settings.productBusinesses[index],
+    )
+  ) {
+    errors.productBusinesses = "Product businesses must be unique, named, and 60 characters or fewer.";
   }
 
   if (

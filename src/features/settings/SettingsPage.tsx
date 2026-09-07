@@ -78,6 +78,7 @@ export function SettingsPage() {
       const resetSettings = localSettingsRepository.save({
         ...DEFAULT_APP_SETTINGS,
         darkMode: currentDarkMode,
+        productBusinesses: settings.productBusinesses,
         productCategories: settings.productCategories,
       });
 

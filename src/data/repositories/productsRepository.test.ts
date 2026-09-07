@@ -260,6 +260,23 @@ describe("products repository", () => {
     ]);
   });
 
+  it("updates only business assignments through the narrow planner method", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      businesses: JSON.stringify(["Dear Reader", "Angkong Dimsum"]),
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const updated = await repository.updateBusinesses(1, ["Dear Reader", "Angkong Dimsum"]);
+    const statement = fakeDb.executed.find(({ query }) => query.includes("SET businesses = $1"));
+
+    expect(statement?.query).not.toContain("design_name =");
+    expect(statement?.values).toEqual([
+      JSON.stringify(["Dear Reader", "Angkong Dimsum"]),
+      1,
+    ]);
+    expect(updated.businesses).toEqual(["Dear Reader", "Angkong Dimsum"]);
+  });
+
   it("loads older product filament JSON without alternatives", async () => {
     const fakeDb = new FakeDatabase();
     const repository = createProductsRepository(async () => fakeDb);
@@ -288,6 +305,17 @@ describe("products repository", () => {
     const products = await repository.list();
 
     expect(products[0]?.estimatedPrintHours).toBeNull();
+  });
+
+  it("loads configurable business names that are not in the original defaults", async () => {
+    const fakeDb = new FakeDatabase(undefined, {
+      businesses: JSON.stringify(["Weekend Market", " Online Shop "]),
+    });
+    const repository = createProductsRepository(async () => fakeDb);
+
+    const products = await repository.list();
+
+    expect(products[0]?.businesses).toEqual(["Weekend Market", "Online Shop"]);
   });
 
   it("loads malformed filament JSON as no product color specs", async () => {

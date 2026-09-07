@@ -18,16 +18,25 @@ import {
 import type { ExpenseRecord, MembershipRecord } from "@/domain/expenses";
 import type { ProductionRunRecord } from "@/domain/production";
 import {
+  buildDailyReport,
   buildLifetimeReport,
   buildMonthlyReport,
   filterReportSalesByBusiness,
-  getNextMonth,
-  getPreviousMonth,
   type MonthlyReport,
   type ReportBusiness,
   type ReportBreakdownItem,
 } from "@/domain/reports";
 import { SALES_CHANNELS, type SaleRecord } from "@/domain/sales";
+import {
+  formatDateLabel,
+  formatMonthLabel,
+  getLocalDateToken,
+  getLocalMonthToken,
+  getNextDate,
+  getNextMonth,
+  getPreviousDate,
+  getPreviousMonth,
+} from "@/domain/shared";
 import { exportAiAnalysisPack } from "@/infrastructure/analysis";
 
 interface AnalysisExportStatus {
@@ -35,16 +44,19 @@ interface AnalysisExportStatus {
   readonly tone: "neutral" | "success" | "warning";
 }
 
+type ReportPeriodMode = "lifetime" | "monthly" | "daily";
+
 export function MonthlyReportsPage() {
   const [analysisExportStatus, setAnalysisExportStatus] = useState<AnalysisExportStatus | null>(null);
   const [business, setBusiness] = useState<ReportBusiness>("all");
+  const [date, setDate] = useState(getLocalDateToken());
   const [error, setError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [memberships, setMemberships] = useState<MembershipRecord[]>([]);
-  const [month, setMonth] = useState(currentMonthInputValue());
-  const [periodMode, setPeriodMode] = useState<"lifetime" | "monthly">("monthly");
+  const [month, setMonth] = useState(getLocalMonthToken());
+  const [periodMode, setPeriodMode] = useState<ReportPeriodMode>("monthly");
   const [productionRuns, setProductionRuns] = useState<ProductionRunRecord[]>([]);
   const [sales, setSales] = useState<SaleRecord[]>([]);
 
@@ -113,23 +125,28 @@ export function MonthlyReportsPage() {
         sales,
       };
 
-      return periodMode === "lifetime"
-        ? buildLifetimeReport(source)
-        : buildMonthlyReport({ ...source, month });
+      if (periodMode === "lifetime") {
+        return buildLifetimeReport(source);
+      }
+
+      return periodMode === "monthly"
+        ? buildMonthlyReport({ ...source, month })
+        : buildDailyReport({ ...source, date });
     },
-    [expenses, memberships, month, periodMode, productionRuns, sales],
+    [date, expenses, memberships, month, periodMode, productionRuns, sales],
   );
   const previousOverallReport = useMemo(
-    () => periodMode === "lifetime"
-      ? null
-      : buildMonthlyReport({
-        expenses,
-        memberships,
-        month: getPreviousMonth(month),
-        productionRuns,
-        sales,
-      }),
-    [expenses, memberships, month, periodMode, productionRuns, sales],
+    () => {
+      if (periodMode === "lifetime") {
+        return null;
+      }
+
+      const source = { expenses, memberships, productionRuns, sales };
+      return periodMode === "monthly"
+        ? buildMonthlyReport({ ...source, month: getPreviousMonth(month) })
+        : buildDailyReport({ ...source, date: getPreviousDate(date) });
+    },
+    [date, expenses, memberships, month, periodMode, productionRuns, sales],
   );
   const salesReport = useMemo(
     () => {
@@ -140,27 +157,40 @@ export function MonthlyReportsPage() {
         sales: businessSales,
       };
 
-      return periodMode === "lifetime"
-        ? buildLifetimeReport(source)
-        : buildMonthlyReport({ ...source, month });
+      if (periodMode === "lifetime") {
+        return buildLifetimeReport(source);
+      }
+
+      return periodMode === "monthly"
+        ? buildMonthlyReport({ ...source, month })
+        : buildDailyReport({ ...source, date });
     },
-    [businessSales, month, periodMode],
+    [businessSales, date, month, periodMode],
   );
   const previousSalesReport = useMemo(
-    () => periodMode === "lifetime"
-      ? null
-      : buildMonthlyReport({
+    () => {
+      if (periodMode === "lifetime") {
+        return null;
+      }
+
+      const source = {
         expenses: [],
         memberships: [],
-        month: getPreviousMonth(month),
         productionRuns: [],
         sales: businessSales,
-      }),
-    [businessSales, month, periodMode],
+      };
+      return periodMode === "monthly"
+        ? buildMonthlyReport({ ...source, month: getPreviousMonth(month) })
+        : buildDailyReport({ ...source, date: getPreviousDate(date) });
+    },
+    [businessSales, date, month, periodMode],
   );
   const periodPhrase = periodMode === "lifetime"
     ? "in the lifetime report"
-    : "for this month";
+    : periodMode === "monthly"
+      ? `in ${formatMonthLabel(month)}`
+      : `on ${formatDateLabel(date)}`;
+  const priorPeriodLabel = periodMode === "daily" ? "prior day" : "prior month";
 
   return (
     <Page
@@ -183,7 +213,7 @@ export function MonthlyReportsPage() {
           </ToolbarButton>
         </>
       }
-      description="Review lifetime or monthly sales, expenses, production, inventory movement, and simple profit from local records."
+      description="Review lifetime, monthly, or daily sales, expenses, production, inventory movement, and simple profit from local records."
       meta={["On-demand calculation", "SQLite source data", "Local JSON export"]}
       title="Reports"
     >
@@ -234,10 +264,11 @@ export function MonthlyReportsPage() {
           <span>Report range</span>
           <SegmentedFilter
             label="Report range"
-            onChange={(value) => setPeriodMode(value as "lifetime" | "monthly")}
+            onChange={(value) => setPeriodMode(value as ReportPeriodMode)}
             options={[
               { active: periodMode === "lifetime", label: "Lifetime", value: "lifetime" },
               { active: periodMode === "monthly", label: "Monthly", value: "monthly" },
+              { active: periodMode === "daily", label: "Daily", value: "daily" },
             ]}
           />
         </div>
@@ -252,7 +283,7 @@ export function MonthlyReportsPage() {
               <input
                 aria-label="Report month"
                 className="table-input"
-                onChange={(event) => setMonth(event.target.value || currentMonthInputValue())}
+                onChange={(event) => setMonth(event.target.value || getLocalMonthToken())}
                 type="month"
                 value={month}
               />
@@ -261,11 +292,38 @@ export function MonthlyReportsPage() {
               Next →
             </ToolbarButton>
             <ToolbarButton
-              disabled={month === currentMonthInputValue()}
-              onClick={() => setMonth(currentMonthInputValue())}
+              disabled={month === getLocalMonthToken()}
+              onClick={() => setMonth(getLocalMonthToken())}
               tone="ghost"
             >
               Current Month
+            </ToolbarButton>
+          </div>
+        ) : periodMode === "daily" ? (
+          <div className="report-date-controls">
+            <ToolbarButton onClick={() => setDate(getPreviousDate(date))}>
+              ← Previous Day
+            </ToolbarButton>
+            <label className="report-date-input">
+              <span>Selected date</span>
+              <strong>{formatDateLabel(date)}</strong>
+              <input
+                aria-label="Report date"
+                className="table-input"
+                onChange={(event) => setDate(event.target.value || getLocalDateToken())}
+                type="date"
+                value={date}
+              />
+            </label>
+            <ToolbarButton onClick={() => setDate(getNextDate(date))}>
+              Next Day →
+            </ToolbarButton>
+            <ToolbarButton
+              disabled={date === getLocalDateToken()}
+              onClick={() => setDate(getLocalDateToken())}
+              tone="ghost"
+            >
+              Today
             </ToolbarButton>
           </div>
         ) : (
@@ -279,7 +337,11 @@ export function MonthlyReportsPage() {
       <div className="metric-grid">
         <MetricPanel
           detail={previousSalesReport
-            ? formatDelta(salesReport.salesSummary.netRevenue, previousSalesReport.salesSummary.netRevenue)
+            ? formatDelta(
+              salesReport.salesSummary.netRevenue,
+              previousSalesReport.salesSummary.netRevenue,
+              priorPeriodLabel,
+            )
             : "all recorded sales"}
           label="Net Revenue"
           tone="success"
@@ -287,7 +349,9 @@ export function MonthlyReportsPage() {
         />
         <MetricPanel
           detail={business === "all"
-            ? `${formatCurrency(overallReport.expenseSummary.recurringMonthlyTotal)} recurring`
+            ? periodMode === "daily"
+              ? "explicitly dated costs"
+              : `${formatCurrency(overallReport.expenseSummary.recurringMonthlyTotal)} recurring`
             : "all-business shared costs"}
           label={business === "all" ? "Expenses" : "Shared Expenses"}
           tone={overallReport.expenseSummary.totalExpenses > 0 ? "warning" : "default"}
@@ -298,6 +362,7 @@ export function MonthlyReportsPage() {
             ? formatDelta(
               overallReport.profitSummary.simpleProfit,
               previousOverallReport.profitSummary.simpleProfit,
+              priorPeriodLabel,
             )
             : business === "all" ? "all recorded data" : "all businesses"}
           label={business === "all" ? "Simple Profit" : "Overall Simple Profit"}
@@ -458,27 +523,6 @@ function ReportMovementGrid({ report }: { readonly report: MonthlyReport }) {
   );
 }
 
-function currentMonthInputValue(): string {
-  const date = new Date();
-
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function formatMonthLabel(month: string): string {
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return month;
-  }
-
-  const year = Number(month.slice(0, 4));
-  const monthNumber = Number(month.slice(5, 7));
-
-  return new Intl.DateTimeFormat("en-PH", {
-    month: "long",
-    timeZone: "UTC",
-    year: "numeric",
-  }).format(new Date(Date.UTC(year, monthNumber - 1, 1)));
-}
-
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("en-PH", {
     currency: "PHP",
@@ -487,14 +531,14 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
-function formatDelta(current: number, previous: number): string {
+function formatDelta(current: number, previous: number, priorPeriodLabel: string): string {
   const delta = current - previous;
 
   if (previous === 0 && current === 0) {
-    return "flat vs prior month";
+    return `flat vs ${priorPeriodLabel}`;
   }
 
-  return `${delta >= 0 ? "+" : ""}${formatCurrency(delta)} vs prior`;
+  return `${delta >= 0 ? "+" : ""}${formatCurrency(delta)} vs ${priorPeriodLabel}`;
 }
 
 function formatPercent(value: number): string {

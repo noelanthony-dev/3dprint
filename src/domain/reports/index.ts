@@ -1,7 +1,12 @@
 import { occursInMonth, type ExpenseRecord, type MembershipRecord } from "@/domain/expenses";
 import type { ProductionRunRecord } from "@/domain/production";
 import type { SaleRecord, SalesChannel } from "@/domain/sales";
-import { createScaffoldModuleStatus } from "@/domain/shared";
+import {
+  createScaffoldModuleStatus,
+  isIsoDate,
+} from "@/domain/shared";
+
+export { getNextMonth, getPreviousMonth } from "@/domain/shared";
 
 export * from "./analytics";
 
@@ -11,6 +16,10 @@ export interface MonthlyReportInput {
   readonly month: string;
   readonly productionRuns: readonly ProductionRunRecord[];
   readonly sales: readonly SaleRecord[];
+}
+
+export interface DailyReportInput extends Omit<MonthlyReportInput, "month"> {
+  readonly date: string;
 }
 
 export type LifetimeReportInput = Omit<MonthlyReportInput, "month">;
@@ -103,6 +112,18 @@ export function buildMonthlyReport(input: MonthlyReportInput): MonthlyReport {
     month: input.month,
     productionRuns,
     sales,
+  });
+}
+
+export function buildDailyReport(input: DailyReportInput): MonthlyReport {
+  const date = isIsoDate(input.date) ? input.date : "";
+
+  return buildReportFromRecords({
+    expenses: input.expenses.filter((expense) => expense.expenseDate === date),
+    memberships: [],
+    month: input.date,
+    productionRuns: input.productionRuns.filter((run) => run.runDate === date),
+    sales: input.sales.filter((sale) => sale.saleDate === date),
   });
 }
 
@@ -307,38 +328,6 @@ export function buildRecentTransactions(
   ]
     .sort((first, second) => second.date.localeCompare(first.date))
     .slice(0, 8);
-}
-
-export function getPreviousMonth(month: string): string {
-  const [yearText, monthText] = month.split("-");
-  const year = Number(yearText);
-  const monthIndex = Number(monthText);
-
-  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
-    return month;
-  }
-
-  if (monthIndex === 1) {
-    return `${year - 1}-12`;
-  }
-
-  return `${year}-${String(monthIndex - 1).padStart(2, "0")}`;
-}
-
-export function getNextMonth(month: string): string {
-  const [yearText, monthText] = month.split("-");
-  const year = Number(yearText);
-  const monthIndex = Number(monthText);
-
-  if (!Number.isInteger(year) || !Number.isInteger(monthIndex)) {
-    return month;
-  }
-
-  if (monthIndex === 12) {
-    return `${year + 1}-01`;
-  }
-
-  return `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
 }
 
 export function isDateInMonth(date: string, month: string): boolean {

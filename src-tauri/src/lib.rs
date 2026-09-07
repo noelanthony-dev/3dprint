@@ -95,7 +95,7 @@ async fn record_sale_with_stock_movement(
         || !database::is_sale_unit(&input.sale_unit)
         || !matches!(
             input.channel.as_str(),
-            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Stomping"
+            "Direct" | "Sincerely" | "Dear Reader" | "Flora" | "Angkong" | "Stomping"
         )
         || !input.gross_revenue.is_finite()
         || !input.discounts_fees.is_finite()
@@ -708,10 +708,12 @@ pub fn run() {
             database::workflows::delete_shopping_item,
             database::workflows::save_hueforge_analysis,
             database::workflows::save_print_profile,
+            database::print_plans::save_print_plan,
             database::workflows::save_shopping_item,
             database::workflows::update_sale_details,
             database::workflows::upsert_filament_profiles,
             database::production_corrections::correct_production_run_addons,
+            database::production_corrections::delete_production_run,
             record_sale_with_stock_movement,
             record_production_run
         ])

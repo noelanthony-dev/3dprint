@@ -1,7 +1,7 @@
 import { getDatabase, type SqlDatabase } from "@/data/db/client";
 import { deleteProductNative } from "@/data/db/nativeWorkflows";
 import {
-  PRODUCT_BUSINESSES,
+  normalizeProductBusinessSelection,
   validateProductInput,
   isFilamentMaterial,
   type CommercialLicenseStatus,
@@ -19,6 +19,7 @@ export interface ProductsRepository {
   get(id: number): Promise<ProductRecord | null>;
   list(): Promise<ProductRecord[]>;
   update(id: number, input: ProductInput): Promise<ProductRecord>;
+  updateBusinesses(id: number, businesses: readonly ProductBusiness[]): Promise<ProductRecord>;
 }
 
 interface ProductRow {
@@ -185,6 +186,34 @@ export function createProductsRepository(
 
       return updated;
     },
+
+    async updateBusinesses(id, businesses) {
+      const normalizedBusinesses = normalizeProductBusinessSelection(businesses);
+
+      if (normalizedBusinesses.length !== businesses.length) {
+        throw new Error("Businesses must be unique, named, and 60 characters or fewer.");
+      }
+
+      const db = await database();
+      const result = await db.execute(
+        `UPDATE products
+         SET businesses = $1, updated_at = datetime('now')
+         WHERE id = $2`,
+        [JSON.stringify(normalizedBusinesses), id],
+      );
+
+      if (result.rowsAffected === 0) {
+        throw new Error(`Product ${id} does not exist.`);
+      }
+
+      const updated = await this.get(id);
+
+      if (!updated) {
+        throw new Error("Updated product could not be loaded.");
+      }
+
+      return updated;
+    },
   };
 }
 
@@ -214,7 +243,7 @@ function toPersistedValues(input: ProductInput): readonly unknown[] {
     input.filamentMode,
     JSON.stringify(input.hueForgeFilaments.map(toPersistedHueForgeFilament)),
     input.canPrintWithInventory ? 1 : 0,
-    JSON.stringify(input.businesses),
+    JSON.stringify(normalizeProductBusinessSelection(input.businesses)),
     input.notes.trim(),
     input.imageReference.trim(),
   ];
@@ -248,9 +277,7 @@ function parseBusinesses(value: string | null): readonly ProductBusiness[] {
   try {
     const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((business): business is ProductBusiness =>
-      typeof business === "string" && PRODUCT_BUSINESSES.includes(business as ProductBusiness),
-    );
+    return normalizeProductBusinessSelection(parsed);
   } catch {
     return [];
   }

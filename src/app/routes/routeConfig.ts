@@ -11,6 +11,7 @@ export type RouteId =
   | "inventory-finished-goods"
   | "costing"
   | "production"
+  | "print-planner"
   | "sales"
   | "analytics"
   | "expenses"
@@ -30,6 +31,7 @@ export type RoutePath =
   | "/inventory/finished-goods"
   | "/costing"
   | "/production"
+  | "/print-planner"
   | "/sales"
   | "/analytics"
   | "/expenses"
@@ -96,6 +98,11 @@ const ProductionRunsPage = lazy(async () => {
   return { default: module.ProductionRunsPage };
 });
 
+const PrintPlannerPage = lazy(async () => {
+  const module = await import("@/features/printPlanner");
+  return { default: module.PrintPlannerPage };
+});
+
 const SalesPage = lazy(async () => {
   const module = await import("@/features/sales");
   return { default: module.SalesPage };
@@ -147,7 +154,7 @@ export const appRoutes = [
     Page: ProductLibraryPage,
   },
   {
-    description: "Configurable product and design category names.",
+    description: "Configurable product categories and business assignments.",
     id: "categories",
     label: "Categories",
     path: "/categories",
@@ -201,6 +208,13 @@ export const appRoutes = [
     label: "Production",
     path: "/production",
     Page: ProductionRunsPage,
+  },
+  {
+    description: "Branch stock counts and sales-based print recommendations.",
+    id: "print-planner",
+    label: "Print Planner",
+    path: "/print-planner",
+    Page: PrintPlannerPage,
   },
   {
     description: "Sales entry with finished-goods stock movement.",

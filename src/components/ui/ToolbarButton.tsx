@@ -5,6 +5,7 @@ import { LoadingSpinner } from "./LoadingSpinner";
 type ToolbarButtonTone = "danger" | "primary" | "secondary" | "ghost";
 
 interface ToolbarButtonProps {
+  readonly ariaExpanded?: boolean;
   readonly children: ReactNode;
   readonly disabled?: boolean;
   readonly form?: string;
@@ -16,6 +17,7 @@ interface ToolbarButtonProps {
 }
 
 export function ToolbarButton({
+  ariaExpanded,
   children,
   disabled = false,
   form,
@@ -27,6 +29,7 @@ export function ToolbarButton({
 }: ToolbarButtonProps) {
   return (
     <button
+      aria-expanded={ariaExpanded}
       className="toolbar-button"
       data-tone={tone}
       disabled={disabled || isLoading}

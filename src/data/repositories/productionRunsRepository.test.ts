@@ -154,4 +154,31 @@ describe("production runs repository", () => {
       reason: "Forgot the clasp",
     }]);
   });
+
+  it("delegates production deletion to the atomic native workflow", async () => {
+    const fakeDb = new FakeDatabase();
+    const deleted: number[] = [];
+    const repository = createProductionRunsRepository(
+      async () => fakeDb,
+      async ({ productionRunId }) => {
+        deleted.push(productionRunId);
+      },
+    );
+
+    await repository.delete(12);
+
+    expect(deleted).toEqual([12]);
+    expect(fakeDb.executed).toEqual([]);
+  });
+
+  it("rejects invalid production ids before invoking native deletion", async () => {
+    const repository = createProductionRunsRepository(
+      async () => new FakeDatabase(),
+      async () => {
+        throw new Error("should not be called");
+      },
+    );
+
+    await expect(repository.delete(0)).rejects.toThrow("valid production run");
+  });
 });

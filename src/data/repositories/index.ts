@@ -6,6 +6,7 @@ export * from "./filamentsRepository";
 export * from "./finishedGoodsRepository";
 export * from "./hueForgeRepository";
 export * from "./printProfilesRepository";
+export * from "./printPlansRepository";
 export * from "./productionRunsRepository";
 export * from "./productsRepository";
 export * from "./salesRepository";

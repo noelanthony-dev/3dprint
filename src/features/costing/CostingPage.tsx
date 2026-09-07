@@ -16,6 +16,7 @@ import {
   Panel,
   ProductDesignCombobox,
   ProgressBar,
+  SearchField,
   ToolbarButton,
 } from "@/components/ui";
 import { addOnsRepository, printProfilesRepository, productsRepository } from "@/data/repositories";
@@ -89,6 +90,7 @@ export function CostingPage() {
   const [addOns, setAddOns] = useState<AddOnRecord[]>([]);
   const [products, setProducts] = useState<ProductRecord[]>([]);
   const [profiles, setProfiles] = useState<PrintProfileRecord[]>([]);
+  const [savedProfileSearch, setSavedProfileSearch] = useState("");
   const [savedProfileSort, setSavedProfileSort] = useState<SavedProfileSortState>(null);
   const [settings, setSettings] = useState<AppSettings>(() => localSettingsRepository.load());
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
@@ -155,9 +157,14 @@ export function CostingPage() {
       ),
     [products],
   );
-  const sortedProfiles = useMemo(
-    () => sortSavedProfiles(profiles, savedProfileSort),
-    [profiles, savedProfileSort],
+  const visibleProfiles = useMemo(
+    () =>
+      sortSavedProfiles(
+        filterSavedProfiles(profiles, profileProductNames, savedProfileSearch),
+        savedProfileSort,
+        profileProductNames,
+      ),
+    [profileProductNames, profiles, savedProfileSearch, savedProfileSort],
   );
   const selectedAddOnIds = new Set(form.addOns.map((addOn) => addOn.addOnId).filter(Boolean));
 
@@ -545,6 +552,14 @@ export function CostingPage() {
       </div>
 
       <Panel title="Saved Profiles">
+        <div className="saved-profiles-toolbar">
+          <SearchField
+            label="Profile search"
+            onChange={setSavedProfileSearch}
+            placeholder="Search product or profile name..."
+            value={savedProfileSearch}
+          />
+        </div>
         <DataTable
           columns={[
             "Product",
@@ -580,9 +595,14 @@ export function CostingPage() {
           ]}
           columnsTemplate="minmax(240px, 1.4fr) minmax(90px, 0.48fr) minmax(90px, 0.5fr) minmax(110px, 0.65fr) minmax(120px, 0.65fr) minmax(160px, 0.85fr)"
           density="dense"
-          footer={`${profiles.length} print profiles. Profiles estimate only; inventory is not deducted.`}
+          emptyMessage={
+            savedProfileSearch.trim()
+              ? "No saved profiles match your search."
+              : "No saved profiles to display."
+          }
+          footer={`${visibleProfiles.length} visible of ${profiles.length} print profiles. Profiles estimate only; inventory is not deducted.`}
           minimumWidth="900px"
-          rows={sortedProfiles.map((profile) => {
+          rows={visibleProfiles.map((profile) => {
             const profileCost = calculatePrintCost(profile);
             const profilePricing = calculatePricing({
               costPerUnit: profileCost.costPerGoodUnit,
@@ -681,26 +701,73 @@ export function nextSavedProfileSort(
 export function sortSavedProfiles(
   profiles: readonly PrintProfileRecord[],
   sort: SavedProfileSortState,
+  productNames: ReadonlyMap<number, string> = new Map(),
 ): readonly PrintProfileRecord[] {
-  if (sort == null) {
-    return profiles;
-  }
-
   return profiles
     .map((profile, originalIndex) => ({
       originalIndex,
       profile,
-      value: getSavedProfileSortValue(profile, sort.column),
+      value: sort == null ? 0 : getSavedProfileSortValue(profile, sort.column),
     }))
     .sort((left, right) => {
+      const alphabeticalDifference = compareSavedProfileNames(
+        left.profile,
+        right.profile,
+        productNames,
+      );
+
+      if (sort == null) {
+        return alphabeticalDifference || left.originalIndex - right.originalIndex;
+      }
+
       const difference =
         sort.direction === "descending"
           ? right.value - left.value
           : left.value - right.value;
 
-      return difference || left.originalIndex - right.originalIndex;
+      return difference || alphabeticalDifference || left.originalIndex - right.originalIndex;
     })
     .map(({ profile }) => profile);
+}
+
+export function filterSavedProfiles(
+  profiles: readonly PrintProfileRecord[],
+  productNames: ReadonlyMap<number, string>,
+  search: string,
+): readonly PrintProfileRecord[] {
+  const query = search.trim().toLocaleLowerCase();
+
+  if (!query) {
+    return profiles;
+  }
+
+  return profiles.filter((profile) => {
+    const productName = getSavedProfileProductName(profile, productNames);
+
+    return (
+      productName.toLocaleLowerCase().includes(query) ||
+      profile.profileName.toLocaleLowerCase().includes(query)
+    );
+  });
+}
+
+function compareSavedProfileNames(
+  left: PrintProfileRecord,
+  right: PrintProfileRecord,
+  productNames: ReadonlyMap<number, string>,
+): number {
+  return getSavedProfileProductName(left, productNames).localeCompare(
+    getSavedProfileProductName(right, productNames),
+    undefined,
+    { numeric: true, sensitivity: "base" },
+  );
+}
+
+function getSavedProfileProductName(
+  profile: PrintProfileRecord,
+  productNames: ReadonlyMap<number, string>,
+): string {
+  return productNames.get(profile.productId) ?? `Product ${profile.productId}`;
 }
 
 function getSavedProfileSortValue(
